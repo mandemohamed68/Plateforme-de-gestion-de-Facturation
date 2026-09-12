@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # APPLICATION FACTURATION & LABORATOIRE CLINIQUE (Node.js + Express + Vite)
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: facturation_labo_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_TYPE=mariadb # Options: mariadb | postgres | json
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=SecretPassword2026!
+      - DB_NAME=facturation_labo_db
+    depends_on:
+      - mariadb
+    volumes:
+      - app_data:/app/data
+
+  # ----------------------------------------------------------------------------
+  # BASE DE DONNÉES MARIADB (MOTEUR RELATIONNEL RECOMMANDÉ)
+  # ----------------------------------------------------------------------------
+  mariadb:
+    image: mariadb:10.11
+    container_name: facturation_labo_mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: SecretPassword2026!
+      MYSQL_DATABASE: facturation_labo_db
+      MYSQL_USER: facturation_user
+      MYSQL_PASSWORD: UserPassword2026!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./database/init_mariadb.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # ----------------------------------------------------------------------------
+  # BASE DE DONNÉES POSTGRESQL (ALTERNATIVE HAUTE PERFORMANCE)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: facturation_labo_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: facturation_labo_db
+      POSTGRES_USER: facturation_user
+      POSTGRES_PASSWORD: SecretPassword2026!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init_postgresql.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # ----------------------------------------------------------------------------
+  # INTERFACE D'ADMINISTRATION PHPMYADMIN (OPTIONNEL POUR MARIADB)
+  # ----------------------------------------------------------------------------
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: facturation_labo_phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mariadb
+      MYSQL_ROOT_PASSWORD: SecretPassword2026!
+    depends_on:
+      - mariadb
+
+volumes:
+  app_data:
+  mariadb_data:
+  postgres_data:

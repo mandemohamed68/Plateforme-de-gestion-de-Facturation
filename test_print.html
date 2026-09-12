@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <button onclick="testPrint()">Print</button>
+  <script>
+    function testPrint() {
+      let printed = false;
+      const onBeforePrint = () => { printed = true; };
+      window.addEventListener('beforeprint', onBeforePrint, { once: true });
+      try {
+        window.print();
+      } catch(e) {}
+      
+      setTimeout(() => {
+        if (!printed) {
+          console.log('PRINT BLOCKED');
+        }
+      }, 500);
+    }
+  </script>
+</body>
+</html>

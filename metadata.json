@@ -1,0 +1,6 @@
+{
+  "name": "Facturation Pro - Gestion Commerciale & Laboratoire Médical",
+  "description": "Plateforme complète de facturation, suivi des règlements, gestion des clients et patients, catalogue des examens et profils de laboratoire, matrice exhaustive des droits et habilitations, et personnalisation de marque.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
