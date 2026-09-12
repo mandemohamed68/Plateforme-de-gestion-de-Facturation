@@ -519,9 +519,41 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   const handleSelectNdm = (ndmValue: string) => {
-    setNdm(ndmValue);
-    const found = partners.find((p) => p.ndm && p.ndm.toLowerCase() === ndmValue.trim().toLowerCase());
+    let cleanVal = ndmValue.trim();
+    
+    // Support parsing structured QR scans directly inside the NDM text field
+    if (cleanVal.toLowerCase().includes('dossier:')) {
+      const match = cleanVal.match(/dossier:\s*([^|\n]+)/i);
+      if (match) {
+        cleanVal = match[1].trim();
+      }
+    }
+    
+    setNdm(cleanVal);
+    
+    const targetLower = cleanVal.toLowerCase();
+    const targetNumeric = targetLower.replace(/[^0-9]/g, '');
+
+    const found = partners.find((p) => {
+      if (!p.ndm) return false;
+      const pNdmLower = p.ndm.toLowerCase();
+      const pNdmNumeric = pNdmLower.replace(/[^0-9]/g, '');
+      
+      return (
+        pNdmLower === targetLower ||
+        pNdmLower.includes(targetLower) ||
+        targetLower.includes(pNdmLower) ||
+        (pNdmNumeric && targetNumeric && pNdmNumeric === targetNumeric) ||
+        (pNdmNumeric && targetNumeric && pNdmNumeric.includes(targetNumeric))
+      );
+    });
+
     if (found) {
+      // If we matched the patient through a smarter NDM string (e.g. stripping prefix),
+      // update the input value to the patient's canonical NDM for consistency.
+      if (found.ndm && found.ndm !== cleanVal) {
+        setNdm(found.ndm);
+      }
       setPartnerId(found.id);
       setPartnerNameInput(found.name);
       if (found.phone) setPatientPhone(found.phone);

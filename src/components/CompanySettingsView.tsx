@@ -157,7 +157,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
     ndm_next_number: company.ndm_next_number !== undefined ? company.ndm_next_number : 270408,
   });
 
-  const [activeTab, setActiveTab] = useState<'branding' | 'contact' | 'payments' | 'flash_news' | 'fiscal' | 'lab'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'contact' | 'payments' | 'flash_news' | 'fiscal' | 'lab' | 'system'>('branding');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
@@ -387,6 +387,20 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
         >
           <Microscope className="w-3.5 h-3.5" />
           <span>5. Plateau &amp; N° Dossier (NDM)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('system')}
+          style={activeTab === 'system' ? { backgroundColor: theme.primary, color: '#ffffff' } : undefined}
+          className={`flex items-center space-x-2 px-3.5 py-2 text-xs font-bold rounded-md transition ${
+            activeTab === 'system'
+              ? 'shadow-xs'
+              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Server className="w-3.5 h-3.5" />
+          <span>6. Mode Sandbox / Production</span>
         </button>
       </div>
 
@@ -1359,6 +1373,92 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                   <div className="bg-slate-900 text-emerald-400 font-mono text-sm font-bold px-4 py-2 rounded-md border border-slate-800 shadow-inner">
                     {(formData.ndm_prefix || '') + String(formData.ndm_next_number || 1).padStart(formData.ndm_digits || 8, '0')}
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: Mode Sandbox vs Production */}
+          {activeTab === 'system' && (
+            <div className="bg-white rounded-md p-5 border border-slate-200 shadow-xs space-y-6">
+              <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
+                <Server className="w-4 h-4 text-slate-900" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Environnement et Mode de Fonctionnement du Système
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Basculez entre le mode Sandbox (entraînement, démos, simulation) et le mode Production (vrai flux clinique, facturation légale, et synchronisation active).
+                </p>
+
+                {/* State Indicator */}
+                <div className={`p-4 rounded-xl border flex items-start space-x-3.5 transition ${
+                  formData.is_sandbox
+                    ? 'bg-amber-50/50 border-amber-200 text-amber-900'
+                    : 'bg-emerald-50/50 border-emerald-200 text-emerald-900'
+                }`}>
+                  <div className={`p-2 rounded-lg shrink-0 ${
+                    formData.is_sandbox ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {formData.is_sandbox ? <AlertTriangle className="w-5 h-5 animate-pulse" /> : <ShieldCheck className="w-5 h-5" />}
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <div className="text-xs font-black uppercase tracking-wider">
+                      Mode Actuellement Sélectionné : {formData.is_sandbox ? 'Mode Sandbox (Simulé)' : 'Mode Production (Live)'}
+                    </div>
+                    <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                      {formData.is_sandbox
+                        ? "L'application fonctionne en mode hors-ligne simulé. Les actions n'impactent pas vos registres comptables réels et l'impression simule un environnement de démonstration."
+                        : "L'ensemble du système ERP et LIMS est en production active. Les factures générées possèdent un statut officiel légal, les caisses de vacation sont enregistrées de façon immuable, et l'impression lance les dialogues réels du système d'exploitation."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main Toggle Controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleChange('is_sandbox', true)}
+                    className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-32 transition ${
+                      formData.is_sandbox
+                        ? 'border-slate-900 bg-slate-50 ring-2 ring-slate-900'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="p-1.5 bg-amber-100 text-amber-800 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        Sandbox
+                      </span>
+                      {formData.is_sandbox && <Check className="w-4 h-4 text-slate-900" />}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-xs">Simuler l'Environnement</h4>
+                      <p className="text-[10px] text-slate-400 mt-1">Données et impressions de démonstration.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleChange('is_sandbox', false)}
+                    className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-32 transition ${
+                      !formData.is_sandbox
+                        ? 'border-slate-900 bg-slate-50 ring-2 ring-slate-900'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                        Production Live
+                      </span>
+                      {!formData.is_sandbox && <Check className="w-4 h-4 text-slate-900" />}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-xs">Activer le Mode Réel</h4>
+                      <p className="text-[10px] text-slate-400 mt-1">Impression directe &amp; comptabilité scellée.</p>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>

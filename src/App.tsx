@@ -17,6 +17,7 @@ import { SchemaErdView } from './components/SchemaErdView';
 import { CaisseSessionsView } from './components/CaisseSessionsView';
 import { InvoicePdfModal } from './components/InvoicePdfModal';
 import { PatientDossierModal } from './components/PatientDossierModal';
+import { PatientDossiersDirectoryView } from './components/PatientDossiersDirectoryView';
 import {
   AccountMove,
   ResPartner,
@@ -283,34 +284,113 @@ export default function App() {
     if (!query) return;
     const cleanQuery = query.trim().toLowerCase();
     
-    // 1. Try to find patient by exact/partial NDM
-    let foundPatient = partners.find(
-      (p) => p.ndm && p.ndm.toLowerCase() === cleanQuery
-    );
+    // --- SMART PARSING OF QR CODES ---
+    // If it's a structured QR code like: "dossier:ndm-00270410|facture:fc-2026-001|..."
+    let parsedDossier = '';
+    let parsedInvoice = '';
     
-    // 2. If not found, try to find patient by name
-    if (!foundPatient) {
-      foundPatient = partners.find(
-        (p) => p.name.toLowerCase().includes(cleanQuery)
-      );
+    if (cleanQuery.includes('dossier:')) {
+      const matchDossier = query.match(/dossier:\s*([^|\n]+)/i);
+      if (matchDossier) {
+        parsedDossier = matchDossier[1].trim().toLowerCase();
+      }
     }
+    if (cleanQuery.includes('facture:')) {
+      const matchInvoice = query.match(/facture:\s*([^|\n]+)/i);
+      if (matchInvoice) {
+        parsedInvoice = matchInvoice[1].trim().toLowerCase();
+      }
+    }
+
+    // Determine candidate search terms
+    const candidates = [cleanQuery];
+    if (parsedDossier) candidates.push(parsedDossier);
+    if (parsedInvoice) candidates.push(parsedInvoice);
     
-    // 3. If not found, try to find by receipt/invoice number (AccountMove)
+    // If the dossier is something like NDM-00270410, extract numeric parts
+    candidates.forEach((cand) => {
+      const numericPart = cand.replace(/[^0-9]/g, '');
+      if (numericPart && numericPart.length >= 4) {
+        candidates.push(numericPart);
+      }
+      const withoutPrefix = cand.replace(/^ndm-/, '');
+      if (withoutPrefix !== cand) {
+        candidates.push(withoutPrefix);
+      }
+    });
+
+    // Make candidates unique and non-empty
+    const uniqueCandidates = Array.from(new Set(candidates.filter(Boolean)));
+
+    let foundPatient: any = null;
+    let foundMove: any = null;
+
+    // 1. Try to find a patient whose NDM matches any of our candidates
+    for (const cand of uniqueCandidates) {
+      foundPatient = partners.find((p) => {
+        if (p.partner_type && p.partner_type !== 'patient') return false;
+        if (!p.ndm) return false;
+        const pNdmLower = p.ndm.toLowerCase();
+        const pNdmNumeric = pNdmLower.replace(/[^0-9]/g, '');
+        
+        return (
+          pNdmLower === cand ||
+          pNdmLower.includes(cand) ||
+          cand.includes(pNdmLower) ||
+          (pNdmNumeric && cand.includes(pNdmNumeric)) ||
+          (pNdmNumeric && pNdmNumeric === cand)
+        );
+      });
+      if (foundPatient) break;
+    }
+
+    // 2. If not found, try to find an invoice (AccountMove) matching any of our candidates
     if (!foundPatient) {
-      const foundMove = moves.find(
-        (m) => m.name && m.name.toLowerCase().includes(cleanQuery)
-      );
-      if (foundMove && foundMove.partner_id) {
-        foundPatient = partners.find((p) => p.id === foundMove.partner_id);
-      } else if (foundMove && foundMove.partner) {
-        foundPatient = foundMove.partner;
+      for (const cand of uniqueCandidates) {
+        foundMove = moves.find((m) => {
+          const moveName = (m.name || '').toLowerCase();
+          const moveIdStr = String(m.id).toLowerCase();
+          return (
+            moveName === cand ||
+            moveName.includes(cand) ||
+            cand.includes(moveName) ||
+            moveIdStr === cand
+          );
+        });
+        if (foundMove) {
+          if (foundMove.partner_id) {
+            foundPatient = partners.find((p) => p.id === foundMove.partner_id);
+          } else if (foundMove.partner) {
+            foundPatient = foundMove.partner;
+          }
+          // Verify it's actually a patient and not an insurance invoice
+          if (foundPatient && foundPatient.partner_type && foundPatient.partner_type !== 'patient') {
+            foundPatient = null;
+          }
+          if (foundPatient) break;
+        }
+      }
+    }
+
+    // 3. If still not found, try to find patient by name containing any of our non-numeric candidates
+    if (!foundPatient) {
+      for (const cand of uniqueCandidates) {
+        // Skip purely numeric candidates for name search to avoid false positives
+        if (/^\d+$/.test(cand)) continue;
+        foundPatient = partners.find((p) => {
+          if (p.partner_type && p.partner_type !== 'patient') return false;
+          // Also if they don't have an NDM and they are a company, they're probably not a patient
+          if (p.is_company) return false;
+          return p.name.toLowerCase().includes(cand);
+        });
+        if (foundPatient) break;
       }
     }
 
     if (foundPatient) {
       setLookupPatient(foundPatient);
       setIsLookupOpen(true);
-      showToast(`Dossier patient #${foundPatient.ndm || foundPatient.id} chargé !`);
+      showToast(`Dossier patient #${foundPatient.ndm || foundPatient.id} (${foundPatient.name}) chargé !`);
     } else {
       showToast("Aucun dossier ou reçu correspondant trouvé", "error");
     }
@@ -1102,6 +1182,16 @@ export default function App() {
               />
             )}
 
+            {currentView === 'patient_dossiers' && (
+              <PatientDossiersDirectoryView
+                partners={partners}
+                moves={moves}
+                labOrders={labOrders}
+                company={company}
+                onOpenPdf={(m) => setPdfMove(m)}
+              />
+            )}
+
             {currentView === 'products' && (
               <ProductsView
                 products={products}
@@ -1202,7 +1292,7 @@ export default function App() {
       {/* Floating Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl font-extrabold text-xs text-white border animate-in slide-in-from-bottom-5 duration-200 ${
+          className={`fixed bottom-6 right-6 z-[100] px-4 py-3 rounded-2xl shadow-2xl font-extrabold text-xs text-white border animate-in slide-in-from-bottom-5 duration-200 ${
             toastMessage.type === 'success'
               ? 'bg-slate-900 border-slate-700'
               : 'bg-rose-600 border-rose-400'

@@ -24,6 +24,7 @@ import {
 import { LabExamOrder, ResPartner, ResUser, CompanySettings, LabResultStatus, LabParameterResult } from '../types';
 import { formatFCFA } from '../lib/formatters';
 import { printElement } from '../lib/printUtils';
+import { decodeScannerInput } from '../lib/scannerDecoder';
 
 interface LabGroupedResultsViewProps {
   labOrders: LabExamOrder[];
@@ -342,7 +343,7 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
                 type="text"
                 placeholder="Chercher NDM ou nom..."
                 value={sidebarSearch}
-                onChange={(e) => setSidebarSearch(e.target.value)}
+                onChange={(e) => setSidebarSearch(decodeScannerInput(e.target.value))}
                 className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 focus:outline-none rounded px-2.5 py-1 text-xs pl-7 font-medium"
               />
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />

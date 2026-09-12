@@ -19,10 +19,12 @@ import {
   Lock,
   FlaskConical,
   ScrollText,
+  FolderOpen,
 } from 'lucide-react';
 import { ResUser, CompanySettings, ResGroup, AppView } from '../types';
 import { getAppTheme } from '../lib/theme';
 import { getUserBillingProfile } from '../lib/formatters';
+import { decodeScannerInput } from '../lib/scannerDecoder';
 
 export type { AppView };
 
@@ -50,142 +52,151 @@ interface NavCategoryConfig {
  * - Admin / Direction: Accès global.
  */
 export function getAllowedViews(user: ResUser | null): AppView[] {
-  if (!user) return ['caisse_sessions', 'invoices', 'payments', 'partners'];
+  const getRawViews = (): AppView[] => {
+    if (!user) return ['caisse_sessions', 'invoices', 'payments', 'partners'];
 
-  // 1. If user has custom allowed views configured specifically for them (from UsersView custom menu modal)
-  if (user.allowed_views && Array.isArray(user.allowed_views) && user.allowed_views.length > 0) {
-    return user.allowed_views as AppView[];
-  }
+    // 1. If user has custom allowed views configured specifically for them (from UsersView custom menu modal)
+    if (user.allowed_views && Array.isArray(user.allowed_views) && user.allowed_views.length > 0) {
+      return user.allowed_views as AppView[];
+    }
 
-  const billingProfile = getUserBillingProfile(user);
-  const login = (user.login || '').toLowerCase().trim();
-  const role = (user.role || '').toLowerCase().trim();
-  const department = (user.department || '').toLowerCase().trim();
-  const groupIds = user.group_ids || [];
-  const perms = user.permissions || [];
+    const billingProfile = getUserBillingProfile(user);
+    const login = (user.login || '').toLowerCase().trim();
+    const role = (user.role || '').toLowerCase().trim();
+    const department = (user.department || '').toLowerCase().trim();
+    const groupIds = user.group_ids || [];
+    const perms = user.permissions || [];
 
-  // 2. Superviseur Caisse & Facturation (Strictly default to 5 modules: Dashboard, Sessions, Factures, Règlements, Patients)
-  if (
-    role.includes('superviseur') ||
-    login === 'superviseur' ||
-    billingProfile === 'superviseur' && !role.includes('admin') && !role.includes('directeur')
-  ) {
-    return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
-  }
+    // 2. Superviseur Caisse & Facturation (Strictly default to 5 modules: Dashboard, Sessions, Factures, Règlements, Patients)
+    if (
+      role.includes('superviseur') ||
+      login === 'superviseur' ||
+      billingProfile === 'superviseur' && !role.includes('admin') && !role.includes('directeur')
+    ) {
+      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
+    }
 
-  // 3. Admin / Directeur / Administrateur -> Accès complet à TOUS les menus
-  const isAdmin =
-    (login === 'admin' && !role.includes('superviseur')) ||
-    (role.includes('directeur') && !role.includes('superviseur')) ||
-    (role.includes('admin') && !role.includes('superviseur')) ||
-    role.includes('administrateur') ||
-    perms.includes('all');
+    // 3. Admin / Directeur / Administrateur -> Accès complet à TOUS les menus
+    const isAdmin =
+      (login === 'admin' && !role.includes('superviseur')) ||
+      (role.includes('directeur') && !role.includes('superviseur')) ||
+      (role.includes('admin') && !role.includes('superviseur')) ||
+      role.includes('administrateur') ||
+      perms.includes('all');
 
-  if (isAdmin) {
-    return [
-      'dashboard',
-      'caisse_sessions',
-      'invoices',
-      'payments',
-      'partners',
-      'lab_results',
-      'lab_sampling',
-      'lab_grouped_results',
-      'products',
-      'users',
-      'company',
-      'notifications',
-      'logs_audit',
-      'schema',
-    ];
-  }
+    if (isAdmin) {
+      return [
+        'dashboard',
+        'caisse_sessions',
+        'invoices',
+        'payments',
+        'partners',
+        'patient_dossiers',
+        'lab_results',
+        'lab_sampling',
+        'lab_grouped_results',
+        'products',
+        'users',
+        'company',
+        'notifications',
+        'logs_audit',
+        'schema',
+      ];
+    }
 
-  // 2. Superviseur Caisse & Facturation (Strictement limité aux 5 menus par défaut)
-  if (
-    billingProfile === 'superviseur' ||
-    login === 'superviseur' ||
-    role.includes('superviseur')
-  ) {
-    return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners', 'logs_audit'];
-  }
+    // 2. Superviseur Caisse & Facturation (Strictement limité aux 5 menus par défaut)
+    if (
+      billingProfile === 'superviseur' ||
+      login === 'superviseur' ||
+      role.includes('superviseur')
+    ) {
+      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners', 'logs_audit'];
+    }
 
-  // 2. Facturier (Établissement factures avec session journalière obligatoire, répertoire patients)
-  if (billingProfile === 'facture') {
-    return ['caisse_sessions', 'invoices', 'partners'];
-  }
+    // 2. Facturier (Établissement factures avec session journalière obligatoire, répertoire patients)
+    if (billingProfile === 'facture') {
+      return ['caisse_sessions', 'invoices', 'partners'];
+    }
 
-  // 3. Caissier (Encaissement paiements seul, pas de création de facture)
-  if (billingProfile === 'caisse') {
-    return ['caisse_sessions', 'invoices', 'payments'];
-  }
+    // 3. Caissier (Encaissement paiements seul, pas de création de facture)
+    if (billingProfile === 'caisse') {
+      return ['caisse_sessions', 'invoices', 'payments'];
+    }
 
-  // 4. Facture / Caisse (Polyvalent : Facturation + Caisse)
-  if (billingProfile === 'facture_caisse') {
-    return ['caisse_sessions', 'invoices', 'payments', 'partners'];
-  }
+    // 4. Facture / Caisse (Polyvalent : Facturation + Caisse)
+    if (billingProfile === 'facture_caisse') {
+      return ['caisse_sessions', 'invoices', 'payments', 'partners'];
+    }
 
-  // 5. Biologiste Médical / Responsable de Laboratoire
-  if (
-    login === 'dr.toure' ||
-    groupIds.includes(5) ||
-    role.includes('biologiste') ||
-    role.includes('chef de lab') ||
-    role.includes('médecin')
-  ) {
-    return ['lab_results', 'lab_sampling', 'lab_grouped_results', 'products', 'partners', 'notifications', 'logs_audit'];
-  }
+    // 5. Biologiste Médical / Responsable de Laboratoire
+    if (
+      login === 'dr.toure' ||
+      groupIds.includes(5) ||
+      role.includes('biologiste') ||
+      role.includes('chef de lab') ||
+      role.includes('médecin')
+    ) {
+      return ['lab_results', 'lab_sampling', 'lab_grouped_results', 'products', 'partners', 'notifications', 'logs_audit'];
+    }
 
-  // 6. Technicien de Laboratoire / Manipulateur
-  if (
-    login === 'technicien' ||
-    groupIds.includes(6) ||
-    role.includes('technicien') ||
-    role.includes('manipulateur') ||
-    department.includes('lab')
-  ) {
-    return ['lab_results', 'lab_sampling', 'lab_grouped_results', 'products', 'partners', 'logs_audit'];
-  }
+    // 6. Technicien de Laboratoire / Manipulateur
+    if (
+      login === 'technicien' ||
+      groupIds.includes(6) ||
+      role.includes('technicien') ||
+      role.includes('manipulateur') ||
+      department.includes('lab')
+    ) {
+      return ['lab_results', 'lab_sampling', 'lab_grouped_results', 'products', 'partners', 'logs_audit'];
+    }
 
-  // 7. Comptable / DAF / Gestionnaire Financier
-  if (
-    login === 'comptable' ||
-    groupIds.includes(7) ||
-    groupIds.includes(5) ||
-    role.includes('comptab') ||
-    role.includes('finance') ||
-    role.includes('daf') ||
-    department.includes('compta')
-  ) {
-    return ['dashboard', 'invoices', 'payments', 'partners', 'notifications'];
-  }
+    // 7. Comptable / DAF / Gestionnaire Financier
+    if (
+      login === 'comptable' ||
+      groupIds.includes(7) ||
+      groupIds.includes(5) ||
+      role.includes('comptab') ||
+      role.includes('finance') ||
+      role.includes('daf') ||
+      department.includes('compta')
+    ) {
+      return ['dashboard', 'invoices', 'payments', 'partners', 'notifications'];
+    }
 
-  // Custom Permissions Fallback
-  const views: AppView[] = ['partners'];
-  if (perms.includes('can_validate_results') || perms.includes('can_enter_results')) {
-    views.push('lab_results', 'lab_sampling', 'lab_grouped_results', 'products');
+    // Custom Permissions Fallback
+    const views: AppView[] = ['partners'];
+    if (perms.includes('can_validate_results') || perms.includes('can_enter_results')) {
+      views.push('lab_results', 'lab_sampling', 'lab_grouped_results', 'products');
+    }
+    if (perms.includes('can_manage_invoices')) {
+      views.push('invoices');
+    }
+    if (perms.includes('can_register_payments')) {
+      views.push('payments', 'caisse_sessions');
+    }
+    if (perms.includes('can_manage_lab_catalog')) {
+      if (!views.includes('products')) views.push('products');
+    }
+    if (perms.includes('can_view_financials')) {
+      views.push('dashboard');
+    }
+    if (perms.includes('can_manage_users')) {
+      views.push('users');
+    }
+    if (perms.includes('can_manage_settings')) {
+      views.push('company');
+    }
+    if (perms.includes('can_send_reminders')) {
+      views.push('notifications');
+    }
+    return views.length > 0 ? views : ['lab_results', 'partners'];
+  };
+
+  const allowed = getRawViews();
+  if (allowed.includes('partners') && !allowed.includes('patient_dossiers')) {
+    return [...allowed, 'patient_dossiers'];
   }
-  if (perms.includes('can_manage_invoices')) {
-    views.push('invoices');
-  }
-  if (perms.includes('can_register_payments')) {
-    views.push('payments', 'caisse_sessions');
-  }
-  if (perms.includes('can_manage_lab_catalog')) {
-    if (!views.includes('products')) views.push('products');
-  }
-  if (perms.includes('can_view_financials')) {
-    views.push('dashboard');
-  }
-  if (perms.includes('can_manage_users')) {
-    views.push('users');
-  }
-  if (perms.includes('can_manage_settings')) {
-    views.push('company');
-  }
-  if (perms.includes('can_send_reminders')) {
-    views.push('notifications');
-  }
-  return views.length > 0 ? views : ['lab_results', 'partners'];
+  return allowed;
 }
 
 interface AppNavigationProps {
@@ -328,6 +339,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           shortLabel: 'Patients',
           icon: Users,
           description: 'Dossiers patients, coordonnées & médecins',
+        },
+        {
+          id: 'patient_dossiers',
+          label: 'Dossiers Patients & Historique',
+          shortLabel: 'Dossiers',
+          icon: FolderOpen,
+          description: 'Historique exhaustif des prestations, factures & analyses par patient',
         },
         {
           id: 'products',
@@ -860,7 +878,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                   if (e.key === 'Enter') {
                     const val = e.currentTarget.value.trim();
                     if (val) {
-                      onSearchNDM(val);
+                      onSearchNDM(decodeScannerInput(val));
                       e.currentTarget.value = '';
                     }
                   }

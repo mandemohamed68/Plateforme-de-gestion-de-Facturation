@@ -98,7 +98,7 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
 
   const getPartnerNDM = (order: LabExamOrder) => {
     const partner = partners.find(p => p.id === order.partner_id);
-    return partner?.convention_code || `000${15000 + order.partner_id}`;
+    return partner?.ndm || partner?.convention_code || `000${15000 + order.partner_id}`;
   };
 
   // Filtered orders

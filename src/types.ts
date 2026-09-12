@@ -82,6 +82,9 @@ export interface CompanySettings {
 
   // Pagination Configuration (Back-Office / Admin)
   default_page_size?: number; // e.g. 25, 50, 100, 200 (default 50)
+
+  // Sandbox vs Production Mode Configuration
+  is_sandbox?: boolean; // Whether LIMS is in sandbox (simulated/test) or production (live) mode
 }
 
 export interface ResGroup {
@@ -528,6 +531,7 @@ export type AppView =
   | 'payments'
   | 'caisse_sessions'
   | 'partners'
+  | 'patient_dossiers'
   | 'lab_results'
   | 'lab_sampling'
   | 'lab_grouped_results'
