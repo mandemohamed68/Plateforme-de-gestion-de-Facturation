@@ -1332,31 +1332,6 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const filteredMoves = moves
     .filter((m) => {
-      // Role-based visibility rules:
-      // 1. Superviseur : voit TOUTES les factures de l'établissement
-      // 2. Facturier : voit toutes ses factures créées + les factures brouillons/valides
-      // 3. Caissier : voit TOUTES les factures en attente d'encaissement (non soldées/partielles) + ses créations
-      // 4. Facture & Caisse : voit ses créations + les factures à encaisser
-      if (!isSupervisor) {
-        const isCreator =
-          String(m.invoice_user_id) === String(currentUser?.id) ||
-          m.created_by_name === currentUser?.name ||
-          (m as any).user_id === currentUser?.id;
-
-        if (profile === 'facture') {
-          // Billers see invoices created by them, or all company invoices if no specific creator recorded
-          if (!isCreator && m.invoice_user_id) return false;
-        } else if (profile === 'caisse') {
-          // Cashiers see all unpaid/partially paid customer invoices to be collected, plus invoices created by them
-          const isUnpaid = m.move_type === 'out_invoice' && m.payment_state !== 'paid';
-          if (!isUnpaid && !isCreator) return false;
-        } else if (profile === 'facture_caisse') {
-          // Biller-Cashier sees their own created invoices AND all unpaid invoices
-          const isUnpaid = m.move_type === 'out_invoice' && m.payment_state !== 'paid';
-          if (!isCreator && !isUnpaid) return false;
-        }
-      }
-
       if (m.move_type !== moveTypeFilter) return false;
       if (stateFilter !== 'all' && m.state !== stateFilter) return false;
       if (paymentFilter !== 'all' && m.payment_state !== paymentFilter) return false;
