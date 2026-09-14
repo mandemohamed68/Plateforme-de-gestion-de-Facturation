@@ -99,11 +99,89 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     else if (onNavigate) onNavigate(tab);
   };
 
-  // 1. Effective Overdue Moves Calculation
+  // 1. Filtered Collections by Selected Period
+  const filteredMoves = useMemo(() => {
+    if (selectedPeriod === 'all') return moves;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    return moves.filter((m) => {
+      const dStr = m.invoice_date || m.date || m.created_at;
+      if (!dStr) return true;
+      const dDate = dStr.split('T')[0].split(' ')[0];
+
+      if (selectedPeriod === 'today') return dDate === todayStr;
+      if (selectedPeriod === 'week') {
+        const past7 = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0];
+        return dDate >= past7 && dDate <= todayStr;
+      }
+      if (selectedPeriod === 'month') {
+        const curYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        return dDate.startsWith(curYearMonth);
+      }
+      if (selectedPeriod === 'year') {
+        return dDate.startsWith(String(now.getFullYear()));
+      }
+      return true;
+    });
+  }, [moves, selectedPeriod]);
+
+  const filteredPayments = useMemo(() => {
+    if (selectedPeriod === 'all') return payments;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    return payments.filter((p) => {
+      const dStr = p.payment_date || p.date || p.created_at;
+      if (!dStr) return true;
+      const dDate = dStr.split('T')[0].split(' ')[0];
+
+      if (selectedPeriod === 'today') return dDate === todayStr;
+      if (selectedPeriod === 'week') {
+        const past7 = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0];
+        return dDate >= past7 && dDate <= todayStr;
+      }
+      if (selectedPeriod === 'month') {
+        const curYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        return dDate.startsWith(curYearMonth);
+      }
+      if (selectedPeriod === 'year') {
+        return dDate.startsWith(String(now.getFullYear()));
+      }
+      return true;
+    });
+  }, [payments, selectedPeriod]);
+
+  const filteredLabOrders = useMemo(() => {
+    if (selectedPeriod === 'all') return labOrders;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    return labOrders.filter((o) => {
+      const dStr = o.sampling_date || o.created_at;
+      if (!dStr) return true;
+      const dDate = dStr.split('T')[0].split(' ')[0];
+
+      if (selectedPeriod === 'today') return dDate === todayStr;
+      if (selectedPeriod === 'week') {
+        const past7 = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0];
+        return dDate >= past7 && dDate <= todayStr;
+      }
+      if (selectedPeriod === 'month') {
+        const curYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        return dDate.startsWith(curYearMonth);
+      }
+      if (selectedPeriod === 'year') {
+        return dDate.startsWith(String(now.getFullYear()));
+      }
+      return true;
+    });
+  }, [labOrders, selectedPeriod]);
+
+  // 2. Overdue Moves Calculation
   const effectiveOverdueMoves = useMemo(() => {
-    if (overdueMoves && overdueMoves.length > 0) return overdueMoves;
     const nowStr = new Date().toISOString().split('T')[0];
-    return moves.filter(
+    return filteredMoves.filter(
       (m) =>
         m &&
         m.state === 'posted' &&
@@ -111,111 +189,126 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         m.invoice_date_due &&
         m.invoice_date_due < nowStr
     );
-  }, [overdueMoves, moves]);
+  }, [filteredMoves]);
 
-  // 2. Financial Metrics Breakdown based on moves & payments
+  // 3. Financial Metrics Breakdown based on real filtered moves & payments
   const metrics = useMemo(() => {
-    const totalRevenueTTC = moves
-      .filter((m) => m.state === 'posted')
-      .reduce((sum, m) => sum + (m.amount_total || 0), 0);
+    const posted = filteredMoves.filter((m) => m.state === 'posted');
+    const totalRevenueTTC = posted.reduce((sum, m) => sum + (m.amount_total || 0), 0);
 
-    const totalRevenueHT = moves
-      .filter((m) => m.state === 'posted')
-      .reduce((sum, m) => sum + (m.amount_untaxed || (m.amount_total ? m.amount_total / 1.18 : 0)), 0);
+    const totalRevenueHT = posted.reduce(
+      (sum, m) => sum + (m.amount_untaxed || (m.amount_total ? m.amount_total / 1.18 : 0)),
+      0
+    );
 
-    const totalTax = totalRevenueTTC - totalRevenueHT;
+    const totalTax = Math.max(0, totalRevenueTTC - totalRevenueHT);
 
-    const totalPaid = payments
-      .filter((p) => p.state === 'posted')
-      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    const validPayments = filteredPayments.filter(
+      (p) => p.state === 'posted' || p.state === 'reconciled'
+    );
+    let totalPaid = validPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    // If payments table has not tracked individual moves, infer from settled amounts
+    if (totalPaid === 0 && posted.length > 0) {
+      totalPaid = posted.reduce(
+        (sum, m) => sum + Math.max(0, (m.amount_total || 0) - (m.amount_residual || 0)),
+        0
+      );
+    }
 
-    const totalResidual = moves
-      .filter((m) => m.state === 'posted')
-      .reduce((sum, m) => sum + (m.amount_residual || 0), 0);
-
+    const totalResidual = posted.reduce((sum, m) => sum + (m.amount_residual || 0), 0);
     const totalOverdue = effectiveOverdueMoves.reduce((sum, m) => sum + (m.amount_residual || 0), 0);
 
-    // Patient vs Insurance breakdown
-    const patientShare = moves
-      .filter((m) => m.state === 'posted')
-      .reduce((sum, m) => sum + (m.client_share_amount || (m.amount_total ? m.amount_total * 0.4 : 0)), 0);
+    // True Patient vs Insurance breakdown based on invoice flags
+    const insuranceShare = posted
+      .filter((m) => m.insurance_enabled && (m.insurance_amount || 0) > 0)
+      .reduce((sum, m) => sum + (m.insurance_amount || 0), 0);
 
-    const insuranceShare = moves
-      .filter((m) => m.state === 'posted')
-      .reduce((sum, m) => sum + (m.insurance_amount || (m.amount_total ? m.amount_total * 0.6 : 0)), 0);
+    const patientShare = Math.max(0, totalRevenueTTC - insuranceShare);
+
+    const pendingInsuranceResidual = posted
+      .filter((m) => m.insurance_enabled && (m.insurance_amount || 0) > 0 && (m.amount_residual || 0) > 0)
+      .reduce((sum, m) => sum + Math.min(m.insurance_amount || 0, m.amount_residual || 0), 0);
+
+    const pendingPatientResidual = Math.max(0, totalResidual - pendingInsuranceResidual);
 
     const recoveryRate = totalRevenueTTC > 0 ? (totalPaid / totalRevenueTTC) * 100 : 100;
 
-    // Patient stats
     const uniquePatientsCount = new Set(
-      moves.filter((m) => m.partner_id).map((m) => m.partner_id)
-    ).size || partners.length || 1;
+      posted.filter((m) => m.partner_id).map((m) => m.partner_id)
+    ).size;
 
-    const averageBasket = totalRevenueTTC > 0 && uniquePatientsCount > 0 ? totalRevenueTTC / uniquePatientsCount : 0;
+    const averageBasket =
+      totalRevenueTTC > 0 && uniquePatientsCount > 0
+        ? Math.round(totalRevenueTTC / uniquePatientsCount)
+        : 0;
 
-    // Lab tests stats
-    const totalExamsPrescribed = labOrders.reduce((sum, o) => sum + (o.exam_names?.length || 1), 0);
-    const validatedExamsCount = labOrders.filter((o) => o.status === 'validated').length;
-    const labValidationRate = labOrders.length > 0 ? (validatedExamsCount / labOrders.length) * 100 : 92.5;
+    const totalExamsPrescribed = filteredLabOrders.reduce(
+      (sum, o) => sum + (o.exam_names?.length || (o.parameters?.length || 1)),
+      0
+    );
+    const validatedExamsCount = filteredLabOrders.filter((o) => o.status === 'validated').length;
+    const labValidationRate =
+      filteredLabOrders.length > 0
+        ? Math.round((validatedExamsCount / filteredLabOrders.length) * 1000) / 10
+        : 0;
 
     return {
-      totalRevenueTTC: totalRevenueTTC || analytics?.total_revenue_ttc || 0,
-      totalRevenueHT: totalRevenueHT || analytics?.total_revenue_ht || 0,
-      totalTax: totalTax || (analytics ? analytics.total_revenue_ttc - analytics.total_revenue_ht : 0),
-      totalPaid: totalPaid || analytics?.total_paid || 0,
-      totalResidual: totalResidual || analytics?.total_residual || 0,
-      totalOverdue: totalOverdue || analytics?.total_overdue || 0,
+      totalRevenueTTC,
+      totalRevenueHT,
+      totalTax,
+      totalPaid,
+      totalResidual,
+      totalOverdue,
       patientShare,
       insuranceShare,
+      pendingInsuranceResidual,
+      pendingPatientResidual,
       recoveryRate: Math.min(Math.round(recoveryRate * 10) / 10, 100),
       uniquePatientsCount,
       averageBasket,
-      totalExamsPrescribed: totalExamsPrescribed || 48,
-      validatedExamsCount: validatedExamsCount || 42,
-      labValidationRate: Math.round(labValidationRate * 10) / 10,
-      invoiceCount: moves.filter((m) => m.state === 'posted').length || analytics?.invoice_count || 0,
+      totalExamsPrescribed,
+      validatedExamsCount,
+      labValidationRate,
+      invoiceCount: posted.length,
     };
-  }, [moves, payments, effectiveOverdueMoves, analytics, partners, labOrders]);
+  }, [filteredMoves, filteredPayments, effectiveOverdueMoves, filteredLabOrders]);
 
-  // 3. Payment Methods Breakdown
+  // 4. Payment Methods Breakdown (Computed from real payments)
   const paymentMethodsData = useMemo(() => {
     const map: Record<string, number> = {};
-    if (payments.length > 0) {
-      payments.forEach((p) => {
-        const method = p.journal_name || p.payment_method_code || 'Espèces';
+    const validPayments = filteredPayments.filter(
+      (p) => p.state === 'posted' || p.state === 'reconciled'
+    );
+
+    if (validPayments.length > 0) {
+      validPayments.forEach((p) => {
+        const methodStr = (p.journal_name || p.payment_method_code || 'Espèces').toString().toLowerCase();
         const formattedName =
-          method.toLowerCase().includes('esp') || method.toLowerCase().includes('caisse')
+          methodStr.includes('esp') || methodStr.includes('caisse')
             ? 'Espèces (Caisse)'
-            : method.toLowerCase().includes('wave')
+            : methodStr.includes('wave')
             ? 'Wave Mobile Money'
-            : method.toLowerCase().includes('orange')
+            : methodStr.includes('orange')
             ? 'Orange Money'
-            : method.toLowerCase().includes('moov')
+            : methodStr.includes('moov')
             ? 'Moov Money'
-            : method.toLowerCase().includes('card') || method.toLowerCase().includes('carte')
+            : methodStr.includes('card') || methodStr.includes('carte')
             ? 'Carte Bancaire'
-            : method.toLowerCase().includes('check') || method.toLowerCase().includes('chèque')
+            : methodStr.includes('check') || methodStr.includes('chèque')
             ? 'Chèque'
-            : method.toLowerCase().includes('trans') || method.toLowerCase().includes('banque')
+            : methodStr.includes('trans') || methodStr.includes('banque')
             ? 'Virement Bancaire'
-            : method;
+            : (p.journal_name || p.payment_method_code || 'Espèces').toString();
         map[formattedName] = (map[formattedName] || 0) + (p.amount || 0);
       });
-    }
-
-    // Default fallback if payments is empty
-    if (Object.keys(map).length === 0) {
-      map['Espèces (Caisse)'] = Math.round(metrics.totalPaid * 0.45);
-      map['Wave Mobile Money'] = Math.round(metrics.totalPaid * 0.25);
-      map['Orange Money'] = Math.round(metrics.totalPaid * 0.15);
-      map['Carte Bancaire / TPE'] = Math.round(metrics.totalPaid * 0.10);
-      map['Virement / Tiers'] = Math.round(metrics.totalPaid * 0.05);
+    } else if (metrics.totalPaid > 0) {
+      map['Espèces (Caisse)'] = metrics.totalPaid;
     }
 
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [payments, metrics.totalPaid]);
+  }, [filteredPayments, metrics.totalPaid]);
 
-  // 4. Monthly Trend Data (Combined Revenue, Encaissements, Encours)
+  // 5. Monthly Trend Data (Dynamically aggregated from real posted moves per month)
   const monthlyRevenueData = useMemo(() => {
     if (analytics?.monthly_revenue && analytics.monthly_revenue.length > 0) {
       return analytics.monthly_revenue.map((m) => ({
@@ -223,34 +316,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         residual: Math.max((m.ttc || 0) - (m.paid || 0), 0),
       }));
     }
-    return [
-      { month: 'Jan', ht: 1450000, ttc: 1711000, paid: 1550000, residual: 161000 },
-      { month: 'Fév', ht: 1820000, ttc: 2147600, paid: 1980000, residual: 167600 },
-      { month: 'Mar', ht: 2100000, ttc: 2478000, paid: 2320000, residual: 158000 },
-      { month: 'Avr', ht: 1950000, ttc: 2301000, paid: 2150000, residual: 151000 },
-      { month: 'Mai', ht: 2400000, ttc: 2832000, paid: 2600000, residual: 232000 },
-      { month: 'Juin', ht: 2650000, ttc: 3127000, paid: 2950000, residual: 177000 },
-      { month: 'Juil', ht: 2300000, ttc: 2714000, paid: 2500000, residual: 214000 },
-      { month: 'Août', ht: 2800000, ttc: 3304000, paid: 3100000, residual: 204000 },
-      { month: 'Sep', ht: 2950000, ttc: 3481000, paid: 3200000, residual: 281000 },
-    ];
-  }, [analytics]);
 
-  // 5. Top Lab Exams by Volume & Revenue
+    const monthsNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+    const monthlyMap: Record<number, { ht: number; ttc: number; paid: number; residual: number }> = {};
+    for (let i = 0; i < 12; i++) {
+      monthlyMap[i] = { ht: 0, ttc: 0, paid: 0, residual: 0 };
+    }
+
+    moves
+      .filter((m) => m.state === 'posted')
+      .forEach((m) => {
+        const dStr = m.invoice_date || m.date || m.created_at;
+        if (dStr) {
+          const d = new Date(dStr);
+          if (!isNaN(d.getTime())) {
+            const mIdx = d.getMonth();
+            const ht = m.amount_untaxed || (m.amount_total ? m.amount_total / 1.18 : 0);
+            const ttc = m.amount_total || 0;
+            const res = m.amount_residual || 0;
+            const paid = Math.max(0, ttc - res);
+
+            monthlyMap[mIdx].ht += ht;
+            monthlyMap[mIdx].ttc += ttc;
+            monthlyMap[mIdx].paid += paid;
+            monthlyMap[mIdx].residual += res;
+          }
+        }
+      });
+
+    return monthsNames.map((name, idx) => ({
+      month: name,
+      ht: Math.round(monthlyMap[idx].ht),
+      ttc: Math.round(monthlyMap[idx].ttc),
+      paid: Math.round(monthlyMap[idx].paid),
+      residual: Math.round(monthlyMap[idx].residual),
+    }));
+  }, [moves, analytics]);
+
+  const peakMonthlyRevenue = useMemo(() => {
+    return Math.max(0, ...monthlyRevenueData.map((d) => d.ttc));
+  }, [monthlyRevenueData]);
+
+  const averageMonthlyPaid = useMemo(() => {
+    const activeMonths = monthlyRevenueData.filter((d) => d.ttc > 0 || d.paid > 0);
+    if (activeMonths.length === 0) return 0;
+    const sumPaid = activeMonths.reduce((sum, d) => sum + d.paid, 0);
+    return Math.round(sumPaid / activeMonths.length);
+  }, [monthlyRevenueData]);
+
+  // 6. Top Lab Exams by Volume & Revenue from Real Invoices & Lab Orders
   const topExamsData = useMemo(() => {
     const examCount: Record<string, { count: number; total: number; category: string }> = {};
-    
-    // Aggregate from moves lines or products
-    moves.forEach((m) => {
-      (m.lines || []).forEach((l) => {
-        const name = l.name || l.product_name || 'Examen Biologique';
-        if (!examCount[name]) {
-          examCount[name] = { count: 0, total: 0, category: 'Biologie' };
-        }
-        examCount[name].count += l.quantity || 1;
-        examCount[name].total += l.price_total || l.price_subtotal || 0;
+
+    filteredMoves
+      .filter((m) => m.state === 'posted')
+      .forEach((m) => {
+        (m.lines || []).forEach((l) => {
+          const name = l.name || l.product_name || 'Examen Biologique';
+          if (!examCount[name]) {
+            examCount[name] = { count: 0, total: 0, category: 'Biologie' };
+          }
+          examCount[name].count += l.quantity || 1;
+          examCount[name].total += l.price_total || l.price_subtotal || 0;
+        });
       });
-    });
 
     const result = Object.entries(examCount).map(([name, data]) => ({
       name,
@@ -259,37 +388,78 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       category: data.category,
     }));
 
-    if (result.length >= 4) {
+    if (result.length > 0) {
       return result.sort((a, b) => b.total - a.total).slice(0, 6);
     }
 
+    // Secondary source: correlate with labOrders
+    const orderCounts: Record<string, number> = {};
+    filteredLabOrders.forEach((o) => {
+      (o.exam_names || []).forEach((en) => {
+        orderCounts[en] = (orderCounts[en] || 0) + 1;
+      });
+    });
+
+    if (Object.keys(orderCounts).length > 0) {
+      return Object.entries(orderCounts)
+        .map(([name, count]) => {
+          const prod = products.find((p) => p.name === name);
+          const price = prod?.list_price || 8000;
+          return {
+            name,
+            count,
+            total: count * price,
+            category: prod?.lab_department || 'Biologie',
+          };
+        })
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 6);
+    }
+
     if (products.length > 0) {
-      return products.slice(0, 6).map((p, i) => ({
-        name: p.name || `Analyse ${i + 1}`,
-        count: 40 + (i * 12),
-        total: (p.list_price || 8000) * (40 + (i * 12)),
+      return products.slice(0, 5).map((p) => ({
+        name: p.name,
+        count: 0,
+        total: 0,
         category: p.lab_department || 'Biologie',
       }));
     }
 
-    return [
-      { name: 'NFS / Hémogramme Complet', count: 142, total: 1136000, category: 'Hématologie' },
-      { name: 'Glycémie à Jeun', count: 118, total: 472000, category: 'Biochimie' },
-      { name: 'Bilan Lipidique Complet (Cholestérol/Triglycérides)', count: 86, total: 1290000, category: 'Biochimie' },
-      { name: 'Créatininémie + Clairance DFG', count: 74, total: 444000, category: 'Biochimie' },
-      { name: 'Bilan Hépatique (Transaminases ASAT/ALAT)', count: 68, total: 680000, category: 'Enzymologie' },
-      { name: 'Goutte Épaisse & Frottis Paludisme', count: 95, total: 475000, category: 'Parasitologie' },
-    ];
-  }, [moves, products]);
+    return [];
+  }, [filteredMoves, filteredLabOrders, products]);
 
-  // 6. Aging Balance (Balance Âgée)
+  // 7. Top Partners / Comptes Patients from Real Invoices
+  const topPartners = useMemo(() => {
+    const map: Record<string, { name: string; invoiced: number; paid: number; residual: number }> = {};
+
+    filteredMoves
+      .filter((m) => m.state === 'posted')
+      .forEach((m) => {
+        const partnerName =
+          partners.find((p) => p.id === m.partner_id)?.name || m.partner_name || 'Patient';
+        if (!map[partnerName]) {
+          map[partnerName] = { name: partnerName, invoiced: 0, paid: 0, residual: 0 };
+        }
+        const total = m.amount_total || 0;
+        const res = m.amount_residual || 0;
+        map[partnerName].invoiced += total;
+        map[partnerName].residual += res;
+        map[partnerName].paid += Math.max(0, total - res);
+      });
+
+    return Object.values(map)
+      .sort((a, b) => b.invoiced - a.invoiced)
+      .slice(0, 5);
+  }, [filteredMoves, partners]);
+
+  // 8. Aging Balance (Balance Âgée)
   const agingBalance = useMemo(() => {
     const now = new Date().getTime();
     const b0_30: AccountMove[] = [];
     const b30_60: AccountMove[] = [];
     const b60_plus: AccountMove[] = [];
 
-    moves
+    filteredMoves
       .filter((m) => m.state === 'posted' && (m.amount_residual || 0) > 0)
       .forEach((m) => {
         const dueDate = m.invoice_date_due ? new Date(m.invoice_date_due).getTime() : now;
@@ -316,50 +486,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         { period: 'Plus de 60 jours', amount: total60_plus, count: b60_plus.length, color: '#e11d48' },
       ],
     };
-  }, [moves]);
+  }, [filteredMoves]);
 
-  // 7. Cash Till Sessions Activity
+  // 9. Real Cash Till Sessions Activity
   const cashierPerformance = useMemo(() => {
-    if (tillSessions && tillSessions.length > 0) {
-      return tillSessions.map((s) => ({
-        id: s.id,
-        name: s.session_code || `SESSION-${s.id}`,
-        cashier: s.cashier_name || 'Caissier',
-        state: s.state,
-        opening_balance: s.opening_balance || 0,
-        total_collected: s.total_collected || 0,
-        cash_collected: s.total_cash_collected || 0,
-        digital_collected: s.total_mobile_money_collected || 0,
-        invoices_count: s.transactions?.length || 0,
-        start_at: s.opening_date,
-      }));
-    }
-    return [
-      {
-        id: 1,
-        name: 'VAC-2026-0042',
-        cashier: 'Marcelle Caissière',
-        state: 'in_progress' as const,
-        opening_balance: 50000,
-        total_collected: 385000,
-        cash_collected: 215000,
-        digital_collected: 170000,
-        invoices_count: 18,
-        start_at: '2026-09-11 08:00',
-      },
-      {
-        id: 2,
-        name: 'VAC-2026-0041',
-        cashier: 'Jean Facturier',
-        state: 'closed' as const,
-        opening_balance: 50000,
-        total_collected: 420000,
-        cash_collected: 260000,
-        digital_collected: 160000,
-        invoices_count: 22,
-        start_at: '2026-09-10 08:00',
-      },
-    ];
+    return (tillSessions || []).map((s) => ({
+      id: s.id,
+      name: s.session_code || `SESSION-${s.id}`,
+      cashier: s.cashier_name || 'Caissier',
+      state: s.state,
+      opening_balance: s.opening_balance || 0,
+      total_collected: s.total_collected || 0,
+      cash_collected: s.total_cash_collected || 0,
+      digital_collected: s.total_mobile_money_collected || 0,
+      invoices_count: s.transactions?.length || 0,
+      start_at: s.opening_date,
+    }));
   }, [tillSessions]);
 
   return (
@@ -458,7 +600,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1.5 border-t border-slate-100">
               <span>HT: {formatFCFA(metrics.totalRevenueHT)}</span>
-              <span className="text-emerald-700 font-bold bg-emerald-50 px-1 py-0.2 rounded">+8.4%</span>
+              <span className="text-slate-700 font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                {metrics.invoiceCount} facture{metrics.invoiceCount > 1 ? 's' : ''}
+              </span>
             </div>
           </div>
         </div>
@@ -479,7 +623,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1.5 border-t border-slate-100">
               <span>Taux recouvrement:</span>
-              <span className="font-bold text-slate-900">{metrics.recoveryRate}%</span>
+              <span className="font-bold text-emerald-800">{metrics.recoveryRate}%</span>
             </div>
           </div>
         </div>
@@ -499,8 +643,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {formatFCFA(metrics.totalResidual)}
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1.5 border-t border-slate-100">
-              <span>Part Assurances:</span>
-              <span className="font-bold text-indigo-700">{formatFCFA(metrics.insuranceShare)}</span>
+              <span>Reste Assurances:</span>
+              <span className="font-bold text-indigo-700 font-mono text-[10px]">{formatFCFA(metrics.pendingInsuranceResidual)}</span>
             </div>
           </div>
         </div>
@@ -520,13 +664,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {formatFCFA(metrics.totalOverdue)}
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1.5 border-t border-slate-100">
-              <span>{effectiveOverdueMoves.length} facture(s)</span>
-              <button
-                onClick={() => handleNavigate('notifications')}
-                className="font-bold text-amber-700 hover:text-amber-900 underline text-[10px]"
-              >
-                Relancer
-              </button>
+              <span>{effectiveOverdueMoves.length} facture{effectiveOverdueMoves.length > 1 ? 's' : ''}</span>
+              {effectiveOverdueMoves.length > 0 ? (
+                <button
+                  onClick={() => handleNavigate('notifications')}
+                  className="font-bold text-amber-700 hover:text-amber-900 underline text-[10px] cursor-pointer"
+                >
+                  Relancer
+                </button>
+              ) : (
+                <span className="text-emerald-700 font-bold text-[10px]">À jour</span>
+              )}
             </div>
           </div>
         </div>
@@ -708,16 +856,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <div className="grid grid-cols-3 gap-2 pt-4 border-t border-slate-100 text-center text-xs">
                 <div className="p-2 bg-slate-50 rounded-lg">
-                  <div className="text-[10px] text-slate-500 font-medium">Pic Mensuel</div>
-                  <div className="font-bold text-slate-900 font-mono mt-0.5">3 481 000 FCFA</div>
+                  <div className="text-[10px] text-slate-500 font-medium">Pic Mensuel TTC</div>
+                  <div className="font-bold text-slate-900 font-mono mt-0.5">{formatFCFA(peakMonthlyRevenue)}</div>
                 </div>
                 <div className="p-2 bg-emerald-50/60 rounded-lg">
                   <div className="text-[10px] text-emerald-800 font-medium">Moyenne Encaissée</div>
-                  <div className="font-bold text-emerald-900 font-mono mt-0.5">2 376 000 FCFA</div>
+                  <div className="font-bold text-emerald-900 font-mono mt-0.5">{formatFCFA(averageMonthlyPaid)}</div>
                 </div>
                 <div className="p-2 bg-slate-50 rounded-lg">
-                  <div className="text-[10px] text-slate-500 font-medium">Croissance Annuelle</div>
-                  <div className="font-bold text-emerald-600 font-mono mt-0.5">+14.2%</div>
+                  <div className="text-[10px] text-slate-500 font-medium">Taux Recouvrement</div>
+                  <div className="font-bold text-emerald-600 font-mono mt-0.5">{metrics.recoveryRate}%</div>
                 </div>
               </div>
             </div>
@@ -846,40 +994,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               <div className="divide-y divide-slate-100">
-                {(analytics?.top_partners || [
-                  { name: 'AXA Assurances Santé CI', invoiced: 1850000, paid: 1650000, residual: 200000 },
-                  { name: 'NSIA Assurances Tiers-Payant', invoiced: 1420000, paid: 1300000, residual: 120000 },
-                  { name: 'Kouamé Koffi Eric (Patient)', invoiced: 480000, paid: 480000, residual: 0 },
-                  { name: 'Clinique Sainte Marie (Prescripteur)', invoiced: 650000, paid: 550000, residual: 100000 },
-                  { name: 'SOGEM Société Minière', invoiced: 890000, paid: 890000, residual: 0 },
-                ]).map((partner, idx) => (
-                  <div key={partner.name} className="py-2.5 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
-                      <span className="w-5 h-5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
-                        {idx + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-slate-900 truncate">{partner.name}</div>
-                        <div className="text-[10px] text-slate-500">
-                          Encaissé: {formatFCFA(partner.paid)}
+                {topPartners.length > 0 ? (
+                  topPartners.map((partner, idx) => (
+                    <div key={partner.name} className="py-2.5 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
+                        <span className="w-5 h-5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-900 truncate">{partner.name}</div>
+                          <div className="text-[10px] text-slate-500">
+                            Encaissé: {formatFCFA(partner.paid)}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-slate-900">{formatFCFA(partner.invoiced)}</div>
-                      {partner.residual > 0 ? (
-                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                          Reste {formatFCFA(partner.residual)}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                          Soldé 100%
-                        </span>
-                      )}
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-bold text-slate-900">{formatFCFA(partner.invoiced)}</div>
+                        {partner.residual > 0 ? (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            Reste {formatFCFA(partner.residual)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                            Soldé 100%
+                          </span>
+                        )}
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    Aucune facture enregistrée sur cette période
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -987,7 +1135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
               <div className="text-[11px] font-bold text-slate-500 uppercase">Dossiers En Attente</div>
               <div className="text-2xl font-black text-amber-600 font-mono mt-1">
-                {labOrders.filter((o) => o.status === 'pending_sampling').length || 4}
+                {filteredLabOrders.filter((o) => o.status === 'pending_sampling').length}
               </div>
               <p className="text-[10px] text-slate-400 mt-1">Prélèvement ou attente de saisie paillasse</p>
             </div>
@@ -995,7 +1143,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
               <div className="text-[11px] font-bold text-slate-500 uppercase">En Cours d'Analyse</div>
               <div className="text-2xl font-black text-blue-600 font-mono mt-1">
-                {labOrders.filter((o) => o.status === 'in_progress').length || 7}
+                {filteredLabOrders.filter((o) => o.status === 'in_progress').length}
               </div>
               <p className="text-[10px] text-slate-400 mt-1">Automates et manipulations en laboratoire</p>
             </div>
@@ -1003,7 +1151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
               <div className="text-[11px] font-bold text-slate-500 uppercase">Résultats Saisis</div>
               <div className="text-2xl font-black text-indigo-600 font-mono mt-1">
-                {labOrders.filter((o) => o.status === 'results_entered').length || 12}
+                {filteredLabOrders.filter((o) => o.status === 'results_entered').length}
               </div>
               <p className="text-[10px] text-slate-400 mt-1">En attente de signature biologique</p>
             </div>
@@ -1011,7 +1159,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
               <div className="text-[11px] font-bold text-slate-500 uppercase">Validés par Biologiste</div>
               <div className="text-2xl font-black text-emerald-600 font-mono mt-1">
-                {labOrders.filter((o) => o.status === 'validated').length || 35}
+                {filteredLabOrders.filter((o) => o.status === 'validated').length}
               </div>
               <p className="text-[10px] text-slate-400 mt-1">Signature médicale apposée &amp; délivrable</p>
             </div>
@@ -1034,55 +1182,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="w-full">
-              <table className="w-full text-left text-xs border-collapse table-fixed">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase">
-                    <th className="py-2.5 px-2.5 w-[20%]">N° Dossier</th>
-                    <th className="py-2.5 px-2.5 w-[25%]">Patient</th>
-                    <th className="py-2.5 px-2.5 w-[20%] hidden md:table-cell">Prescripteur</th>
-                    <th className="py-2.5 px-2.5 w-[15%] hidden sm:table-cell">Date</th>
-                    <th className="py-2.5 px-2.5 w-[20%]">Statut</th>
-                    <th className="py-2.5 px-2 text-right w-[15%]">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {labOrders.slice(0, 6).map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-2.5 px-2.5 font-mono font-bold text-slate-900 truncate" title={order.order_number}>{order.order_number}</td>
-                      <td className="py-2.5 px-2.5 font-bold text-slate-800 truncate" title={order.partner_name}>{order.partner_name}</td>
-                      <td className="py-2.5 px-2.5 text-slate-500 text-[11px] truncate hidden md:table-cell">{order.prescribing_doctor || 'Non spécifié'}</td>
-                      <td className="py-2.5 px-2.5 text-slate-500 text-[11px] truncate hidden sm:table-cell">{order.sampling_date}</td>
-                      <td className="py-2.5 px-2.5 truncate">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-full ${
-                            order.status === 'validated'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : order.status === 'in_progress'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {order.status === 'validated'
-                            ? 'Validé'
-                            : order.status === 'results_entered'
-                            ? 'Résultats'
-                            : order.status === 'in_progress'
-                            ? 'En cours'
-                            : 'Prélèvement'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-2 text-right">
-                        <button
-                          onClick={() => handleNavigate('lab_results')}
-                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold cursor-pointer transition"
-                        >
-                          Voir
-                        </button>
-                      </td>
+              {filteredLabOrders.length > 0 ? (
+                <table className="w-full text-left text-xs border-collapse table-fixed">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase">
+                      <th className="py-2.5 px-2.5 w-[20%]">N° Dossier</th>
+                      <th className="py-2.5 px-2.5 w-[25%]">Patient</th>
+                      <th className="py-2.5 px-2.5 w-[20%] hidden md:table-cell">Prescripteur</th>
+                      <th className="py-2.5 px-2.5 w-[15%] hidden sm:table-cell">Date</th>
+                      <th className="py-2.5 px-2.5 w-[20%]">Statut</th>
+                      <th className="py-2.5 px-2 text-right w-[15%]">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredLabOrders.slice(0, 6).map((order) => (
+                      <tr key={order.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-2.5 font-mono font-bold text-slate-900 truncate" title={order.order_number}>{order.order_number}</td>
+                        <td className="py-2.5 px-2.5 font-bold text-slate-800 truncate" title={order.partner_name}>{order.partner_name}</td>
+                        <td className="py-2.5 px-2.5 text-slate-500 text-[11px] truncate hidden md:table-cell">{order.prescribing_doctor || 'Non spécifié'}</td>
+                        <td className="py-2.5 px-2.5 text-slate-500 text-[11px] truncate hidden sm:table-cell">{order.sampling_date}</td>
+                        <td className="py-2.5 px-2.5 truncate">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-full ${
+                              order.status === 'validated'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : order.status === 'in_progress'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {order.status === 'validated'
+                              ? 'Validé'
+                              : order.status === 'results_entered'
+                              ? 'Résultats'
+                              : order.status === 'in_progress'
+                              ? 'En cours'
+                              : 'Prélèvement'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 text-right">
+                          <button
+                            onClick={() => handleNavigate('lab_results')}
+                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold cursor-pointer transition"
+                          >
+                            Voir
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Aucun dossier d'analyse enregistré sur cette période
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1111,44 +1265,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="w-full">
-              <table className="w-full text-left text-xs border-collapse table-fixed">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase">
-                    <th className="py-2.5 px-2.5 w-[20%]">Session</th>
-                    <th className="py-2.5 px-2.5 w-[22%]">Caissier</th>
-                    <th className="py-2.5 px-2.5 w-[16%] hidden sm:table-cell">Ouverture</th>
-                    <th className="py-2.5 px-2.5 text-right w-[18%] hidden md:table-cell">Espèces</th>
-                    <th className="py-2.5 px-2.5 text-right w-[24%]">Total Collecté</th>
-                    <th className="py-2.5 px-2 text-center w-[16%]">État</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {cashierPerformance.map((sess) => (
-                    <tr key={sess.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-2.5 px-2.5 font-mono font-bold text-slate-900 truncate" title={sess.name}>{sess.name}</td>
-                      <td className="py-2.5 px-2.5 font-bold text-slate-800 truncate" title={sess.cashier}>{sess.cashier}</td>
-                      <td className="py-2.5 px-2.5 text-slate-500 text-[11px] truncate hidden sm:table-cell">{sess.start_at}</td>
-                      <td className="py-2.5 px-2.5 text-right font-mono text-slate-800 whitespace-nowrap hidden md:table-cell">
-                        {formatFCFA(sess.cash_collected)}
-                      </td>
-                      <td className="py-2.5 px-2.5 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
-                        {formatFCFA(sess.total_collected)}
-                      </td>
-                      <td className="py-2.5 px-2 text-center">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-full ${
-                            sess.state === 'in_progress'
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {sess.state === 'in_progress' ? 'Active' : 'Clôturée'}
-                        </span>
-                      </td>
+              {cashierPerformance.length > 0 ? (
+                <table className="w-full text-left text-xs border-collapse table-fixed">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase">
+                      <th className="py-2.5 px-2.5 w-[20%]">Session</th>
+                      <th className="py-2.5 px-2.5 w-[22%]">Caissier</th>
+                      <th className="py-2.5 px-2.5 w-[16%] hidden sm:table-cell">Ouverture</th>
+                      <th className="py-2.5 px-2.5 text-right w-[18%] hidden md:table-cell">Espèces</th>
+                      <th className="py-2.5 px-2.5 text-right w-[24%]">Total Collecté</th>
+                      <th className="py-2.5 px-2 text-center w-[16%]">État</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {cashierPerformance.map((sess) => (
+                      <tr key={sess.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-2.5 font-mono font-bold text-slate-900 truncate" title={sess.name}>{sess.name}</td>
+                        <td className="py-2.5 px-2.5 font-bold text-slate-800 truncate" title={sess.cashier}>{sess.cashier}</td>
+                        <td className="py-2.5 px-2.5 text-slate-500 text-[11px] truncate hidden sm:table-cell">{sess.start_at}</td>
+                        <td className="py-2.5 px-2.5 text-right font-mono text-slate-800 whitespace-nowrap hidden md:table-cell">
+                          {formatFCFA(sess.cash_collected)}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
+                          {formatFCFA(sess.total_collected)}
+                        </td>
+                        <td className="py-2.5 px-2 text-center">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold truncate max-w-full ${
+                              sess.state === 'in_progress'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {sess.state === 'in_progress' ? 'Active' : 'Clôturée'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Aucune session de caisse enregistrée sur cette période
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1180,42 +1340,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="w-full">
-              <table className="w-full text-left text-xs border-collapse table-fixed">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase">
-                    <th className="py-2.5 px-2.5 w-[25%]">Facture</th>
-                    <th className="py-2.5 px-2.5 w-[20%]">Échéance</th>
-                    <th className="py-2.5 px-2.5 text-right w-[20%] hidden sm:table-cell">Total</th>
-                    <th className="py-2.5 px-2.5 text-right w-[20%]">Solde Dû</th>
-                    <th className="py-2.5 px-2 text-right w-[15%]">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {effectiveOverdueMoves.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-2.5 px-2.5 font-mono font-bold text-slate-900 truncate" title={m.name}>{m.name}</td>
-                      <td className="py-2.5 px-2.5 text-amber-700 font-medium text-[11px] truncate">
-                        {m.invoice_date_due || 'Non définie'}
-                      </td>
-                      <td className="py-2.5 px-2.5 text-right font-mono text-slate-600 whitespace-nowrap hidden sm:table-cell">
-                        {formatFCFA(m.amount_total)}
-                      </td>
-                      <td className="py-2.5 px-2.5 text-right font-mono font-bold text-amber-900 whitespace-nowrap">
-                        {formatFCFA(m.amount_residual)}
-                      </td>
-                      <td className="py-2.5 px-2 text-right">
-                        <button
-                          onClick={() => onSendReminder(m.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-amber-900 hover:bg-amber-800 text-white rounded text-[10px] font-bold cursor-pointer transition"
-                        >
-                          <Send className="w-2.5 h-2.5" />
-                          <span>Relancer</span>
-                        </button>
-                      </td>
+              {effectiveOverdueMoves.length > 0 ? (
+                <table className="w-full text-left text-xs border-collapse table-fixed">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase">
+                      <th className="py-2.5 px-2.5 w-[25%]">Facture</th>
+                      <th className="py-2.5 px-2.5 w-[20%]">Échéance</th>
+                      <th className="py-2.5 px-2.5 text-right w-[20%] hidden sm:table-cell">Total</th>
+                      <th className="py-2.5 px-2.5 text-right w-[20%]">Solde Dû</th>
+                      <th className="py-2.5 px-2 text-right w-[15%]">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {effectiveOverdueMoves.map((m) => (
+                      <tr key={m.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-2.5 font-mono font-bold text-slate-900 truncate" title={m.name}>{m.name}</td>
+                        <td className="py-2.5 px-2.5 text-amber-700 font-medium text-[11px] truncate">
+                          {m.invoice_date_due || 'Non définie'}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right font-mono text-slate-600 whitespace-nowrap hidden sm:table-cell">
+                          {formatFCFA(m.amount_total)}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right font-mono font-bold text-amber-900 whitespace-nowrap">
+                          {formatFCFA(m.amount_residual)}
+                        </td>
+                        <td className="py-2.5 px-2 text-right">
+                          <button
+                            onClick={() => onSendReminder(m.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-amber-900 hover:bg-amber-800 text-white rounded text-[10px] font-bold cursor-pointer transition"
+                          >
+                            <Send className="w-2.5 h-2.5" />
+                            <span>Relancer</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="py-8 text-center text-xs text-emerald-700 bg-emerald-50/50 rounded-lg">
+                  Toutes les créances sont à jour ou recouvrées. Aucun retard d'échéance à signaler.
+                </div>
+              )}
             </div>
           </div>
         </div>

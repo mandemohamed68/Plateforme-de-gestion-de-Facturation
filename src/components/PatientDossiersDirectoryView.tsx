@@ -57,30 +57,31 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
 
     return patients.filter((p) => {
       // 1. Direct name match with original or decoded search
+      const pName = (p.name || '').toString().toLowerCase();
       const nameMatch = 
-        p.name.toLowerCase().includes(rawQ) || 
-        p.name.toLowerCase().includes(decodedQ);
+        pName.includes(rawQ) || 
+        pName.includes(decodedQ);
 
       // 2. Direct NDM code match
       const ndmMatch = p.ndm ? (
-        p.ndm.toLowerCase().includes(rawQ) || 
-        p.ndm.toLowerCase().includes(decodedQ)
+        (p.ndm || '').toString().toLowerCase().includes(rawQ) || 
+        (p.ndm || '').toString().toLowerCase().includes(decodedQ)
       ) : false;
 
       // 3. Phone number match
       const phoneMatch = p.phone ? (
-        p.phone.toLowerCase().includes(rawQ) || 
-        p.phone.toLowerCase().includes(decodedQ)
+        (p.phone || '').toString().toLowerCase().includes(rawQ) || 
+        (p.phone || '').toString().toLowerCase().includes(decodedQ)
       ) : false;
 
       // 4. Insurance / Tiers-payeur match
       const insuranceMatch = p.insurance_name ? (
-        p.insurance_name.toLowerCase().includes(rawQ) || 
-        p.insurance_name.toLowerCase().includes(decodedQ)
+        (p.insurance_name || '').toString().toLowerCase().includes(rawQ) || 
+        (p.insurance_name || '').toString().toLowerCase().includes(decodedQ)
       ) : false;
 
       // 5. Robust numeric digits match (handles formatting and partial key input perfectly)
-      const pNumericNdm = p.ndm ? p.ndm.replace(/[^0-9]/g, '') : '';
+      const pNumericNdm = p.ndm ? (p.ndm || '').toString().replace(/[^0-9]/g, '') : '';
       const numericNdmMatch = pNumericNdm && numericQ ? pNumericNdm.includes(numericQ) : false;
 
       return nameMatch || ndmMatch || phoneMatch || insuranceMatch || numericNdmMatch;

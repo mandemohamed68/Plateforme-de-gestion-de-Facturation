@@ -83,6 +83,9 @@ export interface CompanySettings {
   // Pagination Configuration (Back-Office / Admin)
   default_page_size?: number; // e.g. 25, 50, 100, 200 (default 50)
 
+  // Security & Session Inactivity Configuration
+  session_timeout_minutes?: number; // Inactivity timeout in minutes before auto-logout (default 15, 0 = disabled)
+
   // Sandbox vs Production Mode Configuration
   is_sandbox?: boolean; // Whether LIMS is in sandbox (simulated/test) or production (live) mode
 }
@@ -530,6 +533,7 @@ export type AppView =
   | 'invoices'
   | 'payments'
   | 'caisse_sessions'
+  | 'insurance_claims'
   | 'partners'
   | 'patient_dossiers'
   | 'lab_results'

@@ -40,6 +40,7 @@ import {
   X,
   Play,
   Volume2,
+  Clock,
 } from 'lucide-react';
 import { CompanySettings, PaymentMethodItem, FlashAnnouncement } from '../types';
 import { getAppTheme } from '../lib/theme';
@@ -155,6 +156,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
     ndm_prefix: company.ndm_prefix !== undefined ? company.ndm_prefix : 'NDM-',
     ndm_digits: company.ndm_digits !== undefined ? company.ndm_digits : 8,
     ndm_next_number: company.ndm_next_number !== undefined ? company.ndm_next_number : 270408,
+    session_timeout_minutes: company.session_timeout_minutes !== undefined ? company.session_timeout_minutes : 15,
   });
 
   const [activeTab, setActiveTab] = useState<'branding' | 'contact' | 'payments' | 'flash_news' | 'fiscal' | 'lab' | 'system'>('branding');
@@ -867,7 +869,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                       className="flex items-center space-x-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-xs transition"
                     >
                       <Smartphone className="w-3.5 h-3.5" />
-                      <span>🧪 Simuler Workflow Agrégateur</span>
+                      <span>Tester le Workflow Agrégateur</span>
                     </button>
                     <button
                       type="button"
@@ -1461,6 +1463,122 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Security & Inactivity Session Configuration */}
+              <div className="pt-5 border-t border-slate-100 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Sécurité des Données Médicales & Déconnexion par Inactivité
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Conformément aux normes de confidentialité des données de santé et de secret médical, la plateforme déconnecte automatiquement l'utilisateur lorsqu'aucune activité (clic, frappe, mouvement de souris) n'est constatée pendant un délai déterminé.
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+                  {[
+                    { val: 5, label: '5 min', desc: 'Haute Sécurité' },
+                    { val: 10, label: '10 min', desc: 'Recommandé' },
+                    { val: 15, label: '15 min', desc: 'Standard' },
+                    { val: 30, label: '30 min', desc: 'Modéré' },
+                    { val: 60, label: '60 min', desc: 'Prolongé' },
+                    { val: 0, label: 'Désactivé', desc: 'Sans déconnexion' },
+                  ].map((option) => {
+                    const isSelected = (formData.session_timeout_minutes ?? 15) === option.val;
+                    return (
+                      <button
+                        key={option.val}
+                        type="button"
+                        onClick={() => handleChange('session_timeout_minutes', option.val)}
+                        className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="text-xs font-black font-mono">{option.label}</span>
+                        <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {option.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Database Dump & Export Section */}
+              <div className="pt-5 border-t border-slate-100 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Database className="w-4 h-4 text-sky-600" />
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Sauvegarde Intégrale & Dump de la Base de Données
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Exportez l'intégralité de la base de données médicale et financière (patients, analyses de biologie, factures scellées, règlements, sessions de caisse). Les fichiers exportés garantissent la portabilité et la sauvegarde conforme de vos données.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <a
+                    href="/api/database/dump"
+                    download
+                    className="flex items-center justify-between p-3.5 bg-sky-50/80 hover:bg-sky-100 border border-sky-200 rounded-xl transition group cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+                        <Download className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-slate-900 group-hover:text-sky-900">
+                          Télécharger Dump JSON
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Format complet avec métadonnées &amp; objets
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-200/70 text-sky-800 rounded font-mono">
+                      .JSON
+                    </span>
+                  </a>
+
+                  <a
+                    href="/api/database/dump-sql"
+                    download
+                    className="flex items-center justify-between p-3.5 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition group cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+                        <Database className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-slate-900 group-hover:text-emerald-900">
+                          Télécharger Dump SQL
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Script tables &amp; INSERT (MariaDB / MySQL)
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-200/70 text-emerald-800 rounded font-mono">
+                      .SQL
+                    </span>
+                  </a>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                  <div className="font-bold text-slate-700 flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Emplacement local des fichiers de persistance et dump sur le serveur :</span>
+                  </div>
+                  <div className="font-mono text-[10px] text-slate-500 pl-5">
+                    • /data/db_store.json (Stockage actif persistant)<br />
+                    • /data/database_dump.json (Archive dump JSON complète)<br />
+                    • /database/dump_database.sql (Script SQL de réimportation)
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1849,10 +1967,10 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                     onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, type: e.target.value as any })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
                   >
-                    <option value="info">ℹ️ Information Générale (Bleu)</option>
-                    <option value="promo">🎉 Nouveauté / Promotion (Vert)</option>
-                    <option value="warning">⚠️ Vigilance (Orange)</option>
-                    <option value="urgent">🚨 Urgent / Important (Rouge)</option>
+                    <option value="info">Information Générale (Bleu)</option>
+                    <option value="promo">Communication / Nouveauté (Vert)</option>
+                    <option value="warning">Vigilance / Rappel (Orange)</option>
+                    <option value="urgent">Urgent / Alerte (Rouge)</option>
                   </select>
                 </div>
 

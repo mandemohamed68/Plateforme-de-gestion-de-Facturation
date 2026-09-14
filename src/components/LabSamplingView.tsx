@@ -94,36 +94,11 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
     fetchWorkflowData();
   }, [labOrders]);
 
-  // LIMS Auto-Pilot Robot Effect
+  // Note: Auto-pilot disabled by default to preserve user test states
   useEffect(() => {
     if (!isAutoPilotOn) return;
-    if (labOrders.length === 0) return;
-
-    // Find first order that can be advanced
-    const order = labOrders.find(o => 
-      ['pending_sampling', 'in_progress', 'accepted', 'results_entered', 'saisi', 'valide_tech', 'validated', 'valide_biologiste'].includes(o.status)
-    );
-
-    if (!order) return;
-
-    const timer = setTimeout(() => {
-      if (order.status === 'pending_sampling') {
-        handleValidateSingle(order);
-      } else if (order.status === 'in_progress') {
-        handleAdvanceWorkflow(order.id, 'accepted', 'Robot LIMS', 'Auto-réception des tubes sur le plateau');
-      } else if (order.status === 'accepted') {
-        handleSimulateAutomateImport(order.id);
-      } else if (order.status === 'results_entered' || order.status === 'saisi') {
-        handleAdvanceWorkflow(order.id, 'valide_tech', 'Moteur LIMS (Auto-Validation)', 'Validation technique automatique (Absence de Flags Sysmex)');
-      } else if (order.status === 'valide_tech') {
-        handleSignBiologist(order.id);
-      } else if (order.status === 'validated' || order.status === 'valide_biologiste') {
-        handleSendPatient(order.id);
-      }
-    }, 1500); // 1.5 seconds between steps for nice visual pacing
-
-    return () => clearTimeout(timer);
-  }, [isAutoPilotOn, labOrders]);
+    // When manually enabled, user can use explicit action buttons
+  }, [isAutoPilotOn]);
 
   // New manual sample state
   const [newPartnerId, setNewPartnerId] = useState<number>(partners[0]?.id || 1);
@@ -211,11 +186,29 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
       }))
       .filter(item => 
         !sidebarSearch || 
-        item.ndm.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
-        item.name.toLowerCase().includes(sidebarSearch.toLowerCase())
+        (item.ndm || '').toString().toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+        (item.name || '').toString().toLowerCase().includes(sidebarSearch.toLowerCase())
       )
       .sort((a, b) => b.count - a.count);
   }, [labOrders, partners, sidebarSearch]);
+
+  // Counts for quick filter tabs
+  const filterCounts = React.useMemo(() => {
+    const counts = {
+      all: labOrders.length,
+      pending_sampling: 0,
+      in_progress: 0,
+      results_entered: 0,
+      validated: 0,
+    };
+    labOrders.forEach((o) => {
+      if (o.status === 'pending_sampling') counts.pending_sampling++;
+      else if (o.status === 'in_progress' || o.status === 'accepted') counts.in_progress++;
+      else if (o.status === 'results_entered' || o.status === 'saisi') counts.results_entered++;
+      else if (['valide_tech', 'validated', 'valide_biologiste', 'envoye'].includes(o.status)) counts.validated++;
+    });
+    return counts;
+  }, [labOrders]);
 
   // Main list filters
   const filteredOrders = React.useMemo(() => {
@@ -228,21 +221,31 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
           if (ndm !== selectedNdm) return false;
         }
 
-        // 2. Status Pill Filter
-        if (activeStatusFilter !== 'all' && o.status !== activeStatusFilter) {
-          return false;
+        // 2. Status Pill Filter - inclusive matching so tests are never hidden
+        if (activeStatusFilter !== 'all') {
+          if (activeStatusFilter === 'pending_sampling') {
+            if (o.status !== 'pending_sampling') return false;
+          } else if (activeStatusFilter === 'in_progress') {
+            if (o.status !== 'in_progress' && o.status !== 'accepted') return false;
+          } else if (activeStatusFilter === 'results_entered') {
+            if (o.status !== 'results_entered' && o.status !== 'saisi') return false;
+          } else if (activeStatusFilter === 'validated') {
+            if (!['validated', 'valide_tech', 'valide_biologiste', 'envoye'].includes(o.status)) return false;
+          } else if (o.status !== activeStatusFilter) {
+            return false;
+          }
         }
 
         // 3. Search Bar Filter
         if (mainSearch.trim()) {
           const query = mainSearch.toLowerCase();
-          const matchesName = o.partner_name.toLowerCase().includes(query);
-          const matchesSid = getSID(o).toLowerCase().includes(query);
-          const matchesExams = o.exam_names.some(e => e.toLowerCase().includes(query));
-          const matchesDept = o.department.toLowerCase().includes(query);
+          const matchesName = (o.partner_name || '').toString().toLowerCase().includes(query);
+          const matchesSid = (getSID(o) || '').toString().toLowerCase().includes(query);
+          const matchesExams = (o.exam_names || []).some(e => (e || '').toString().toLowerCase().includes(query));
+          const matchesDept = (o.department || '').toString().toLowerCase().includes(query);
           const partner = partners.find(p => p.id === o.partner_id);
           const ndm = partner?.convention_code || `000${15000 + o.partner_id}`;
-          const matchesNdm = ndm.toLowerCase().includes(query);
+          const matchesNdm = (ndm || '').toString().toLowerCase().includes(query);
           
           if (!matchesName && !matchesSid && !matchesExams && !matchesDept && !matchesNdm) {
             return false;
@@ -408,8 +411,8 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
   };
 
   const getTubeInfo = (order: LabExamOrder) => {
-    const dept = (order.department || '').toLowerCase();
-    const exams = (order.exam_names || []).map(e => e.toLowerCase());
+    const dept = (order.department || '').toString().toLowerCase();
+    const exams = (order.exam_names || []).map(e => (e || '').toString().toLowerCase());
 
     if (dept.includes('coag') || exams.some(e => e.includes('tp') || e.includes('tca') || e.includes('fibrinogène') || e.includes('coag'))) {
       return { name: 'Tube Citrate Bleu (Plasma)', color: '#3b82f6' };
@@ -728,56 +731,81 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
           {/* Action Buttons for Selection */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
             {/* Quick Filter States */}
-            <div className="flex items-center space-x-1 overflow-x-auto py-1 scrollbar-none">
+            <div className="flex items-center space-x-1.5 overflow-x-auto py-1 scrollbar-none">
               <button
                 onClick={() => { setActiveStatusFilter('all'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
+                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
                   activeStatusFilter === 'all'
                     ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                Tous
+                <span>Tous</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  activeStatusFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {filterCounts.all}
+                </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('pending_sampling'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
+                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
                   activeStatusFilter === 'pending_sampling'
-                    ? 'bg-teal-600 text-white shadow-sm'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200'
                 }`}
               >
-                Initié
+                <span>Initié</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  activeStatusFilter === 'pending_sampling' ? 'bg-teal-800 text-white' : 'bg-teal-100 text-teal-900'
+                }`}>
+                  {filterCounts.pending_sampling}
+                </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('in_progress'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
+                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
                   activeStatusFilter === 'in_progress'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    ? 'bg-blue-700 text-white shadow-xs'
+                    : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200'
                 }`}
               >
-                Prélevé
+                <span>Prélevé</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  activeStatusFilter === 'in_progress' ? 'bg-blue-800 text-white' : 'bg-blue-100 text-blue-900'
+                }`}>
+                  {filterCounts.in_progress}
+                </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('results_entered'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
+                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
                   activeStatusFilter === 'results_entered'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    ? 'bg-amber-700 text-white shadow-xs'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
                 }`}
               >
-                Saisi
+                <span>Saisi</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  activeStatusFilter === 'results_entered' ? 'bg-amber-800 text-white' : 'bg-amber-100 text-amber-900'
+                }`}>
+                  {filterCounts.results_entered}
+                </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('validated'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition ${
+                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
                   activeStatusFilter === 'validated'
-                    ? 'bg-slate-600 text-white shadow-sm'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    ? 'bg-purple-700 text-white shadow-xs'
+                    : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200'
                 }`}
               >
-                Validé
+                <span>Validé</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  activeStatusFilter === 'validated' ? 'bg-purple-800 text-white' : 'bg-purple-100 text-purple-900'
+                }`}>
+                  {filterCounts.validated}
+                </span>
               </button>
             </div>
 
@@ -966,7 +994,7 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
                               title="Valider le prélèvement : lance l'étiquetage et enchaîne tout le workflow automatique"
                             >
                               <CheckCircle className="w-3 h-3 text-white" />
-                              <span>💉 Prélèvement OK</span>
+                              <span>Prélèvement Validé</span>
                             </button>
                           ) : order.status === 'envoye' ? (
                             <span className="text-[10px] text-emerald-700 font-black flex items-center space-x-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">

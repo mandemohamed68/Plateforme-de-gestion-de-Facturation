@@ -264,14 +264,14 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
-          p.name.toLowerCase().includes(q) ||
-          (p.ndm && p.ndm.toLowerCase().includes(q)) ||
+          (p.name || '').toString().toLowerCase().includes(q) ||
+          (p.ndm || '').toString().toLowerCase().includes(q) ||
           (p.id && p.id.toString().includes(q)) ||
-          (p.email && p.email.toLowerCase().includes(q)) ||
-          (p.phone && p.phone.toLowerCase().includes(q)) ||
-          (p.convention_code && p.convention_code.toLowerCase().includes(q)) ||
-          (p.insurance_policy_number && p.insurance_policy_number.toLowerCase().includes(q)) ||
-          (p.city && p.city.toLowerCase().includes(q))
+          (p.email || '').toString().toLowerCase().includes(q) ||
+          (p.phone || '').toString().toLowerCase().includes(q) ||
+          (p.convention_code || '').toString().toLowerCase().includes(q) ||
+          (p.insurance_policy_number || '').toString().toLowerCase().includes(q) ||
+          (p.city || '').toString().toLowerCase().includes(q)
         );
       }
       return true;
@@ -425,7 +425,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
             { id: 'company', label: 'Entreprises' },
             { id: 'prescriber', label: 'Prescripteurs' },
             { id: 'supplier', label: 'Fournisseurs' },
-            { id: 'reductions', label: 'Grilles de Réduction 🏷️' },
+            { id: 'reductions', label: 'Grilles de Réduction' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -477,7 +477,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                   </tr>
                 ) : (
                   [...partnerReductions]
-                    .filter(r => !searchQuery || r.patient_type.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .filter(r => !searchQuery || (r.patient_type || '').toString().toLowerCase().includes(searchQuery.toLowerCase()))
                     .sort((a, b) => b.id - a.id)
                     .map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/70 transition font-semibold">

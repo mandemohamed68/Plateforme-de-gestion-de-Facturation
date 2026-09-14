@@ -108,9 +108,9 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
-        (p.partner_name && p.partner_name.toLowerCase().includes(q)) ||
-        (p.move_name && p.move_name.toLowerCase().includes(q)) ||
-        (p.journal_name && p.journal_name.toLowerCase().includes(q))
+        (p.partner_name && (p.partner_name || '').toString().toLowerCase().includes(q)) ||
+        (p.move_name && (p.move_name || '').toString().toLowerCase().includes(q)) ||
+        (p.journal_name && (p.journal_name || '').toString().toLowerCase().includes(q))
       );
     })
     .sort((a, b) => {

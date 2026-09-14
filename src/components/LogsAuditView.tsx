@@ -25,7 +25,9 @@ import {
   Info,
   SlidersHorizontal,
   Bot,
-  Database
+  Database,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { WorkflowLogEntry, NotificationQueueEntry, CompanySettings, ResUser, LabExamOrder } from '../types';
 import { PaginationControls } from './PaginationControls';
@@ -154,11 +156,11 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
       // Search term filter
       if (searchTerm.trim() !== '') {
         const q = searchTerm.toLowerCase().trim();
-        const matchesRef = log.reference.toLowerCase().includes(q);
-        const matchesPatient = (log.patient_name || '').toLowerCase().includes(q);
-        const matchesActeur = log.acteur.toLowerCase().includes(q);
-        const matchesDesc = log.description.toLowerCase().includes(q);
-        const matchesEtape = log.etape.toLowerCase().includes(q);
+        const matchesRef = (log.reference || '').toString().toLowerCase().includes(q);
+        const matchesPatient = (log.patient_name || '').toString().toLowerCase().includes(q);
+        const matchesActeur = (log.acteur || '').toString().toLowerCase().includes(q);
+        const matchesDesc = (log.description || '').toString().toLowerCase().includes(q);
+        const matchesEtape = (log.etape || '').toString().toLowerCase().includes(q);
         if (!matchesRef && !matchesPatient && !matchesActeur && !matchesDesc && !matchesEtape) {
           return false;
         }
@@ -447,7 +449,8 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <span className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center space-x-2">
-              <span>⚡ Supervision du Workflow LIMS & Flux d'Automatisation</span>
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <span>Supervision du Workflow LIMS &amp; Flux d'Automatisation</span>
               <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-0.5 rounded-full font-black border border-emerald-200">
                 100% Automatisé
               </span>
@@ -507,7 +510,7 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
                     <Database className="w-4 h-4 text-slate-600" />
-                    <span>📜 Journal d'Audit Technique (workflow_log)</span>
+                    <span>Journal d'Audit Technique (workflow_log)</span>
                   </span>
                   <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-bold">
                     {workflowLogs.length} logs
@@ -525,7 +528,7 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
                         <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono uppercase font-black">
                           {log.etape}
                         </span>
-                        <span className="text-slate-300">➔</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400 inline" />
                         <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
                           {log.etat_apres}
                         </span>
@@ -544,8 +547,8 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
               <div className="bg-slate-50/70 rounded-xl border border-slate-200/80 p-3.5 flex flex-col h-[220px]">
                 <div className="flex items-center justify-between mb-2.5">
                   <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
-                    <Printer className="w-4 h-4 text-slate-600" />
-                    <span>✉️ File de Messages & Notifications (notification_queue)</span>
+                    <Mail className="w-4 h-4 text-slate-600" />
+                    <span>File de Messages &amp; Notifications (notification_queue)</span>
                   </span>
                   <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-md font-bold">
                     {notifications.length} messages
@@ -781,11 +784,15 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
                       {/* Actor */}
                       <td className="py-3 px-3">
                         <div className="flex items-center space-x-1.5 truncate">
-                          {log.acteur.includes('Robot') || log.acteur.includes('Sysmex') || log.acteur.includes('Moteur') || log.acteur.includes('Système') ? (
-                            <Bot className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          ) : (
-                            <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                          )}
+                          {(() => {
+                            const act = log.acteur || '';
+                            const isRobot = act.includes('Robot') || act.includes('Sysmex') || act.includes('Moteur') || act.includes('Système');
+                            return isRobot ? (
+                              <Bot className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            ) : (
+                              <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            );
+                          })()}
                           <span className="font-semibold text-slate-800 text-[11px] truncate">
                             {log.acteur}
                           </span>

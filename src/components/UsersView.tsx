@@ -62,29 +62,30 @@ export const ALL_NAVIGATION_MENUS = [
   { id: 'schema', label: 'Schéma & Architecture BD', category: 'ADMINISTRATION & SÉCURITÉ' },
 ];
 
-export function getDefaultViewsForRole(roleName: string): string[] {
-  if (roleName.includes('Directeur') || roleName.includes('Admin') || roleName === 'Directeur Général') {
+export function getDefaultViewsForRole(roleName?: string | null): string[] {
+  const r = (roleName || '').toLowerCase();
+  if (r.includes('directeur') || r.includes('admin') || r === 'directeur général') {
     return ALL_NAVIGATION_MENUS.map(m => m.id);
   }
-  if (roleName.includes('Superviseur')) {
+  if (r.includes('superviseur')) {
     return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
   }
-  if (roleName.includes('Facturier') || roleName === 'Facture') {
+  if (r.includes('facturier') || r.includes('facture')) {
     return ['caisse_sessions', 'invoices', 'partners'];
   }
-  if (roleName.includes('Caissier') || roleName === 'Caisse') {
+  if (r.includes('caissier') || r.includes('caisse')) {
     return ['caisse_sessions', 'invoices', 'payments'];
   }
-  if (roleName.includes('Facture / Caisse')) {
+  if (r.includes('facture / caisse')) {
     return ['caisse_sessions', 'invoices', 'payments', 'partners'];
   }
-  if (roleName === 'Biologiste') {
+  if (r === 'biologiste' || r.includes('biolog')) {
     return ['lab_results', 'products', 'partners', 'dashboard'];
   }
-  if (roleName.includes('Technicien')) {
+  if (r.includes('technicien')) {
     return ['lab_results', 'products', 'partners'];
   }
-  if (roleName.includes('Comptable')) {
+  if (r.includes('comptable')) {
     return ['dashboard', 'invoices', 'payments', 'partners'];
   }
   return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
@@ -169,34 +170,38 @@ export const UsersView: React.FC<UsersViewProps> = ({
   };
 
   const toggleGroup = (groupId: number) => {
-    if (selectedGroupIds.includes(groupId)) {
-      setSelectedGroupIds(selectedGroupIds.filter((id) => id !== groupId));
+    const list = selectedGroupIds || [];
+    if (list.includes(groupId)) {
+      setSelectedGroupIds(list.filter((id) => id !== groupId));
     } else {
-      setSelectedGroupIds([...selectedGroupIds, groupId]);
+      setSelectedGroupIds([...list, groupId]);
     }
   };
 
   const toggleUserPermission = (permKey: string) => {
-    if (selectedUserPermissions.includes(permKey)) {
-      setSelectedUserPermissions(selectedUserPermissions.filter((k) => k !== permKey));
+    const list = selectedUserPermissions || [];
+    if (list.includes(permKey)) {
+      setSelectedUserPermissions(list.filter((k) => k !== permKey));
     } else {
-      setSelectedUserPermissions([...selectedUserPermissions, permKey]);
+      setSelectedUserPermissions([...list, permKey]);
     }
   };
 
   const toggleAllowedView = (viewId: string) => {
-    if (selectedAllowedViews.includes(viewId)) {
-      setSelectedAllowedViews(selectedAllowedViews.filter((v) => v !== viewId));
+    const list = selectedAllowedViews || [];
+    if (list.includes(viewId)) {
+      setSelectedAllowedViews(list.filter((v) => v !== viewId));
     } else {
-      setSelectedAllowedViews([...selectedAllowedViews, viewId]);
+      setSelectedAllowedViews([...list, viewId]);
     }
   };
 
   const handleRoleChange = (newRole: string) => {
-    setRole(newRole);
-    setSelectedAllowedViews(getDefaultViewsForRole(newRole));
+    const safeRole = newRole || '';
+    setRole(safeRole);
+    setSelectedAllowedViews(getDefaultViewsForRole(safeRole));
 
-    if (newRole.includes("Superviseur") || newRole === "Directeur Général") {
+    if (safeRole.includes("Superviseur") || safeRole === "Directeur Général") {
       setSelectedGroupIds([1]);
       setDepartment("Direction / Supervision");
       setSelectedUserPermissions([
@@ -212,27 +217,27 @@ export const UsersView: React.FC<UsersViewProps> = ({
         'can_manage_settings',
         'can_manage_users',
       ]);
-    } else if (newRole.includes("Facturier") || newRole === "Facture") {
+    } else if (safeRole.includes("Facturier") || safeRole === "Facture") {
       setSelectedGroupIds([2]);
       setDepartment("Facturation");
       setSelectedUserPermissions(['can_manage_invoices', 'can_manage_partners']);
-    } else if (newRole.includes("Caissier") || newRole === "Caisse") {
+    } else if (safeRole.includes("Caissier") || safeRole === "Caisse") {
       setSelectedGroupIds([3]);
       setDepartment("Caisse");
       setSelectedUserPermissions(['can_register_payments', 'can_manage_partners']);
-    } else if (newRole.includes("Facture / Caisse")) {
+    } else if (safeRole.includes("Facture / Caisse")) {
       setSelectedGroupIds([4]);
       setDepartment("Facturation & Caisse");
       setSelectedUserPermissions(['can_manage_invoices', 'can_register_payments', 'can_manage_partners']);
-    } else if (newRole === "Biologiste") {
+    } else if (safeRole === "Biologiste") {
       setSelectedGroupIds([5]);
       setDepartment("Laboratoire Médical");
       setSelectedUserPermissions(['can_manage_invoices', 'can_validate_medical', 'can_enter_results', 'can_manage_lab_catalog']);
-    } else if (newRole === "Technicien Supérieur Analyses Médicales") {
+    } else if (safeRole === "Technicien Supérieur Analyses Médicales") {
       setSelectedGroupIds([6]);
       setDepartment("Laboratoire Médical");
       setSelectedUserPermissions(['can_enter_results']);
-    } else if (newRole === "Comptable & Tiers-Payeur") {
+    } else if (safeRole === "Comptable & Tiers-Payeur") {
       setSelectedGroupIds([7]);
       setDepartment("Comptabilité");
       setSelectedUserPermissions(['can_validate_invoices', 'can_register_payments', 'can_view_financials']);
@@ -295,10 +300,11 @@ export const UsersView: React.FC<UsersViewProps> = ({
   };
 
   const toggleRolePermission = (permKey: string) => {
-    if (rolePermissions.includes(permKey)) {
-      setRolePermissions(rolePermissions.filter((k) => k !== permKey));
+    const list = rolePermissions || [];
+    if (list.includes(permKey)) {
+      setRolePermissions(list.filter((k) => k !== permKey));
     } else {
-      setRolePermissions([...rolePermissions, permKey]);
+      setRolePermissions([...list, permKey]);
     }
   };
 
@@ -887,7 +893,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {groups.map((g) => {
-                    const isSelected = selectedGroupIds.includes(g.id);
+                    const isSelected = (selectedGroupIds || []).includes(g.id);
                     return (
                       <div
                         key={g.id}
@@ -946,7 +952,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                   {ALL_NAVIGATION_MENUS.map((menu) => {
-                    const isChecked = selectedAllowedViews.includes(menu.id);
+                    const isChecked = (selectedAllowedViews || []).includes(menu.id);
                     return (
                       <div
                         key={menu.id}
@@ -1057,7 +1063,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
                 </label>
                 <div className="space-y-2 max-h-60 overflow-y-auto p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   {EXHAUSTIVE_PERMISSIONS.map((perm) => {
-                    const isChecked = rolePermissions.includes(perm.key);
+                    const isChecked = (rolePermissions || []).includes(perm.key);
                     return (
                       <label
                         key={perm.key}

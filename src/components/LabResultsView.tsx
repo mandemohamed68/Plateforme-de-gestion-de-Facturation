@@ -108,11 +108,11 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
       if (filterDepartment !== 'all' && order.department !== filterDepartment) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchPatient = order.partner_name.toLowerCase().includes(q);
-        const matchOrderNum = order.order_number.toLowerCase().includes(q);
-        const matchExams = order.exam_names.some((ex) => ex.toLowerCase().includes(q));
-        const matchSid = getSID(order).toLowerCase().includes(q);
-        const matchNdm = getPartnerNDM(order).toLowerCase().includes(q);
+        const matchPatient = (order.partner_name || '').toLowerCase().includes(q);
+        const matchOrderNum = (order.order_number || '').toLowerCase().includes(q);
+        const matchExams = (order.exam_names || []).some((ex) => (ex || '').toLowerCase().includes(q));
+        const matchSid = (getSID(order) || '').toLowerCase().includes(q);
+        const matchNdm = (getPartnerNDM(order) || '').toLowerCase().includes(q);
         if (!matchPatient && !matchOrderNum && !matchExams && !matchSid && !matchNdm) return false;
       }
       return true;
@@ -593,14 +593,15 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                             <button
                               type="button"
                               onClick={() => handleToggleParamAbnormal(idx)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 transition ${
                                 param.is_abnormal
-                                  ? 'bg-rose-600 text-white'
-                                  : 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               }`}
                               title="Cliquer pour basculer l'alerte"
                             >
-                              {param.is_abnormal ? '🔴 Anormal' : '🟢 Normal'}
+                              <span className={`w-1.5 h-1.5 rounded-full ${param.is_abnormal ? 'bg-rose-600' : 'bg-emerald-600'}`} />
+                              <span>{param.is_abnormal ? 'Anormal' : 'Normal'}</span>
                             </button>
                           </td>
                         </tr>

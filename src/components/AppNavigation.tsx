@@ -20,6 +20,7 @@ import {
   FlaskConical,
   ScrollText,
   FolderOpen,
+  Download,
 } from 'lucide-react';
 import { ResUser, CompanySettings, ResGroup, AppView } from '../types';
 import { getAppTheme } from '../lib/theme';
@@ -67,13 +68,13 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     const groupIds = user.group_ids || [];
     const perms = user.permissions || [];
 
-    // 2. Superviseur Caisse & Facturation (Strictly default to 5 modules: Dashboard, Sessions, Factures, Règlements, Patients)
+    // 2. Superviseur Caisse & Facturation
     if (
       role.includes('superviseur') ||
       login === 'superviseur' ||
       billingProfile === 'superviseur' && !role.includes('admin') && !role.includes('directeur')
     ) {
-      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
+      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'insurance_claims', 'partners'];
     }
 
     // 3. Admin / Directeur / Administrateur -> Accès complet à TOUS les menus
@@ -90,6 +91,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'caisse_sessions',
         'invoices',
         'payments',
+        'insurance_claims',
         'partners',
         'patient_dossiers',
         'lab_results',
@@ -104,28 +106,28 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       ];
     }
 
-    // 2. Superviseur Caisse & Facturation (Strictement limité aux 5 menus par défaut)
+    // 2. Superviseur Caisse & Facturation
     if (
       billingProfile === 'superviseur' ||
       login === 'superviseur' ||
       role.includes('superviseur')
     ) {
-      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners', 'logs_audit'];
+      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'insurance_claims', 'partners', 'logs_audit'];
     }
 
     // 2. Facturier (Établissement factures avec session journalière obligatoire, répertoire patients)
     if (billingProfile === 'facture') {
-      return ['caisse_sessions', 'invoices', 'partners'];
+      return ['caisse_sessions', 'invoices', 'insurance_claims', 'partners'];
     }
 
     // 3. Caissier (Encaissement paiements seul, pas de création de facture)
     if (billingProfile === 'caisse') {
-      return ['caisse_sessions', 'invoices', 'payments'];
+      return ['caisse_sessions', 'invoices', 'payments', 'insurance_claims'];
     }
 
     // 4. Facture / Caisse (Polyvalent : Facturation + Caisse)
     if (billingProfile === 'facture_caisse') {
-      return ['caisse_sessions', 'invoices', 'payments', 'partners'];
+      return ['caisse_sessions', 'invoices', 'payments', 'insurance_claims', 'partners'];
     }
 
     // 5. Biologiste Médical / Responsable de Laboratoire
@@ -160,7 +162,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       role.includes('daf') ||
       department.includes('compta')
     ) {
-      return ['dashboard', 'invoices', 'payments', 'partners', 'notifications'];
+      return ['dashboard', 'invoices', 'payments', 'insurance_claims', 'partners', 'notifications'];
     }
 
     // Custom Permissions Fallback
@@ -193,10 +195,13 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
   };
 
   const allowed = getRawViews();
-  if (allowed.includes('partners') && !allowed.includes('patient_dossiers')) {
-    return [...allowed, 'patient_dossiers'];
+  if (Array.isArray(allowed)) {
+    if (allowed.includes('partners') && !allowed.includes('patient_dossiers')) {
+      return [...allowed, 'patient_dossiers'];
+    }
+    return allowed;
   }
-  return allowed;
+  return ['caisse_sessions', 'invoices', 'payments', 'partners', 'patient_dossiers'];
 }
 
 interface AppNavigationProps {
@@ -327,6 +332,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           description: profile === 'facture' 
             ? 'Consultation des encaissements liés à mes factures' 
             : 'Historique des reçus de paiement enregistrés',
+        },
+        {
+          id: 'insurance_claims',
+          label: 'Dus Assurances & Tiers-Payant',
+          shortLabel: 'Bordereaux Assurances',
+          icon: ShieldCheck,
+          description: 'Relevé des créances mutuelles, point des dus par période (jour, semaine, mois) & bordereaux d’impression',
         },
       ],
     },
@@ -740,7 +752,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           <button
             id="sidebar-user-menu"
             onClick={() => setShowUserDropdown(!showUserDropdown)}
-            className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 transition text-left shadow-sm"
+            className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition text-left shadow-sm"
           >
             <div className="flex items-center space-x-2.5 truncate">
               <div
@@ -767,7 +779,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                 className="fixed inset-0 z-40"
                 onClick={() => setShowUserDropdown(false)}
               />
-              <div className="absolute left-3 right-3 bottom-full mb-2 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute left-3 right-3 bottom-full mb-2 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-200 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-4 py-2 border-b border-slate-100">
                   <div className="font-extrabold text-slate-900 text-xs">
                     {currentUser?.name}
@@ -845,7 +857,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             <button
               id="btn-toggle-sidebar"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden transition"
+              className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 lg:hidden transition"
               aria-label="Ouvrir le menu"
             >
               <Menu className="w-5 h-5" />
@@ -883,7 +895,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                     }
                   }
                 }}
-                className="w-full pl-9 pr-12 py-1.5 bg-slate-50 border border-slate-200 focus:border-slate-900 focus:bg-white focus:ring-1 focus:ring-slate-900 text-xs font-bold text-slate-900 placeholder:text-slate-400 rounded-xl transition shadow-inner"
+                className="w-full pl-9 pr-12 py-1.5 bg-slate-50 border border-slate-200 focus:border-slate-900 focus:bg-white focus:ring-1 focus:ring-slate-900 text-xs font-bold text-slate-900 placeholder:text-slate-400 rounded-lg transition shadow-inner"
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                 <span className="text-[9px] font-mono font-black uppercase text-slate-400 bg-slate-200/50 border border-slate-300 px-1.5 py-0.5 rounded leading-none">
@@ -895,38 +907,21 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
 
           {/* Right: Quick actions, persistence indicator, user switcher button */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Persistence Status Badge */}
+            {/* Permanent Storage Persistence Badge */}
             <div
-              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-bold"
-              title="Toutes les données sont automatiquement sauvegardées sur disque et persistées"
+              className="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-extrabold"
+              title="Sauvegarde permanente active : vos tests, factures et résultats restent enregistrés et persistés sur le système."
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Système Connecté</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="whitespace-nowrap">Sauvegarde Permanente Active</span>
             </div>
-
-            {/* Contextual Action CTA */}
-            {canManageLab ? (
-              <button
-                id="top-btn-new-lab-order"
-                onClick={() => {
-                  setCurrentView('lab_results');
-                  if (onNewLabOrder) onNewLabOrder();
-                }}
-                style={{ backgroundColor: theme.primary }}
-                className="flex items-center space-x-1.5 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-xs hover:opacity-95 transition active:scale-95 shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                <span className="hidden sm:inline">Nouvel Examen</span>
-                <span className="sm:hidden">Examen</span>
-              </button>
-            ) : null}
 
             {/* Profile Pill Button in Top Bar */}
             <div className="relative">
               <button
                 id="top-user-pill"
                 onClick={() => setShowQuickActionMenu(!showQuickActionMenu)}
-                className="flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition text-xs font-semibold text-slate-800 border border-slate-200 shrink-0"
+                className="flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition text-xs font-semibold text-slate-800 border border-slate-200 shrink-0"
               >
                 <div
                   style={{ backgroundColor: theme.primary }}
@@ -946,7 +941,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                     className="fixed inset-0 z-40"
                     onClick={() => setShowQuickActionMenu(false)}
                   />
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-200 py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
                     <div className="px-4 py-2 border-b border-slate-100">
                       <div className="font-extrabold text-slate-900">{currentUser?.name}</div>
                       <div className="text-[11px] text-slate-500">{currentUser?.email}</div>
@@ -984,6 +979,29 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                           </span>
                         </button>
                       ))}
+                    </div>
+
+                    <div className="border-t border-slate-100 py-1">
+                      <a
+                        href="/api/database/dump"
+                        download
+                        onClick={() => setShowQuickActionMenu(false)}
+                        className="w-full text-left px-4 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center space-x-2 font-bold transition"
+                        title="Télécharger une copie intégrale de la base de données au format JSON"
+                      >
+                        <Download className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Dump Base de Données (JSON)</span>
+                      </a>
+                      <a
+                        href="/api/database/dump-sql"
+                        download
+                        onClick={() => setShowQuickActionMenu(false)}
+                        className="w-full text-left px-4 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center space-x-2 font-bold transition"
+                        title="Télécharger le script SQL d'insertion pour MariaDB / MySQL"
+                      >
+                        <Database className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Dump Base de Données (SQL)</span>
+                      </a>
                     </div>
 
                     <div className="border-t border-slate-100 pt-1">

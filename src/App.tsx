@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Clock, ShieldAlert, LogOut } from 'lucide-react';
 import { AppNavigation, AppView, getAllowedViews } from './components/AppNavigation';
 import { LoginView } from './components/LoginView';
 import { CompanySettingsView } from './components/CompanySettingsView';
@@ -18,6 +20,7 @@ import { CaisseSessionsView } from './components/CaisseSessionsView';
 import { InvoicePdfModal } from './components/InvoicePdfModal';
 import { PatientDossierModal } from './components/PatientDossierModal';
 import { PatientDossiersDirectoryView } from './components/PatientDossiersDirectoryView';
+import { InsuranceClaimsView } from './components/InsuranceClaimsView';
 import {
   AccountMove,
   ResPartner,
@@ -124,6 +127,64 @@ export default function App() {
     return null;
   });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState<string | null>(null);
+  const [inactivityWarningSeconds, setInactivityWarningSeconds] = useState<number | null>(null);
+  const lastActivityTimeRef = useRef<number>(Date.now());
+
+  const resetActivity = useCallback(() => {
+    lastActivityTimeRef.current = Date.now();
+    setInactivityWarningSeconds(null);
+  }, []);
+
+  // Automatic logout on inactivity (medical security and patient data privacy)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleUserInteraction = () => {
+      const now = Date.now();
+      if (now - lastActivityTimeRef.current > 1000) {
+        lastActivityTimeRef.current = now;
+      }
+      setInactivityWarningSeconds((prev) => (prev !== null ? null : null));
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    events.forEach((evt) => window.addEventListener(evt, handleUserInteraction, { passive: true }));
+
+    const timeoutMinutes = company?.session_timeout_minutes !== undefined ? company.session_timeout_minutes : 15;
+    if (timeoutMinutes <= 0) {
+      return () => {
+        events.forEach((evt) => window.removeEventListener(evt, handleUserInteraction));
+      };
+    }
+
+    const timeoutMs = timeoutMinutes * 60 * 1000;
+    const warningThresholdMs = 60 * 1000;
+
+    const intervalId = setInterval(() => {
+      const elapsed = Date.now() - lastActivityTimeRef.current;
+      const remainingMs = timeoutMs - elapsed;
+
+      if (remainingMs <= 0) {
+        setIsAuthenticated(false);
+        setInactivityWarningSeconds(null);
+        setSessionExpiredNotice(
+          `Votre session a été verrouillée automatiquement suite à ${timeoutMinutes} minutes d'inactivité. Veuillez vous ré-authentifier pour des raisons de confidentialité médicale et de sécurité financière.`
+        );
+        showToast("Session verrouillée pour cause d'inactivité", 'error');
+      } else if (remainingMs <= warningThresholdMs) {
+        const secs = Math.ceil(remainingMs / 1000);
+        setInactivityWarningSeconds(secs);
+      } else {
+        setInactivityWarningSeconds((prev) => (prev !== null ? null : null));
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      events.forEach((evt) => window.removeEventListener(evt, handleUserInteraction));
+    };
+  }, [isAuthenticated, company?.session_timeout_minutes]);
 
   // Modals
   const [pdfMove, setPdfMove] = useState<AccountMove | null>(null);
@@ -239,6 +300,75 @@ export default function App() {
       setSchemaTables(Array.isArray(schemaRes?.tables) ? schemaRes.tables : []);
       if (companyRes && companyRes.name) {
         setCompany(companyRes);
+      }
+
+      // Resilient Dual-Store: local mirror & automatic recovery if container restarted
+      try {
+        const LOCAL_MIRROR_KEY = 'med_lab_permanent_mirror_v1';
+        const cachedRaw = localStorage.getItem(LOCAL_MIRROR_KEY);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          // Check for any user tests or invoices stored locally that are missing in the server response
+          const missingLabOrders = (cached.labOrders || []).filter(
+            (co: any) => co?.id && !safeLabOrders.some((so) => so.id === co.id)
+          );
+          const missingMoves = (cached.moves || []).filter(
+            (cm: any) => cm?.id && !safeMoves.some((sm) => sm.id === cm.id)
+          );
+          const missingPartners = (cached.partners || []).filter(
+            (cp: any) => cp?.id && !safePartners.some((sp) => sp.id === cp.id)
+          );
+          const missingPayments = (cached.payments || []).filter(
+            (cpy: any) => cpy?.id && !safePayments.some((spy) => spy.id === cpy.id)
+          );
+
+          if (missingLabOrders.length > 0 || missingMoves.length > 0 || missingPartners.length > 0) {
+            // Restore missing tests/invoices to the backend immediately
+            fetch('/api/sync-restore', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                labOrders: missingLabOrders,
+                moves: missingMoves,
+                partners: missingPartners,
+                payments: missingPayments,
+              }),
+            })
+              .then((r) => r.json())
+              .then((restoreResult) => {
+                if (restoreResult?.success) {
+                  if (missingLabOrders.length > 0) {
+                    setLabOrders((prev) => [...missingLabOrders, ...prev]);
+                  }
+                  if (missingMoves.length > 0) {
+                    setMoves((prev) => [...missingMoves, ...prev]);
+                  }
+                  if (missingPartners.length > 0) {
+                    setPartners((prev) => [...missingPartners, ...prev]);
+                  }
+                  showToast(
+                    `Restauration permanente : ${missingLabOrders.length} test(s) et factures précédents synchronisés !`,
+                    'success'
+                  );
+                }
+              })
+              .catch((e) => console.error('Auto-restore sync error:', e));
+          }
+        }
+
+        // Keep local mirror updated with the latest verified data
+        localStorage.setItem(
+          LOCAL_MIRROR_KEY,
+          JSON.stringify({
+            moves: safeMoves,
+            labOrders: safeLabOrders,
+            partners: safePartners,
+            payments: safePayments,
+            savedAt: new Date().toISOString(),
+          })
+        );
+      } catch (mirrorErr) {
+        console.warn('LocalStorage mirror error:', mirrorErr);
       }
 
       if (safeUsers.length > 0) {
@@ -381,7 +511,7 @@ export default function App() {
           if (p.partner_type && p.partner_type !== 'patient') return false;
           // Also if they don't have an NDM and they are a company, they're probably not a patient
           if (p.is_company) return false;
-          return p.name.toLowerCase().includes(cand);
+          return (p.name || '').toLowerCase().includes(cand);
         });
         if (foundPatient) break;
       }
@@ -838,6 +968,9 @@ export default function App() {
   const handleLogin = (user: ResUser) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
+    setSessionExpiredNotice(null);
+    setInactivityWarningSeconds(null);
+    lastActivityTimeRef.current = Date.now();
     localStorage.setItem('app_saved_user', JSON.stringify(user));
     const roleLower = (user.role || '').toLowerCase();
     const loginLower = (user.login || '').toLowerCase();
@@ -872,7 +1005,14 @@ export default function App() {
   };
 
   if (!isAuthenticated) {
-    return <LoginView users={users} company={company} onLogin={handleLogin} />;
+    return (
+      <LoginView
+        users={users}
+        company={company}
+        onLogin={handleLogin}
+        sessionExpiredNotice={sessionExpiredNotice || undefined}
+      />
+    );
   }
 
   const activeUserSession = tillSessions.find(
@@ -884,23 +1024,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col selection:bg-slate-900 selection:text-white relative overflow-x-hidden">
-      {/* Background Watermark Logo Layer (Filigrane visible et discret au-dessus du fond, non bloquant) */}
+      {/* Background Watermark Logo Layer (Filigrane visible et discret en fond z-0, non bloquant z-10) */}
       {company.show_watermark !== false && (
         <div
-          className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center overflow-hidden lg:pl-64 select-none"
+          className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden lg:pl-64 select-none"
           aria-hidden="true"
         >
           {company.logo_url ? (
-            <div className="flex flex-col items-center justify-center -rotate-12 transition-transform">
+            <div className="flex flex-col items-center justify-center -rotate-12 transition-transform pointer-events-none">
               <img
                 src={company.logo_url}
                 alt=""
-                style={{ opacity: Math.max(company.watermark_opacity || 0.12, 0.10) }}
+                style={{ opacity: Math.min(company.watermark_opacity || 0.04, 0.06) }}
                 className="w-96 h-96 sm:w-[520px] sm:h-[520px] object-contain select-none pointer-events-none"
               />
               {company.watermark_text && (
                 <div
-                  style={{ opacity: Math.max((company.watermark_opacity || 0.12) * 1.5, 0.15) }}
+                  style={{ opacity: Math.min((company.watermark_opacity || 0.04) * 1.5, 0.08) }}
                   className="mt-3 text-center font-black uppercase text-slate-900 tracking-widest text-xs sm:text-sm select-none pointer-events-none"
                 >
                   {company.watermark_text}
@@ -909,7 +1049,7 @@ export default function App() {
             </div>
           ) : (
             <div
-              style={{ opacity: Math.max(company.watermark_opacity || 0.08, 0.08) }}
+              style={{ opacity: Math.min(company.watermark_opacity || 0.04, 0.06) }}
               className="text-center font-black uppercase text-slate-900 tracking-widest text-3xl sm:text-5xl select-none -rotate-12 max-w-xl px-6 leading-tight pointer-events-none"
             >
               {company.watermark_text || company.name || "POLYCLINIQUE ET LABORATOIRE"}
@@ -1018,7 +1158,7 @@ export default function App() {
       />
 
       {/* Main App Canvas - Full Width View Without Restrictive Width Constraints */}
-      <main className="flex-1 lg:pl-64 transition-all p-3 sm:p-5 lg:p-6 w-full relative">
+      <main className="flex-1 lg:pl-64 transition-all p-3 sm:p-5 lg:p-6 w-full relative z-10">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
             <div
@@ -1030,7 +1170,15 @@ export default function App() {
             </p>
           </div>
         ) : (
-          <>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentView}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="w-full"
+            >
             {currentView === 'dashboard' && analytics && (
               <DashboardView
                 analytics={analytics}
@@ -1170,6 +1318,22 @@ export default function App() {
               />
             )}
 
+            {currentView === 'insurance_claims' && (
+              <InsuranceClaimsView
+                moves={moves}
+                partners={partners}
+                company={company}
+                currentUser={currentUser}
+                onOpenPdf={(move) => setPdfMove(move)}
+                onRegisterPayment={async (p) => {
+                  const res = await handleRegisterPayment(p);
+                  await fetchAllData();
+                  return res;
+                }}
+                onNavigateToInvoices={() => setCurrentView('invoices')}
+              />
+            )}
+
             {currentView === 'partners' && (
               <PartnersView
                 partners={partners}
@@ -1252,7 +1416,8 @@ export default function App() {
                 onExecuteSql={handleExecuteSql}
               />
             )}
-          </>
+            </motion.div>
+          </AnimatePresence>
         )}
       </main>
 
@@ -1289,18 +1454,72 @@ export default function App() {
         />
       )}
 
-      {/* Floating Toast Notification */}
-      {toastMessage && (
-        <div
-          className={`fixed bottom-6 right-6 z-[100] px-4 py-3 rounded-2xl shadow-2xl font-extrabold text-xs text-white border animate-in slide-in-from-bottom-5 duration-200 ${
-            toastMessage.type === 'success'
-              ? 'bg-slate-900 border-slate-700'
-              : 'bg-rose-600 border-rose-400'
-          }`}
-        >
-          {toastMessage.text}
-        </div>
-      )}
+      {/* Floating Inactivity Warning Banner */}
+      <AnimatePresence>
+        {inactivityWarningSeconds !== null && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 left-6 z-[110] max-w-md bg-slate-900 text-white rounded-xl shadow-2xl p-4 border border-amber-500/50 flex items-start space-x-3.5"
+          >
+            <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 shrink-0">
+              <ShieldAlert className="w-5 h-5 animate-pulse" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                  Alerte Inactivité
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-black">
+                  {inactivityWarningSeconds}s
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Par mesure de confidentialité médicale, votre session sera verrouillée dans{' '}
+                <strong className="text-amber-400 font-mono">{inactivityWarningSeconds} secondes</strong>.
+              </p>
+              <div className="pt-2 flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={resetActivity}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black rounded-md transition shadow-xs cursor-pointer"
+                >
+                  Prolonger ma session
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium rounded-md transition cursor-pointer flex items-center space-x-1"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span>Se déconnecter</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Toast Notification with smooth motion animations */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+            className={`fixed bottom-6 right-6 z-[100] px-4 py-3 rounded-lg shadow-2xl font-extrabold text-xs text-white border flex items-center space-x-2 ${
+              toastMessage.type === 'success'
+                ? 'bg-slate-900 border-slate-700'
+                : 'bg-rose-600 border-rose-400'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            <span>{toastMessage.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

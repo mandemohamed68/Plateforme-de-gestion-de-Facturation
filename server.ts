@@ -182,6 +182,7 @@ let nextPartnerReductionId = 4;
 // Disk persistence manager: guarantees all changes remain permanent across restarts & refreshes
 const DB_STORE_DIR = path.join(process.cwd(), 'data');
 const DB_STORE_FILE = path.join(DB_STORE_DIR, 'db_store.json');
+const DB_BACKUP_FILE = path.join(DB_STORE_DIR, 'db_backup.json');
 
 function saveDb() {
   try {
@@ -225,7 +226,12 @@ function saveDb() {
       nextPartnerReductionId,
       savedAt: new Date().toISOString(),
     };
-    fs.writeFileSync(DB_STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
+    const serialized = JSON.stringify(store, null, 2);
+    fs.writeFileSync(DB_STORE_FILE, serialized, 'utf-8');
+    // Also save redundant backup file to avoid data loss
+    try {
+      fs.writeFileSync(DB_BACKUP_FILE, serialized, 'utf-8');
+    } catch (_) {}
   } catch (err) {
     console.error('[Persistent DB] Error saving to disk:', err);
   }
@@ -233,8 +239,14 @@ function saveDb() {
 
 function loadDb() {
   try {
+    let raw: string | null = null;
     if (fs.existsSync(DB_STORE_FILE)) {
-      const raw = fs.readFileSync(DB_STORE_FILE, 'utf-8');
+      raw = fs.readFileSync(DB_STORE_FILE, 'utf-8');
+    } else if (fs.existsSync(DB_BACKUP_FILE)) {
+      raw = fs.readFileSync(DB_BACKUP_FILE, 'utf-8');
+    }
+
+    if (raw) {
       const store = JSON.parse(raw);
       if (store.dbCompany) dbCompany = store.dbCompany;
       if (store.dbCountries) dbCountries = store.dbCountries;
@@ -834,6 +846,321 @@ app.post('/api/db/reset', (req: Request, res: Response) => {
   res.json({ message: 'Base de données réinitialisée avec succès !' });
 });
 
+// Resilient Client-Server Synchronization & Backup Endpoints
+app.get('/api/database/dump', (req: Request, res: Response) => {
+  try {
+    const dump = {
+      metadata: {
+        exported_at: new Date().toISOString(),
+        institution: dbCompany.name,
+        system: "CI-MEDIC-LAB-ERP",
+        version: "2026.1",
+        description: "Dump complet et intègre de la base de données médicale, laboratoire et comptabilité",
+        counts: {
+          partners: dbPartners.length,
+          labOrders: dbLabOrders.length,
+          moves: dbMoves.length,
+          moveLines: dbMoveLines.length,
+          payments: dbPayments.length,
+          tillSessions: dbTillSessions.length,
+          productTemplates: dbProductTemplates.length,
+          users: dbUsers.length,
+          taxes: dbTaxes.length,
+          partnerReductions: dbPartnerReductions.length,
+        },
+      },
+      company: dbCompany,
+      partners: dbPartners,
+      labOrders: dbLabOrders,
+      moves: dbMoves,
+      moveLines: dbMoveLines,
+      payments: dbPayments,
+      tillSessions: dbTillSessions,
+      productTemplates: dbProductTemplates,
+      productProducts: dbProductProducts,
+      users: dbUsers,
+      groups: dbGroups,
+      taxes: dbTaxes,
+      partnerReductions: dbPartnerReductions,
+      countries: dbCountries,
+      currencies: dbCurrencies,
+      uoms: dbUoms,
+      workflowLogs: dbWorkflowLogs,
+    };
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `dump_base_donnees_${dateStr}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(dump, null, 2));
+  } catch (err) {
+    console.error('Error generating database dump:', err);
+    res.status(500).json({ error: 'Erreur lors de la génération du dump' });
+  }
+});
+
+app.get('/api/database/dump-sql', (req: Request, res: Response) => {
+  try {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const escapeSql = (val: any): string => {
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'number') return String(val);
+      if (typeof val === 'boolean') return val ? '1' : '0';
+      if (typeof val === 'object') return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+      return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    let sql = `-- ==========================================================\n`;
+    sql += `-- DUMP DE BASE DE DONNÉES - LABORATOIRE D'ANALYSES MÉDICALES\n`;
+    sql += `-- Date d'exportation : ${new Date().toISOString()}\n`;
+    sql += `-- Établissement : ${dbCompany.name}\n`;
+    sql += `-- ==========================================================\n\n`;
+
+    sql += `SET FOREIGN_KEY_CHECKS = 0;\n\n`;
+
+    // 1. Partners
+    sql += `-- 1. Table des Patients & Partenaires (${dbPartners.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS res_partner (\n`;
+    sql += `  id INT PRIMARY KEY,\n`;
+    sql += `  name VARCHAR(255) NOT NULL,\n`;
+    sql += `  is_company TINYINT(1) DEFAULT 0,\n`;
+    sql += `  email VARCHAR(255),\n`;
+    sql += `  phone VARCHAR(100),\n`;
+    sql += `  street VARCHAR(255),\n`;
+    sql += `  city VARCHAR(100),\n`;
+    sql += `  vat VARCHAR(100),\n`;
+    sql += `  customer_rank INT DEFAULT 0,\n`;
+    sql += `  supplier_rank INT DEFAULT 0\n`;
+    sql += `);\n\n`;
+
+    dbPartners.forEach((p) => {
+      sql += `INSERT INTO res_partner (id, name, is_company, email, phone, street, city, vat, customer_rank, supplier_rank) VALUES (${p.id}, ${escapeSql(p.name)}, ${p.is_company ? 1 : 0}, ${escapeSql(p.email)}, ${escapeSql(p.phone)}, ${escapeSql(p.street)}, ${escapeSql(p.city)}, ${escapeSql(p.vat)}, ${p.customer_rank || 0}, ${p.supplier_rank || 0}) ON DUPLICATE KEY UPDATE name = VALUES(name);\n`;
+    });
+    sql += `\n`;
+
+    // 2. Lab Orders
+    sql += `-- 2. Table des Dossiers et Examens Biologiques (${dbLabOrders.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS lab_exam_order (\n`;
+    sql += `  id INT PRIMARY KEY,\n`;
+    sql += `  order_number VARCHAR(100) NOT NULL,\n`;
+    sql += `  partner_id INT,\n`;
+    sql += `  partner_name VARCHAR(255),\n`;
+    sql += `  patient_gender VARCHAR(10),\n`;
+    sql += `  patient_age INT,\n`;
+    sql += `  prescribing_doctor VARCHAR(255),\n`;
+    sql += `  sampling_date VARCHAR(50),\n`;
+    sql += `  status VARCHAR(50),\n`;
+    sql += `  department VARCHAR(100),\n`;
+    sql += `  conclusion TEXT,\n`;
+    sql += `  technician_name VARCHAR(150),\n`;
+    sql += `  parameters_json TEXT\n`;
+    sql += `);\n\n`;
+
+    dbLabOrders.forEach((o) => {
+      sql += `INSERT INTO lab_exam_order (id, order_number, partner_id, partner_name, patient_gender, patient_age, prescribing_doctor, sampling_date, status, department, conclusion, technician_name, parameters_json) VALUES (${o.id}, ${escapeSql(o.order_number)}, ${o.partner_id || 'NULL'}, ${escapeSql(o.partner_name)}, ${escapeSql(o.patient_gender)}, ${o.patient_age || 'NULL'}, ${escapeSql(o.prescribing_doctor)}, ${escapeSql(o.sampling_date)}, ${escapeSql(o.status)}, ${escapeSql(o.department)}, ${escapeSql(o.conclusion)}, ${escapeSql(o.technician_name)}, ${escapeSql(o.parameters || [])}) ON DUPLICATE KEY UPDATE order_number = VALUES(order_number);\n`;
+    });
+    sql += `\n`;
+
+    // 3. Moves / Invoices
+    sql += `-- 3. Table des Factures & Pièces Comptables (${dbMoves.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS account_move (\n`;
+    sql += `  id INT PRIMARY KEY,\n`;
+    sql += `  name VARCHAR(100) NOT NULL,\n`;
+    sql += `  move_type VARCHAR(50) NOT NULL,\n`;
+    sql += `  state VARCHAR(50) NOT NULL,\n`;
+    sql += `  partner_id INT,\n`;
+    sql += `  partner_name VARCHAR(255),\n`;
+    sql += `  date VARCHAR(50),\n`;
+    sql += `  invoice_date VARCHAR(50),\n`;
+    sql += `  invoice_date_due VARCHAR(50),\n`;
+    sql += `  amount_untaxed DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  amount_tax DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  amount_total DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  amount_residual DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  payment_state VARCHAR(50)\n`;
+    sql += `);\n\n`;
+
+    dbMoves.forEach((m) => {
+      const pName = (m as any).partner_name || '';
+      sql += `INSERT INTO account_move (id, name, move_type, state, partner_id, partner_name, date, invoice_date, invoice_date_due, amount_untaxed, amount_tax, amount_total, amount_residual, payment_state) VALUES (${m.id}, ${escapeSql(m.name)}, ${escapeSql(m.move_type)}, ${escapeSql(m.state)}, ${m.partner_id || 'NULL'}, ${escapeSql(pName)}, ${escapeSql(m.date)}, ${escapeSql(m.invoice_date)}, ${escapeSql(m.invoice_date_due)}, ${m.amount_untaxed || 0}, ${m.amount_tax || 0}, ${m.amount_total || 0}, ${m.amount_residual || 0}, ${escapeSql(m.payment_state)}) ON DUPLICATE KEY UPDATE name = VALUES(name);\n`;
+    });
+    sql += `\n`;
+
+    // 4. Payments
+    sql += `-- 4. Table des Paiements & Règlements (${dbPayments.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS account_payment (\n`;
+    sql += `  id INT PRIMARY KEY,\n`;
+    sql += `  partner_id INT,\n`;
+    sql += `  move_id INT,\n`;
+    sql += `  amount DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  payment_date VARCHAR(50),\n`;
+    sql += `  state VARCHAR(50),\n`;
+    sql += `  payment_method_code VARCHAR(50),\n`;
+    sql += `  journal_name VARCHAR(100)\n`;
+    sql += `);\n\n`;
+
+    dbPayments.forEach((py) => {
+      sql += `INSERT INTO account_payment (id, partner_id, move_id, amount, payment_date, state, payment_method_code, journal_name) VALUES (${py.id}, ${py.partner_id || 'NULL'}, ${py.move_id || 'NULL'}, ${py.amount || 0}, ${escapeSql(py.payment_date)}, ${escapeSql(py.state)}, ${escapeSql(py.payment_method_code)}, ${escapeSql(py.journal_name)}) ON DUPLICATE KEY UPDATE amount = VALUES(amount);\n`;
+    });
+    sql += `\n`;
+
+    // 5. Till Sessions
+    sql += `-- 5. Table des Sessions de Caisse (${dbTillSessions.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS till_session (\n`;
+    sql += `  id INT PRIMARY KEY,\n`;
+    sql += `  session_code VARCHAR(100),\n`;
+    sql += `  cashier_name VARCHAR(150),\n`;
+    sql += `  state VARCHAR(50),\n`;
+    sql += `  opening_balance DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  closing_balance DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  total_collected DECIMAL(15,2) DEFAULT 0.00,\n`;
+    sql += `  opening_date VARCHAR(50),\n`;
+    sql += `  closing_date VARCHAR(50)\n`;
+    sql += `);\n\n`;
+
+    dbTillSessions.forEach((ts) => {
+      sql += `INSERT INTO till_session (id, session_code, cashier_name, state, opening_balance, closing_balance, total_collected, opening_date, closing_date) VALUES (${ts.id}, ${escapeSql(ts.session_code)}, ${escapeSql(ts.cashier_name)}, ${escapeSql(ts.state)}, ${ts.opening_balance || 0}, ${ts.closing_actual_cash || 0}, ${ts.total_collected || 0}, ${escapeSql(ts.opening_date)}, ${escapeSql(ts.closing_date)}) ON DUPLICATE KEY UPDATE session_code = VALUES(session_code);\n`;
+    });
+    sql += `\nSET FOREIGN_KEY_CHECKS = 1;\n`;
+
+    const filename = `dump_base_donnees_${dateStr}.sql`;
+    res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(sql);
+  } catch (err) {
+    console.error('Error generating SQL dump:', err);
+    res.status(500).json({ error: 'Erreur lors de la génération du dump SQL' });
+  }
+});
+
+// Resilient Client-Server Synchronization & Backup Endpoints
+app.get('/api/sync-status', (req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    counts: {
+      labOrders: dbLabOrders.length,
+      moves: dbMoves.length,
+      partners: dbPartners.length,
+      payments: dbPayments.length,
+      tillSessions: dbTillSessions.length,
+    },
+    savedAt: new Date().toISOString(),
+  });
+});
+
+app.post('/api/sync-restore', (req: Request, res: Response) => {
+  try {
+    const { labOrders, moves, moveLines, partners, payments, tillSessions, partnerReductions } = req.body;
+    let restoredLabOrders = 0;
+    let restoredMoves = 0;
+    let restoredPartners = 0;
+    let restoredPayments = 0;
+
+    if (Array.isArray(labOrders)) {
+      labOrders.forEach((clientOrder: LabExamOrder) => {
+        if (!clientOrder || !clientOrder.id) return;
+        const exists = dbLabOrders.find((o) => o.id === clientOrder.id);
+        if (!exists) {
+          dbLabOrders.unshift(clientOrder);
+          restoredLabOrders++;
+          if (clientOrder.id >= nextLabOrderId) {
+            nextLabOrderId = clientOrder.id + 1;
+          }
+        }
+      });
+    }
+
+    if (Array.isArray(moves)) {
+      moves.forEach((clientMove: AccountMove) => {
+        if (!clientMove || !clientMove.id) return;
+        const exists = dbMoves.find((m) => m.id === clientMove.id);
+        if (!exists) {
+          dbMoves.unshift(clientMove);
+          restoredMoves++;
+          if (clientMove.id >= nextMoveId) {
+            nextMoveId = clientMove.id + 1;
+          }
+        }
+      });
+    }
+
+    if (Array.isArray(moveLines)) {
+      moveLines.forEach((line: AccountMoveLine) => {
+        if (!line || !line.id) return;
+        const exists = dbMoveLines.find((l) => l.id === line.id);
+        if (!exists) {
+          dbMoveLines.push(line);
+          if (line.id >= nextMoveLineId) {
+            nextMoveLineId = line.id + 1;
+          }
+        }
+      });
+    }
+
+    if (Array.isArray(partners)) {
+      partners.forEach((partner: ResPartner) => {
+        if (!partner || !partner.id) return;
+        const exists = dbPartners.find((p) => p.id === partner.id);
+        if (!exists) {
+          dbPartners.push(partner);
+          restoredPartners++;
+          if (partner.id >= nextPartnerId) {
+            nextPartnerId = partner.id + 1;
+          }
+        }
+      });
+    }
+
+    if (Array.isArray(payments)) {
+      payments.forEach((payment: AccountPayment) => {
+        if (!payment || !payment.id) return;
+        const exists = dbPayments.find((p) => p.id === payment.id);
+        if (!exists) {
+          dbPayments.push(payment);
+          restoredPayments++;
+          if (payment.id >= nextPaymentId) {
+            nextPaymentId = payment.id + 1;
+          }
+        }
+      });
+    }
+
+    if (Array.isArray(partnerReductions)) {
+      partnerReductions.forEach((r: PartnerReduction) => {
+        if (!r || !r.id) return;
+        const exists = dbPartnerReductions.find((pr) => pr.id === r.id);
+        if (!exists) {
+          dbPartnerReductions.push(r);
+          if (r.id >= nextPartnerReductionId) {
+            nextPartnerReductionId = r.id + 1;
+          }
+        }
+      });
+    }
+
+    saveDb();
+
+    res.json({
+      success: true,
+      restored: {
+        labOrders: restoredLabOrders,
+        moves: restoredMoves,
+        partners: restoredPartners,
+        payments: restoredPayments,
+      },
+      currentCounts: {
+        labOrders: dbLabOrders.length,
+        moves: dbMoves.length,
+        partners: dbPartners.length,
+        payments: dbPayments.length,
+      },
+    });
+  } catch (err: any) {
+    console.error('[Sync Restore Error]:', err);
+    res.status(500).json({ error: 'Sync restore failed', details: err?.message });
+  }
+});
+
 // Advanced SQL Simulator for the Schema ERD tool and laboratory workflow
 function executeSqlSimulated(sql: string) {
   const queryLower = sql.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1123,9 +1450,9 @@ app.get('/api/partners', (req: Request, res: Response) => {
     const term = (q as string).toLowerCase();
     result = result.filter(
       (p) =>
-        p.name.toLowerCase().includes(term) ||
-        (p.email && p.email.toLowerCase().includes(term)) ||
-        (p.vat && p.vat.toLowerCase().includes(term))
+        (p.name || '').toString().toLowerCase().includes(term) ||
+        (p.email || '').toString().toLowerCase().includes(term) ||
+        (p.vat || '').toString().toLowerCase().includes(term)
     );
   }
 
@@ -2148,11 +2475,9 @@ app.put('/api/lab-orders/:id', (req: Request, res: Response) => {
       etat_avant: oldStatus,
       etat_apres: 'in_progress',
       acteur_nom: req.body.technician_name || req.body.preleve_par || 'Agent préleveur',
-      commentaire: `Prélèvement confirmé. Déclenchement automatique de l'enchaînement LIMS jusqu'au rendu final.`,
+      commentaire: `Prélèvement enregistré et confirmé. Tube prêt pour l'analyse technique.`,
       date_action: new Date().toISOString()
     });
-
-    triggerAutomatedWorkflowPipeline(id);
   }
 
   saveDb();
@@ -3005,13 +3330,14 @@ app.post('/api/payments', (req: Request, res: Response) => {
     activeSession.transactions.unshift(txLine);
     activeSession.total_collected += paymentAmount;
 
-    if (pMethodCode === 'cash' || pMethodName.toLowerCase().includes('espèce')) {
+    const safePMethodName = (pMethodName || '').toString().toLowerCase();
+    if (pMethodCode === 'cash' || safePMethodName.includes('espèce')) {
       activeSession.total_cash_collected += paymentAmount;
-    } else if (pMethodCode === 'wave' || pMethodCode === 'orange_money' || pMethodCode === 'moov_money' || pMethodName.toLowerCase().includes('mobile')) {
+    } else if (pMethodCode === 'wave' || pMethodCode === 'orange_money' || pMethodCode === 'moov_money' || safePMethodName.includes('mobile')) {
       activeSession.total_mobile_money_collected += paymentAmount;
-    } else if (pMethodCode === 'card' || pMethodName.toLowerCase().includes('carte')) {
+    } else if (pMethodCode === 'card' || safePMethodName.includes('carte')) {
       activeSession.total_card_collected += paymentAmount;
-    } else if (pMethodCode === 'check' || pMethodName.toLowerCase().includes('chèque')) {
+    } else if (pMethodCode === 'check' || safePMethodName.includes('chèque')) {
       activeSession.total_check_collected += paymentAmount;
     }
 
@@ -3264,16 +3590,38 @@ app.get('/api/analytics', (req: Request, res: Response) => {
   );
   const total_overdue = overdueInvoices.reduce((acc, m) => acc + m.amount_residual, 0);
 
-  // Monthly revenue breakdown
-  const monthlyMap: Record<string, { ht: number; ttc: number; paid: number }> = {
-    Janvier: { ht: 7400, ttc: 8880, paid: 5400 },
-    Février: { ht: 8000, ttc: 9600, paid: 4000 },
-    Mars: { ht: 6000, ttc: 7200, paid: 0 },
-  };
+  // Monthly revenue breakdown computed from real posted invoices
+  const monthNames = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+  ];
 
-  const monthly_revenue = Object.entries(monthlyMap).map(([month, vals]) => ({
-    month,
-    ...vals,
+  const monthlyTotals: { [key: number]: { ht: number; ttc: number; paid: number; residual: number } } = {};
+  for (let i = 0; i < 12; i++) {
+    monthlyTotals[i] = { ht: 0, ttc: 0, paid: 0, residual: 0 };
+  }
+
+  postedCustomerInvoices.forEach((m) => {
+    const dStr = m.invoice_date || m.date || m.created_at;
+    if (dStr) {
+      const d = new Date(dStr);
+      if (!isNaN(d.getTime())) {
+        const mIdx = d.getMonth();
+        const paid = Math.max(0, (m.amount_total || 0) - (m.amount_residual || 0));
+        monthlyTotals[mIdx].ht += m.amount_untaxed || (m.amount_total / 1.18);
+        monthlyTotals[mIdx].ttc += m.amount_total || 0;
+        monthlyTotals[mIdx].paid += paid;
+        monthlyTotals[mIdx].residual += m.amount_residual || 0;
+      }
+    }
+  });
+
+  const monthly_revenue = monthNames.map((name, idx) => ({
+    month: name,
+    ht: Number(monthlyTotals[idx].ht.toFixed(2)),
+    ttc: Number(monthlyTotals[idx].ttc.toFixed(2)),
+    paid: Number(monthlyTotals[idx].paid.toFixed(2)),
+    residual: Number(monthlyTotals[idx].residual.toFixed(2)),
   }));
 
   // Top partners
@@ -3297,7 +3645,7 @@ app.get('/api/analytics', (req: Request, res: Response) => {
   const tax_summary = dbTaxes.map((t) => {
     let totalTaxAmt = 0;
     dbMoveLines.forEach((l) => {
-      if (l.tax_ids.includes(t.id)) {
+      if ((l.tax_ids || []).includes(t.id)) {
         totalTaxAmt += l.price_subtotal * (t.amount / 100);
       }
     });
@@ -3307,6 +3655,23 @@ app.get('/api/analytics', (req: Request, res: Response) => {
       total_tax_amount: Number(totalTaxAmt.toFixed(2)),
     };
   });
+
+  // Real payment journals breakdown
+  const journalsMap: Record<string, { total: number; count: number }> = {};
+  dbPayments.forEach((p) => {
+    const jName = p.journal_name || p.payment_method_code || 'Espèces';
+    if (!journalsMap[jName]) {
+      journalsMap[jName] = { total: 0, count: 0 };
+    }
+    journalsMap[jName].total += p.amount || 0;
+    journalsMap[jName].count += 1;
+  });
+
+  const payment_journals = Object.entries(journalsMap).map(([journal_name, data]) => ({
+    journal_name,
+    total_amount: Number(data.total.toFixed(2)),
+    count: data.count,
+  }));
 
   const summary: AnalyticsSummary = {
     total_revenue_ht: Number(total_revenue_ht.toFixed(2)),
@@ -3321,9 +3686,8 @@ app.get('/api/analytics', (req: Request, res: Response) => {
     monthly_revenue,
     top_partners,
     tax_summary,
-    payment_journals: [
-      { journal_name: 'Journal Banque', total_amount: 10960.0, count: 3 },
-      { journal_name: 'Journal Caisse', total_amount: 0.0, count: 0 },
+    payment_journals: payment_journals.length > 0 ? payment_journals : [
+      { journal_name: 'Caisse Principale', total_amount: total_paid, count: dbPayments.length },
     ],
   };
 

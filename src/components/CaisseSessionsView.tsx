@@ -322,9 +322,9 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
       if (searchTerm) {
         const q = searchTerm.toLowerCase();
         return (
-          s.session_code.toLowerCase().includes(q) ||
-          s.till_name.toLowerCase().includes(q) ||
-          s.cashier_name.toLowerCase().includes(q)
+          (s.session_code || '').toString().toLowerCase().includes(q) ||
+          (s.till_name || '').toString().toLowerCase().includes(q) ||
+          (s.cashier_name || '').toString().toLowerCase().includes(q)
         );
       }
       return true;
@@ -737,9 +737,9 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
 
                       const matchesSearch =
                         tillSearchTerm.trim() === '' ||
-                        s.session_code.toLowerCase().includes(tillSearchTerm.toLowerCase()) ||
-                        s.till_name.toLowerCase().includes(tillSearchTerm.toLowerCase()) ||
-                        s.cashier_name.toLowerCase().includes(tillSearchTerm.toLowerCase());
+                        (s.session_code || '').toString().toLowerCase().includes(tillSearchTerm.toLowerCase()) ||
+                        (s.till_name || '').toString().toLowerCase().includes(tillSearchTerm.toLowerCase()) ||
+                        (s.cashier_name || '').toString().toLowerCase().includes(tillSearchTerm.toLowerCase());
 
                       return matchesState && matchesSearch;
                     })

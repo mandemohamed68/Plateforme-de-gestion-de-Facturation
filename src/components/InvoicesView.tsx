@@ -439,7 +439,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         const rate =
           l.tax_rate !== undefined
             ? l.tax_rate
-            : l.tax_ids && l.tax_ids.length > 0 && !l.tax_ids.includes(0)
+            : l.tax_ids && l.tax_ids.length > 0 && !(l.tax_ids || []).includes(0)
             ? 18
             : 0;
         return acc + (subtotal * rate) / 100;
@@ -693,7 +693,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           tax_ids: l.tax_ids || (move.is_tax_exempt ? [] : [1]),
           tax_rate: move.is_tax_exempt
             ? 0
-            : l.tax_rate ?? (l.tax_ids && l.tax_ids.length > 0 && !l.tax_ids.includes(0) ? 18 : 0),
+            : l.tax_rate ?? (l.tax_ids && l.tax_ids.length > 0 && !(l.tax_ids || []).includes(0) ? 18 : 0),
           type: 'product',
         }))
       );
@@ -1682,8 +1682,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         : 'Brouillon'}
                     </span>
                     {editingMove?.state === 'posted' && !isSupervisor && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-900 rounded border border-amber-300">
-                        🔒 Validée (Modification réservée au Superviseur)
+                      <span className="px-2.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-900 rounded-full border border-amber-300 inline-flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-amber-700 inline" />
+                        <span>Validée (Modification réservée au Superviseur)</span>
                       </span>
                     )}
                   </div>
@@ -2166,7 +2167,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
                             const filtered = sorted.filter((p) => {
                               const matchesSearch = !catalogueSearch || 
-                                p.name.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
+                                (p.name || '').toLowerCase().includes(catalogueSearch.toLowerCase()) ||
                                 (p.default_code && p.default_code.toLowerCase().includes(catalogueSearch.toLowerCase()));
                               
                               const matchesDept = catalogueDept === 'all' || p.lab_department === catalogueDept;

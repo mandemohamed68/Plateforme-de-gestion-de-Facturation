@@ -218,9 +218,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     .filter((p) => {
       // Search filter
       const matchesSearch =
-        (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.default_code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (p.name || '').toString().toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.default_code || '').toString().toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.description || '').toString().toLowerCase().includes(searchQuery.toLowerCase());
 
       // Type filter
       const matchesType = filterType === 'all' || p.category_type === filterType;

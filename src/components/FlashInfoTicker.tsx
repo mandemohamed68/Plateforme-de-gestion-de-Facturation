@@ -38,26 +38,26 @@ export const FlashInfoTicker: React.FC<FlashInfoTickerProps> = ({ company }) => 
       case 'urgent':
         return {
           bg: 'bg-rose-500 text-white border-rose-600',
-          label: '⚡ URGENT',
+          label: 'URGENT',
           icon: <AlertTriangle className="w-3 h-3 text-white mr-1 animate-bounce" />,
         };
       case 'warning':
         return {
           bg: 'bg-amber-500 text-slate-950 border-amber-600',
-          label: '⚠️ ALERTE',
+          label: 'ALERTE',
           icon: <AlertTriangle className="w-3 h-3 text-slate-950 mr-1" />,
         };
       case 'promo':
         return {
           bg: 'bg-emerald-600 text-white border-emerald-700',
-          label: '✨ INFO MARQUE',
+          label: 'COMMUNICATION',
           icon: <Sparkles className="w-3 h-3 text-white mr-1" />,
         };
       case 'info':
       default:
         return {
           bg: 'bg-sky-600 text-white border-sky-700',
-          label: '📢 FLASH INFO',
+          label: 'FLASH INFO',
           icon: <Info className="w-3 h-3 text-white mr-1" />,
         };
     }
