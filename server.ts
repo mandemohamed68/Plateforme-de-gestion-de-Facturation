@@ -3248,9 +3248,20 @@ app.get('/api/payments', (req: Request, res: Response) => {
   const enriched = dbPayments.map((p) => {
     const partner = dbPartners.find((pt) => pt.id === p.partner_id);
     const move = dbMoves.find((m) => m.id === p.move_id);
+    const expandedMove = move ? expandMove(move) : null;
+
+    // Resolve true patient name from move or partner or payment request
+    const resolvedPatientName =
+      expandedMove?.patient_name ||
+      expandedMove?.partner?.name ||
+      (partner && partner.id !== 1 ? partner.name : '') ||
+      (p as any).patient_name ||
+      (p as any).partner_name ||
+      'Client';
+
     return {
       ...p,
-      partner_name: partner ? partner.name : '',
+      partner_name: resolvedPatientName,
       move_name: move ? move.name || `Brouillon #${move.id}` : '',
       journal_name: p.journal_id === 1 ? 'Banque' : 'Caisse',
     };
@@ -3347,7 +3358,13 @@ app.post('/api/payments', (req: Request, res: Response) => {
   // If there's an active session, attach transaction line & update session totals
   if (activeSession && activeSession.state === 'in_progress') {
     const partner = dbPartners.find((p) => p.id === move.partner_id);
-    const pName = patient_name || (partner ? partner.name : 'Patient');
+    const expandedMove = expandMove(move);
+    const pName =
+      patient_name ||
+      expandedMove.patient_name ||
+      expandedMove.partner?.name ||
+      (partner && partner.id !== 1 ? partner.name : '') ||
+      'Patient';
     const pMethodName = payment_method_name || (journal_id === 1 ? 'Virement Bancaire' : 'Espèces Caisse');
     const pMethodCode = payment_method_code || (journal_id === 1 ? 'transfer' : 'cash');
 

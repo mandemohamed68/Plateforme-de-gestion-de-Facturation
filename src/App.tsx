@@ -655,11 +655,15 @@ export default function App() {
         (s) => (s.cashier_id === currentUser?.id || s.cashier_name === currentUser?.name) && s.state === 'in_progress'
       );
 
+      const targetMove = paymentData.move_id ? moves.find((m) => m.id === Number(paymentData.move_id)) : null;
+
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...paymentData,
+          patient_name: paymentData.patient_name || targetMove?.patient_name || targetMove?.partner?.name || null,
+          ndm_number: paymentData.ndm_number || targetMove?.ndm || null,
           session_id: paymentData.session_id || activeUserSession?.id || null,
           user_id: paymentData.user_id || currentUser?.id,
           cashier_name: currentUser?.name,

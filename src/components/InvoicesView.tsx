@@ -1177,9 +1177,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
       const invCode = posted?.name || saved?.name || `#${moveIdToPost}`;
       notify(
-        `Facture ${invCode} validée et transmise à la Caisse pour ${partnerNameInput.trim()} !`,
+        `La facture ${invCode} a été enregistrée avec succès et soumise à l'encaissement à la Caisse pour le patient ${partnerNameInput.trim()} !`,
         'success',
-        'Facture Validée'
+        'Facture Soumise à L\'Encaissement'
       );
 
       // 3. AUTOMATICALLY ADVANCE TO STEP 2 (PAYMENT) OR STEP 3 (IF FACTURE PROFILE)
@@ -1340,44 +1340,28 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const filteredMoves = moves
     .filter((m) => {
-      // Role-based strict isolation & visibility:
-      // 1. Superviseur : voit toutes les factures de tous les facturiers
-      // 2. Facturier : voit STRICTEMENT UNIQUEMENT les factures qu'il a lui-même créées dans sa session active en cours
-      // 3. Caissier : voit les factures en attente de paiement (non soldées) à encaisser
-      // 4. Facture & Caisse : voit ses propres factures créées et les factures en attente
+      // Role-based visibility rules:
+      // 1. Superviseur : voit TOUTES les factures de l'établissement
+      // 2. Facturier : voit toutes ses factures créées + les factures brouillons/valides
+      // 3. Caissier : voit TOUTES les factures en attente d'encaissement (non soldées/partielles) + ses créations
+      // 4. Facture & Caisse : voit ses créations + les factures à encaisser
       if (!isSupervisor) {
+        const isCreator =
+          String(m.invoice_user_id) === String(currentUser?.id) ||
+          m.created_by_name === currentUser?.name ||
+          (m as any).user_id === currentUser?.id;
+
         if (profile === 'facture') {
-          const isCreator = m.invoice_user_id === currentUser?.id || (!m.invoice_user_id && m.created_by_name === currentUser?.name);
-          if (!isCreator) return false;
-          
-          // Strict current session filter for biller profile
-          if (!myActiveSession) return false;
-          if (m.till_session_id) {
-            if (m.till_session_id !== myActiveSession.id) return false;
-          } else {
-            const sessionStart = new Date(myActiveSession.created_at || myActiveSession.create_date || 0).getTime();
-            const invoiceTime = new Date(m.create_date || m.invoice_date || m.date || 0).getTime();
-            if (invoiceTime < sessionStart - 30000) return false;
-          }
+          // Billers see invoices created by them, or all company invoices if no specific creator recorded
+          if (!isCreator && m.invoice_user_id) return false;
         } else if (profile === 'caisse') {
-          const isUnpaidCustomerInvoice = m.move_type === 'out_invoice' && m.payment_state !== 'paid';
-          if (!isUnpaidCustomerInvoice) return false;
+          // Cashiers see all unpaid/partially paid customer invoices to be collected, plus invoices created by them
+          const isUnpaid = m.move_type === 'out_invoice' && m.payment_state !== 'paid';
+          if (!isUnpaid && !isCreator) return false;
         } else if (profile === 'facture_caisse') {
-          const isCreator = m.invoice_user_id === currentUser?.id;
-          const isUnpaidCustomerInvoice = m.move_type === 'out_invoice' && m.payment_state !== 'paid';
-          if (!isCreator && !isUnpaidCustomerInvoice) return false;
-          
-          // Strict current session filter for invoices created by this user
-          if (isCreator) {
-            if (!myActiveSession) return false;
-            if (m.till_session_id) {
-              if (m.till_session_id !== myActiveSession.id) return false;
-            } else {
-              const sessionStart = new Date(myActiveSession.created_at || myActiveSession.create_date || 0).getTime();
-              const invoiceTime = new Date(m.create_date || m.invoice_date || m.date || 0).getTime();
-              if (invoiceTime < sessionStart - 30000) return false;
-            }
-          }
+          // Biller-Cashier sees their own created invoices AND all unpaid invoices
+          const isUnpaid = m.move_type === 'out_invoice' && m.payment_state !== 'paid';
+          if (!isCreator && !isUnpaid) return false;
         }
       }
 
@@ -1386,7 +1370,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       if (paymentFilter !== 'all' && m.payment_state !== paymentFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const pName = (m.partner?.name || '').toLowerCase();
+        const pName = (m.partner?.name || m.patient_name || '').toLowerCase();
         const pNdm = (m.partner?.ndm || m.ndm || '').toLowerCase();
         const pConv = (m.partner?.convention_code || '').toLowerCase();
         const pPolicy = (m.partner?.insurance_policy_number || '').toLowerCase();
@@ -1575,21 +1559,21 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       </div>
 
       {/* Invoices List Table */}
-      <div className="bg-white rounded-md border border-slate-200 shadow-xs overflow-hidden">
-        <div className="w-full">
-          <table className="w-full text-left border-collapse text-xs table-fixed">
+      <div className="bg-white rounded-md border border-slate-200 shadow-xs overflow-x-auto">
+        <div className="w-full min-w-[980px]">
+          <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
-                <th className="py-2.5 px-2 w-[11%]">Numéro</th>
-                <th className="py-2.5 px-2 w-[18%]">Patient</th>
-                <th className="py-2.5 px-2 w-[11%] hidden md:table-cell">Date</th>
-                <th className="py-2.5 px-2 w-[16%] hidden lg:table-cell">Assurance / Tiers</th>
-                <th className="py-2.5 px-2 text-right w-[11%]">Total</th>
-                <th className="py-2.5 px-2 text-right w-[10%] hidden sm:table-cell">Part Ass.</th>
-                <th className="py-2.5 px-2 text-right w-[11%]">Net Patient</th>
-                <th className="py-2.5 px-2 text-center w-[7%] hidden sm:table-cell">État</th>
-                <th className="py-2.5 px-2 text-center w-[8%]">Paiement</th>
-                <th className="py-2.5 px-2 text-center w-[8%]"></th>
+                <th className="py-2.5 px-3 min-w-[120px]">Numéro</th>
+                <th className="py-2.5 px-3 min-w-[170px]">Patient</th>
+                <th className="py-2.5 px-3 min-w-[120px] hidden md:table-cell">Date</th>
+                <th className="py-2.5 px-3 min-w-[140px] hidden lg:table-cell">Assurance / Tiers</th>
+                <th className="py-2.5 px-3 text-right min-w-[100px]">Total</th>
+                <th className="py-2.5 px-3 text-right min-w-[90px] hidden sm:table-cell">Part Ass.</th>
+                <th className="py-2.5 px-3 text-right min-w-[100px]">Net Patient</th>
+                <th className="py-2.5 px-2 text-center min-w-[70px] hidden sm:table-cell">État</th>
+                <th className="py-2.5 px-2 text-center min-w-[80px]">Paiement</th>
+                <th className="py-2.5 px-3 text-right min-w-[150px] pr-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
@@ -1601,7 +1585,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 </tr>
               ) : (
                 filteredMoves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((m) => {
-                  const pName = m.partner?.name || 'Patient';
+                  const pName = m.patient_name || m.partner?.name || 'Patient';
                   const insName = m.insurance_name;
                   const covRate = m.insurance_coverage_rate;
                   const insAmount = m.insurance_amount || 0;
@@ -1609,17 +1593,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-2.5 px-2 font-mono font-bold text-slate-900 truncate" title={m.name || `#${m.id}`}>
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={m.name || `#${m.id}`}>
                         {m.name || <span className="text-slate-400 italic font-sans text-[11px]">Brouillon (#{m.id})</span>}
                       </td>
-                      <td className="py-2.5 px-2 truncate">
+                      <td className="py-2.5 px-3 truncate">
                         <div className="font-bold text-slate-900 truncate" title={pName}>{pName}</div>
                         {m.ref && <div className="text-[10px] text-slate-500 font-mono truncate">Réf: {m.ref}</div>}
                       </td>
-                      <td className="py-2.5 px-2 text-slate-600 font-mono text-[10px] truncate hidden md:table-cell">
+                      <td className="py-2.5 px-3 text-slate-600 font-mono text-[10px] truncate hidden md:table-cell">
                         {(m.invoice_date || m.date || m.created_at).replace('T', ' ').substring(0, 16)}
                       </td>
-                      <td className="py-2.5 px-2 truncate hidden lg:table-cell">
+                      <td className="py-2.5 px-3 truncate hidden lg:table-cell">
                         {m.insurance_enabled && insName ? (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-full" title={`${insName} (${covRate}%)`}>
                             {insName} ({covRate}%)
@@ -1628,13 +1612,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           <span className="text-slate-400 text-[10px]">Comptant</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono font-bold text-slate-900 whitespace-nowrap text-[11px]">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap text-[11px]">
                         {formatFCFA(m.amount_total)}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 whitespace-nowrap text-[11px] hidden sm:table-cell">
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap text-[11px] hidden sm:table-cell">
                         {m.insurance_enabled ? formatFCFA(insAmount) : '-'}
                       </td>
-                      <td className="py-2.5 px-2 text-right font-mono font-bold text-slate-900 whitespace-nowrap text-[11px]">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap text-[11px]">
                         {formatFCFA(clientShare)}
                       </td>
                       <td className="py-2.5 px-2 text-center hidden sm:table-cell">
@@ -1664,12 +1648,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             : 'Non réglé'}
                         </span>
                       </td>
-                      <td className="py-2.5 px-1 text-center">
-                        <div className="flex items-center justify-center space-x-0.5">
+                      <td className="py-2.5 px-3 text-right pr-4">
+                        <div className="flex items-center justify-end space-x-1 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(m)}
-                            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition"
+                            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition cursor-pointer"
                             title={isCashierOnly ? "Consulter la facture" : "Ouvrir la facture"}
                           >
                             {isCashierOnly ? <Search className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
@@ -1677,7 +1661,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           <button
                             type="button"
                             onClick={() => onOpenPdf(m)}
-                            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition"
+                            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition cursor-pointer"
                             title="Imprimer Reçu PDF"
                           >
                             <Printer className="w-3.5 h-3.5" />
@@ -1689,10 +1673,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                                 handleOpenEditModal(m);
                                 setCurrentStep(2);
                               }}
-                              className="flex items-center space-x-1 px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded transition shadow-xs ml-1"
+                              className="inline-flex items-center space-x-1 px-2.5 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition shadow-xs cursor-pointer whitespace-nowrap shrink-0"
                               title="Encaisser au comptoir"
                             >
-                              <CreditCard className="w-3.5 h-3.5" />
+                              <CreditCard className="w-3.5 h-3.5 shrink-0" />
                               <span>Encaisser</span>
                             </button>
                           )}
@@ -1700,7 +1684,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             <button
                               type="button"
                               onClick={() => setMoveToDelete(m)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                               title="Supprimer / Annuler (Droit exclusif Superviseur)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1710,7 +1694,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             <button
                               type="button"
                               onClick={() => setMoveToDelete(m)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                               title="Supprimer brouillon"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
