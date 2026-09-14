@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FileText,
   Plus,
@@ -86,6 +87,8 @@ interface InvoicesViewProps {
   hasActiveSession?: boolean;
   onNavigateToSessions?: () => void;
   tillSessions?: any[];
+  onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
+  onNavigateToLab?: () => void;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -116,7 +119,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   hasActiveSession = true,
   onNavigateToSessions,
   tillSessions = [],
+  onShowToast,
+  onNavigateToLab,
 }) => {
+  const notify = (
+    text: string,
+    type: 'success' | 'error' | 'warning' | 'info' = 'warning',
+    title?: string
+  ) => {
+    if (onShowToast) {
+      onShowToast(text, type, title);
+    } else {
+      console.log(`[Notification ${type}]: ${text}`);
+    }
+  };
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<string>('all');
@@ -254,14 +270,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const handleSaveNewPatient = async () => {
     if (!newPatientLastName.trim()) {
-      alert('Le nom du patient est obligatoire.');
+      notify('Le nom de famille du patient est obligatoire.', 'warning', 'Dossier Patient');
       return;
     }
     const fullName = `${newPatientLastName.trim()} ${newPatientFirstName.trim()}`.trim();
 
-    // Search for existing patient by name to UPDATE instead of creating a duplicate
+    // Match existing patient strictly by NDM or by exact Name + Phone combo to prevent inadvertent name substitution
     const existingPartner = partners.find(
-      (p) => p.name.trim().toLowerCase() === fullName.toLowerCase()
+      (p) =>
+        (newPatientNdm && p.ndm && p.ndm.trim().toLowerCase() === newPatientNdm.trim().toLowerCase()) ||
+        (newPatientMobilePhone && p.name.trim().toLowerCase() === fullName.toLowerCase() && p.phone === newPatientMobilePhone)
     );
 
     let computedAge = 0;
@@ -308,15 +326,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     };
 
     try {
+      let savedPartner: any = null;
       if (onSavePartner) {
-        await onSavePartner(partnerData);
-        setNdm(newPatientNdm);
-        setPartnerNameInput(fullName);
-        setPatientPhone(newPatientMobilePhone);
-        setPatientAgeY(computedAge || 30);
-        setPatientAgeM(0);
-        setPatientAgeD(0);
-        setIsCreatePatientOpen(false);
+        savedPartner = await onSavePartner(partnerData);
       } else {
         const res = await fetch('/api/partners', {
           method: 'POST',
@@ -324,19 +336,29 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           body: JSON.stringify(partnerData),
         });
         if (res.ok) {
-          setNdm(newPatientNdm);
-          setPartnerNameInput(fullName);
-          setPatientPhone(newPatientMobilePhone);
-          setPatientAgeY(computedAge || 30);
-          setPatientAgeM(0);
-          setPatientAgeD(0);
-          setIsCreatePatientOpen(false);
-          alert('Fiche dossier patient enregistrée avec succès !');
+          savedPartner = await res.json();
         }
       }
+
+      const assignedPartnerId = savedPartner?.id || existingPartner?.id;
+      if (assignedPartnerId) {
+        setPartnerId(assignedPartnerId);
+      }
+      setNdm(savedPartner?.ndm || newPatientNdm);
+      setPartnerNameInput(savedPartner?.name || fullName);
+      setPatientPhone(savedPartner?.phone || newPatientMobilePhone);
+      setPatientAgeY(computedAge || 30);
+      setPatientAgeM(0);
+      setPatientAgeD(0);
+      setIsCreatePatientOpen(false);
+      notify(
+        `Dossier patient #${savedPartner?.ndm || newPatientNdm} (${fullName}) enregistré avec succès !`,
+        'success',
+        'Dossier Enregistré'
+      );
     } catch (e) {
       console.error(e);
-      alert("Erreur lors de l'enregistrement du dossier patient.");
+      notify("Erreur lors de l'enregistrement du dossier patient.", 'error', 'Erreur Dossier');
     }
   };
 
@@ -428,17 +450,23 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   // Financial Computations
   const computedUntaxed = lines.reduce((acc, l) => {
     if (l.type === 'section' || l.type === 'note') return acc;
-    return acc + l.quantity * l.price_unit * (1 - l.discount / 100);
+    const qty = Number(l.quantity) || 0;
+    const pu = Number(l.price_unit) || 0;
+    const disc = Number(l.discount) || 0;
+    return acc + qty * pu * (1 - disc / 100);
   }, 0);
 
   const computedTax = isTaxExempt
     ? 0
     : lines.reduce((acc, l) => {
         if (l.type === 'section' || l.type === 'note') return acc;
-        const subtotal = l.quantity * l.price_unit * (1 - l.discount / 100);
+        const qty = Number(l.quantity) || 0;
+        const pu = Number(l.price_unit) || 0;
+        const disc = Number(l.discount) || 0;
+        const subtotal = qty * pu * (1 - disc / 100);
         const rate =
           l.tax_rate !== undefined
-            ? l.tax_rate
+            ? Number(l.tax_rate)
             : l.tax_ids && l.tax_ids.length > 0 && !(l.tax_ids || []).includes(0)
             ? 18
             : 0;
@@ -601,7 +629,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     const bypassSessionCheck = typeof bypass === 'boolean' ? bypass : false;
     const profile = getUserBillingProfile(currentUser);
     if (profile === 'caisse') {
-      alert("Accès restreint : Le profil Caissier n'est pas autorisé à établir des factures. Cette action est réservée au profil Facture ou Facture / Caisse.");
+      notify(
+        "Accès restreint : Le profil Caissier n'est pas autorisé à établir des factures. Cette action est réservée au profil Facture ou Facture / Caisse.",
+        'warning',
+        'Accès Restreint'
+      );
       return;
     }
 
@@ -729,7 +761,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           body: JSON.stringify(productData),
         });
         if (res.ok) {
-          alert('Analyse créée avec succès !');
+          notify(`Analyse ${cleanSearchText} créée avec succès !`, 'success', 'Nouvelle Prestation');
         }
       }
       
@@ -759,7 +791,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       setActiveLineSearchIndex(null);
     } catch (e) {
       console.error(e);
-      alert("Erreur lors de la création de l'analyse.");
+      notify("Erreur lors de la création de l'analyse.", 'error', 'Erreur');
     }
   };
 
@@ -775,7 +807,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const handleSaveFullProduct = async () => {
     if (!newProductName.trim()) {
-      alert("Le nom de l'analyse est obligatoire.");
+      notify("Le nom de l'analyse est obligatoire.", 'warning', 'Saisie Incomplète');
       return;
     }
     const productData = {
@@ -798,6 +830,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       }
 
       setIsCreateProductOpen(false);
+      notify(`Analyse ${productData.name} enregistrée avec succès !`, 'success', 'Prestation Enregistrée');
 
       setTimeout(async () => {
         try {
@@ -823,7 +856,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       }, 500);
     } catch (e) {
       console.error(e);
-      alert("Erreur lors de l'enregistrement de l'analyse.");
+      notify("Erreur lors de l'enregistrement de l'analyse.", 'error', 'Erreur');
     }
   };
 
@@ -905,8 +938,28 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const resolvePartnerId = async (): Promise<number> => {
     const trimmedInput = partnerNameInput.trim();
     if (!trimmedInput) {
-      return partners[0]?.id || 1;
+      return partnerId || partners[0]?.id || 1;
     }
+
+    // 1. If a partnerId is already chosen in form and its name matches, keep that exact ID
+    if (partnerId) {
+      const explicit = partners.find((p) => p.id === partnerId);
+      if (explicit && explicit.name.trim().toLowerCase() === trimmedInput.toLowerCase()) {
+        return explicit.id;
+      }
+    }
+
+    // 2. Search by NDM first (most stable unique medical identifier)
+    if (ndm && ndm.trim()) {
+      const matchedByNdm = partners.find(
+        (p) => p.ndm && p.ndm.trim().toLowerCase() === ndm.trim().toLowerCase()
+      );
+      if (matchedByNdm) {
+        return matchedByNdm.id;
+      }
+    }
+
+    // 3. Search by exact name
     const matched = partners.find(
       (p) => p.name.trim().toLowerCase() === trimmedInput.toLowerCase()
     );
@@ -937,35 +990,48 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       }
       return matched.id;
     }
+
+    // 4. Create new patient partner
     try {
-      const res = await fetch('/api/partners', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: trimmedInput,
-          phone: patientPhone || null,
-          prescribing_doctor: prescribingDoctor || null,
-          ndm: ndm || generateNextNdm(),
-          is_company: false,
-          partner_type: 'patient',
-          customer_rank: 1,
-          supplier_rank: 0,
-        }),
-      });
-      if (res.ok) {
-        const newPartner = await res.json();
+      const partnerPayload = {
+        name: trimmedInput,
+        phone: patientPhone || null,
+        prescribing_doctor: prescribingDoctor || null,
+        ndm: ndm || generateNextNdm(),
+        is_company: false,
+        partner_type: 'patient',
+        customer_rank: 1,
+        supplier_rank: 0,
+      };
+
+      let newPartner: any = null;
+      if (onSavePartner) {
+        newPartner = await onSavePartner(partnerPayload);
+      } else {
+        const res = await fetch('/api/partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(partnerPayload),
+        });
+        if (res.ok) {
+          newPartner = await res.json();
+        }
+      }
+
+      if (newPartner?.id) {
+        setPartnerId(newPartner.id);
         return newPartner.id;
       }
     } catch (e) {
       console.error('Erreur création client :', e);
     }
-    return partners[0]?.id || 1;
+    return partnerId || partners[0]?.id || 1;
   };
 
   // Save Current Form State to Backend (Draft)
   const handleSaveDraftOnly = async () => {
     if (!partnerNameInput.trim()) {
-      alert('Veuillez renseigner le nom du patient avant de sauvegarder.');
+      notify('Veuillez renseigner le nom du patient avant de sauvegarder.', 'warning', 'Saisie Incomplète');
       return;
     }
     setIsSubmitting(true);
@@ -975,6 +1041,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         id: editingMove?.id,
         move_type: moveTypeFilter,
         partner_id: resolvedId,
+        patient_name: partnerNameInput.trim(),
+        patient_phone: patientPhone || null,
         ref,
         invoice_date: invoiceDate,
         invoice_date_due: invoiceDateDue,
@@ -993,31 +1061,36 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         patient_age_d: patientAgeD,
         medical_service: medicalService,
         cancel_reason: cancelReason,
-        lines: lines.map((l, index) => ({
-          id: l.id,
-          product_id: l.product_id || null,
-          name: l.name || (l.product_id ? 'Article' : 'Prestation'),
-          quantity: l.quantity,
-          price_unit: l.price_unit,
-          discount: l.discount,
-          tax_ids: l.tax_ids,
-          tax_rate: isTaxExempt ? 0 : l.tax_rate ?? 18,
-          price_subtotal: l.quantity * l.price_unit * (1 - l.discount / 100),
-          price_total:
-            l.quantity *
-            l.price_unit *
-            (1 - l.discount / 100) *
-            (1 + (isTaxExempt ? 0 : (l.tax_rate ?? 18)) / 100),
-          sequence: index + 1,
-        })),
+        lines: lines.map((l, index) => {
+          const qty = Number(l.quantity) || 1;
+          const pu = Number(l.price_unit) || 0;
+          const disc = Number(l.discount) || 0;
+          const taxR = isTaxExempt ? 0 : Number(l.tax_rate ?? 18);
+          const subtotal = qty * pu * (1 - disc / 100);
+          return {
+            id: l.id,
+            product_id: l.product_id || null,
+            name: l.name || (l.product_id ? 'Article' : 'Prestation'),
+            quantity: qty,
+            price_unit: pu,
+            discount: disc,
+            tax_ids: l.tax_ids,
+            tax_rate: taxR,
+            price_subtotal: subtotal,
+            price_total: subtotal * (1 + taxR / 100),
+            sequence: index + 1,
+          };
+        }),
       };
 
       const saved = await onSaveMove(moveData);
       if (saved) {
         setEditingMove(saved);
+        notify('Brouillon de facture sauvegardé.', 'info', 'Brouillon Enregistré');
       }
     } catch (e) {
       console.error('Save error:', e);
+      notify('Erreur lors de la sauvegarde du brouillon.', 'error', 'Erreur');
     } finally {
       setIsSubmitting(false);
     }
@@ -1026,11 +1099,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   // Step 1 -> Step 2: VALIDATE INVOICE & AUTOMATICALLY SWITCH TO PAYMENT
   const handleValidateInvoiceAndGoToPayment = async () => {
     if (!partnerNameInput.trim()) {
-      alert('Veuillez renseigner le nom du patient.');
+      notify('Veuillez renseigner le nom du patient.', 'warning', 'Saisie Incomplète');
       return;
     }
     if (lines.length === 0) {
-      alert('Veuillez ajouter au moins une analyse ou prestation médicale.');
+      notify('Veuillez ajouter au moins une analyse ou prestation médicale.', 'warning', 'Aucune Prestation');
       return;
     }
 
@@ -1041,6 +1114,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         id: editingMove?.id,
         move_type: moveTypeFilter,
         partner_id: resolvedId,
+        patient_name: partnerNameInput.trim(),
+        patient_phone: patientPhone || null,
         ref,
         invoice_date: invoiceDate,
         invoice_date_due: invoiceDateDue,
@@ -1059,23 +1134,26 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         patient_age_d: patientAgeD,
         medical_service: medicalService,
         cancel_reason: cancelReason,
-        lines: lines.map((l, index) => ({
-          id: l.id,
-          product_id: l.product_id || null,
-          name: l.name || (l.product_id ? 'Article' : 'Prestation'),
-          quantity: l.quantity,
-          price_unit: l.price_unit,
-          discount: l.discount,
-          tax_ids: l.tax_ids,
-          tax_rate: isTaxExempt ? 0 : l.tax_rate ?? 18,
-          price_subtotal: l.quantity * l.price_unit * (1 - l.discount / 100),
-          price_total:
-            l.quantity *
-            l.price_unit *
-            (1 - l.discount / 100) *
-            (1 + (isTaxExempt ? 0 : (l.tax_rate ?? 18)) / 100),
-          sequence: index + 1,
-        })),
+        lines: lines.map((l, index) => {
+          const qty = Number(l.quantity) || 1;
+          const pu = Number(l.price_unit) || 0;
+          const disc = Number(l.discount) || 0;
+          const taxR = isTaxExempt ? 0 : Number(l.tax_rate ?? 18);
+          const subtotal = qty * pu * (1 - disc / 100);
+          return {
+            id: l.id,
+            product_id: l.product_id || null,
+            name: l.name || (l.product_id ? 'Article' : 'Prestation'),
+            quantity: qty,
+            price_unit: pu,
+            discount: disc,
+            tax_ids: l.tax_ids,
+            tax_rate: taxR,
+            price_subtotal: subtotal,
+            price_total: subtotal * (1 + taxR / 100),
+            sequence: index + 1,
+          };
+        }),
       };
 
       // 1. Save move
@@ -1083,8 +1161,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       const moveIdToPost = saved?.id || editingMove?.id;
 
       // 2. Post / Validate move
+      let posted: AccountMove | null = null;
       if (moveIdToPost) {
-        const posted = await onPostMove(moveIdToPost);
+        posted = await onPostMove(moveIdToPost);
         if (posted) {
           setEditingMove(posted);
         } else if (saved) {
@@ -1096,6 +1175,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         }
       }
 
+      const invCode = posted?.name || saved?.name || `#${moveIdToPost}`;
+      notify(
+        `Facture ${invCode} validée et transmise à la Caisse pour ${partnerNameInput.trim()} !`,
+        'success',
+        'Facture Validée'
+      );
+
       // 3. AUTOMATICALLY ADVANCE TO STEP 2 (PAYMENT) OR STEP 3 (IF FACTURE PROFILE)
       const profile = getUserBillingProfile(currentUser);
       if (profile === 'facture') {
@@ -1105,6 +1191,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       }
     } catch (e) {
       console.error('Validation error:', e);
+      notify('Erreur lors de la validation de la facture.', 'error', 'Erreur Facturation');
     } finally {
       setIsSubmitting(false);
     }
@@ -1114,7 +1201,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const handleExecutePaymentAndFinish = async () => {
     const profile = getUserBillingProfile(currentUser);
     if (profile === 'facture') {
-      alert("Accès restreint : Le profil Facturier est autorisé uniquement à établir des factures. L'encaissement est réservé au profil Caisse ou au Superviseur.");
+      notify(
+        "Accès restreint : Le profil Facturier est autorisé uniquement à établir des factures. L'encaissement est réservé au profil Caisse ou au Superviseur.",
+        'warning',
+        'Accès Restreint'
+      );
       return;
     }
 
@@ -1181,14 +1272,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         }
         setLabOrderTransmitted(true);
         setTransmittedLabOrderNumber(newLabOrderNumber);
+        notify('Bon de prélèvement généré et transmis au Laboratoire !', 'info', 'Ordre Laboratoire');
       } catch (e) {
         console.warn('Auto lab transmission info:', e);
       }
 
+      notify(`Paiement de ${formatFCFA(amountToPay)} encaissé avec succès !`, 'success', 'Encaissement Validé');
       // AUTOMATICALLY ADVANCE TO STEP 3 (RECEIPT & LAB COMPLETION)
       setCurrentStep(3);
     } catch (e) {
       console.error('Payment error:', e);
+      notify("Erreur lors de l'enregistrement du paiement.", 'error', 'Erreur Paiement');
     } finally {
       setIsSubmitting(false);
     }
@@ -1646,9 +1740,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       {/* ========================================================================= */}
       {/* GUIDED AUTOMATIC WORKFLOW MODAL */}
       {/* ========================================================================= */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-white rounded-md max-w-5xl w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[96vh] flex flex-col overflow-hidden">
+      {isFormOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-md max-w-5xl w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[96vh] flex flex-col overflow-hidden my-auto">
             
             {/* Modal Header: Title & Close */}
             <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
@@ -1721,7 +1815,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         onClick={() => {
                           const hasPatientAndItems = Boolean(partnerNameInput && partnerNameInput.trim()) && lines.length > 0;
                           if (st.num > 1 && !hasPatientAndItems) {
-                            alert("Veuillez d'abord renseigner un patient et au moins une prestation dans la facture (Étape 1).");
+                            notify("Veuillez d'abord renseigner un patient et au moins une prestation dans la facture (Étape 1).", 'warning', 'Étape Incomplète');
                             return;
                           }
                           setCurrentStep(st.num as InvoiceStep);
@@ -2233,7 +2327,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             </tr>
                           ) : (
                             lines.map((line, idx) => {
-                              const lineSubtotal = line.quantity * line.price_unit * (1 - line.discount / 100);
+                              const pu = Number(line.price_unit) || 0;
+                              const qty = Number(line.quantity) || 1;
+                              const disc = Number(line.discount) || 0;
+                              const lineSubtotal = qty * pu * (1 - disc / 100);
 
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/40 align-middle">
@@ -2746,17 +2843,42 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Main Actions */}
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  {/* Main Actions: Respect du Process Métier */}
+                  <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2.5 pt-2">
                     <button
                       type="button"
                       onClick={() => {
                         if (editingMove) onOpenPdf(editingMove);
                       }}
-                      className="w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded flex items-center justify-center space-x-2 transition shadow-sm cursor-pointer"
+                      className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-lg flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer"
                     >
-                      <Printer className="w-4 h-4 text-slate-500" />
-                      <span>Imprimer le Reçu / Facture PDF</span>
+                      <Printer className="w-4 h-4 text-slate-600" />
+                      <span>Imprimer Reçu / Facture PDF</span>
+                    </button>
+
+                    {onNavigateToLab && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleCloseFormModal();
+                          onNavigateToLab();
+                        }}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer"
+                      >
+                        <Activity className="w-4 h-4" />
+                        <span>Aller aux Prélèvements Labo →</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleOpenCreateModal(true);
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Nouveau Patient / Facture</span>
                     </button>
 
                     <button
@@ -2765,10 +2887,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         handleCloseFormModal();
                         if (onFinishAndReturnToSession) onFinishAndReturnToSession();
                       }}
-                      className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded shadow-lg flex items-center justify-center space-x-2 transition cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-lg shadow-md flex items-center justify-center space-x-2 transition cursor-pointer"
                     >
                       <X className="w-4 h-4" />
-                      <span>Fermer & Terminer</span>
+                      <span>Fermer &amp; Terminer</span>
                     </button>
                   </div>
 
@@ -2786,9 +2908,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     <button
                       type="button"
                       onClick={handleCloseFormModal}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-bold underline"
+                      className="text-xs text-slate-600 hover:text-slate-900 font-bold underline cursor-pointer"
                     >
-                      Fermer &amp; Voir la Liste des Factures
+                      Fermer &amp; Consulter la Liste
                     </button>
                   </div>
 
@@ -2798,12 +2920,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* SAFE IN-APP DELETE MODAL */}
-      {moveToDelete && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
+      {moveToDelete && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
           <div className="bg-white rounded-md max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in space-y-4">
             <div className="flex items-center space-x-3 text-rose-600">
               <div className="p-2 bg-rose-50 rounded-full">
@@ -2832,7 +2955,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   if (moveToDelete) {
                     const profile = getUserBillingProfile(currentUser);
                     if (moveToDelete.state === 'posted' && profile !== 'superviseur') {
-                      alert("Action restreinte : Seul le Superviseur Caisse / Facture a le droit d'agir (modifier, supprimer ou annuler) sur les factures et encaissements validés. Veuillez soumettre votre demande au Superviseur.");
+                      notify(
+                        "Action restreinte : Seul le Superviseur Caisse / Facture a le droit d'agir (modifier, supprimer ou annuler) sur les factures et encaissements validés.",
+                        'error',
+                        'Action Restreinte'
+                      );
                       setMoveToDelete(null);
                       return;
                     }
@@ -2840,18 +2967,19 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     setMoveToDelete(null);
                   }
                 }}
-                className="px-4 py-1.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 rounded transition shadow-xs"
+                className="px-4 py-1.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 rounded transition shadow-xs cursor-pointer"
               >
                 Supprimer
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* CREATION DOSSIER PATIENT MODAL (Inspired by Reference UI) */}
-      {isCreatePatientOpen && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4 overflow-y-auto">
+      {isCreatePatientOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-slate-50 rounded-lg max-w-5xl w-full shadow-2xl border border-slate-300 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
             
             {/* Header */}
@@ -3252,11 +3380,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {/* Modal: Require Session Before Invoice Creation */}
-      {showRequireSessionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      {showRequireSessionModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200 text-center">
             <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
               <Lock className="w-6 h-6" />
@@ -3291,7 +3420,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

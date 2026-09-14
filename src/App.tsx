@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, ShieldAlert, LogOut } from 'lucide-react';
+import { Clock, ShieldAlert, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AppNavigation, AppView, getAllowedViews } from './components/AppNavigation';
 import { LoginView } from './components/LoginView';
 import { CompanySettingsView } from './components/CompanySettingsView';
@@ -192,14 +192,42 @@ export default function App() {
   const [lookupPatient, setLookupPatient] = useState<ResPartner | null>(null);
   const [isLookupOpen, setIsLookupOpen] = useState(false);
 
-  // Loading & Toast Notification
+  // Loading & Real-time Toast Notifications
   const [isLoading, setIsLoading] = useState(true);
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [toasts, setToasts] = useState<
+    Array<{
+      id: string;
+      text: string;
+      type: 'success' | 'error' | 'warning' | 'info';
+      title?: string;
+    }>
+  >([]);
 
-  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
-    setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  const showToast = useCallback(
+    (text: string, type: 'success' | 'error' | 'warning' | 'info' = 'success', title?: string) => {
+      const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const defaultTitle =
+        type === 'success'
+          ? 'Opération Réussie'
+          : type === 'error'
+          ? 'Erreur Système'
+          : type === 'warning'
+          ? 'Attention'
+          : 'Notification';
+
+      const newToast = { id, text, type, title: title || defaultTitle };
+      setToasts((prev) => [...prev.slice(-3), newToast]);
+
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 4500);
+    },
+    []
+  );
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   // Save active user and current view to localStorage
   useEffect(() => {
@@ -649,7 +677,7 @@ export default function App() {
   };
 
   // Partner Handler
-  const handleSavePartner = async (partnerData: any) => {
+  const handleSavePartner = async (partnerData: any): Promise<ResPartner | null> => {
     try {
       const res = await fetch('/api/partners', {
         method: 'POST',
@@ -657,7 +685,14 @@ export default function App() {
         body: JSON.stringify(partnerData),
       });
       if (res.ok) {
-        showToast('Fiche Partenaire enregistrée !');
+        const savedPartner: ResPartner = await res.json();
+        showToast(
+          savedPartner.partner_type === 'patient'
+            ? `Dossier patient #${savedPartner.ndm || savedPartner.id} (${savedPartner.name}) enregistré avec succès !`
+            : 'Fiche Partenaire enregistrée !',
+          'success',
+          'Dossier Partenaire'
+        );
         
         // Auto-increment next NDM sequential sequence
         const prefix = company.ndm_prefix !== undefined ? company.ndm_prefix : 'NDM-';
@@ -683,9 +718,14 @@ export default function App() {
         }
 
         await fetchAllData();
+        return savedPartner;
+      } else {
+        showToast('Erreur lors de l enregistrement du partenaire', 'error', 'Erreur Partenaire');
+        return null;
       }
     } catch (e) {
-      showToast('Erreur partenaire', 'error');
+      showToast('Erreur réseau partenaire', 'error', 'Erreur Partenaire');
+      return null;
     }
   };
 
@@ -1158,7 +1198,7 @@ export default function App() {
       />
 
       {/* Main App Canvas - Full Width View Without Restrictive Width Constraints */}
-      <main className="flex-1 lg:pl-64 transition-all p-3 sm:p-5 lg:p-6 w-full relative z-10">
+      <main className="flex-1 lg:pl-64 transition-all p-3 sm:p-5 lg:p-6 w-full relative">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
             <div
@@ -1244,6 +1284,8 @@ export default function App() {
                 hasActiveSession={hasActiveSession}
                 onNavigateToSessions={() => setCurrentView('caisse_sessions')}
                 tillSessions={tillSessions}
+                onShowToast={showToast}
+                onNavigateToLab={() => setCurrentView('lab_sampling')}
               />
             )}
 
@@ -1301,6 +1343,8 @@ export default function App() {
                 moves={moves}
                 tillSessions={tillSessions}
                 onSessionChange={fetchAllData}
+                onShowToast={showToast}
+                onNavigateToLab={() => setCurrentView('lab_sampling')}
                 onOpenNewInvoice={async () => {
                   await fetchAllData();
                   setMoveTypeFilter('out_invoice');
@@ -1501,25 +1545,62 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Floating Toast Notification with smooth motion animations */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-            className={`fixed bottom-6 right-6 z-[100] px-4 py-3 rounded-lg shadow-2xl font-extrabold text-xs text-white border flex items-center space-x-2 ${
-              toastMessage.type === 'success'
-                ? 'bg-slate-900 border-slate-700'
-                : 'bg-rose-600 border-rose-400'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-            <span>{toastMessage.text}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Real-time Toast Notifications Container with smooth motion transitions */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col space-y-2 pointer-events-none max-w-sm w-full">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className={`pointer-events-auto p-3.5 rounded-xl shadow-2xl border backdrop-blur-sm flex items-start space-x-3 transition ${
+                toast.type === 'success'
+                  ? 'bg-slate-900/95 text-white border-slate-700/80'
+                  : toast.type === 'error'
+                  ? 'bg-rose-900/95 text-white border-rose-700/80'
+                  : toast.type === 'warning'
+                  ? 'bg-amber-900/95 text-white border-amber-700/80'
+                  : 'bg-indigo-950/95 text-white border-indigo-700/80'
+              }`}
+            >
+              <div className="shrink-0 pt-0.5">
+                {toast.type === 'success' && (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                )}
+                {toast.type === 'error' && (
+                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                )}
+                {toast.type === 'warning' && (
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                )}
+                {toast.type === 'info' && (
+                  <Info className="w-4 h-4 text-blue-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0 pr-1">
+                {toast.title && (
+                  <div className="text-[11px] font-black uppercase tracking-wider opacity-90 mb-0.5">
+                    {toast.title}
+                  </div>
+                )}
+                <div className="text-xs font-semibold leading-snug">
+                  {toast.text}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeToast(toast.id)}
+                className="shrink-0 p-1 text-white/60 hover:text-white rounded hover:bg-white/10 transition cursor-pointer"
+                title="Fermer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

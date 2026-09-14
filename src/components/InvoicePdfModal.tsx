@@ -39,7 +39,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
   const isCustomerInvoice = move.move_type.startsWith('out');
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
         {/* Header toolbar - Fixed at the top */}
         <div className="shrink-0 bg-white text-slate-900 px-4 py-3 flex items-center justify-between no-print z-10 border-b border-slate-200 shadow-sm">
@@ -307,14 +307,17 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-900 text-xs">
                   {move.lines && move.lines.length > 0 ? (
                     move.lines.map((line, idx) => {
-                      const linePriceTotal = line.price_unit * line.quantity;
-                      const lineDiscountTotal = linePriceTotal * (line.discount / 100);
-                      const lineNetTotal = linePriceTotal - lineDiscountTotal;
+                      const pu = Number(line.price_unit) || 0;
+                      const qty = Number(line.quantity) || 1;
+                      const disc = Number(line.discount) || 0;
+                      const linePriceTotal = pu * qty;
+                      const lineDiscountTotal = linePriceTotal * (disc / 100);
+                      const lineNetTotal = Math.max(0, linePriceTotal - lineDiscountTotal);
 
                       return (
                         <tr key={idx} className="align-middle">
                           <td className="py-2 px-1 font-bold text-slate-900">
-                            {line.name || line.product_name}
+                            {line.name || line.product_name || 'Prestation'}
                           </td>
                           <td className="py-2 px-1 text-right font-mono font-bold text-slate-800">
                             {Math.round(linePriceTotal).toLocaleString('fr-FR').replace(/\u00a0/g, ' ')}
@@ -344,36 +347,71 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
             {/* 4. Horizontal Summary Metrics Row with Thin Borders matching Image 2 */}
             {(() => {
               const linesList = move.lines || [];
-              const totalTarifPlein = linesList.reduce((sum, line) => sum + (line.price_unit * line.quantity), 0);
-              const totalReduction = linesList.reduce((sum, line) => sum + (line.price_unit * line.quantity * (line.discount / 100)), 0);
-              const totalMtAPayer = totalTarifPlein - totalReduction;
-              const totalPaye = move.payment_state === 'paid' ? totalMtAPayer : (totalMtAPayer - move.amount_residual);
-              const totalRestant = move.amount_residual;
+              const totalTarifPlein = linesList.reduce((sum, line) => {
+                const pu = Number(line.price_unit) || 0;
+                const qty = Number(line.quantity) || 1;
+                return sum + (pu * qty);
+              }, 0) || Number(move.amount_untaxed) || Number(move.amount_total) || 0;
 
-              const formatVal = (val: number) => Math.round(val).toLocaleString('fr-FR').replace(/\u00a0/g, ' ');
+              const totalReduction = linesList.reduce((sum, line) => {
+                const pu = Number(line.price_unit) || 0;
+                const qty = Number(line.quantity) || 1;
+                const disc = Number(line.discount) || 0;
+                return sum + (pu * qty * (disc / 100));
+              }, 0);
+
+              const totalMtAPayer = Math.max(0, totalTarifPlein - totalReduction);
+              const moveResidual = Number(move.amount_residual !== undefined && move.amount_residual !== null ? move.amount_residual : 0);
+
+              let totalPaye = 0;
+              if (move.payment_state === 'paid') {
+                totalPaye = totalMtAPayer;
+              } else if (Array.isArray(move.payments) && move.payments.length > 0) {
+                totalPaye = move.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+              } else {
+                totalPaye = Math.max(0, totalMtAPayer - moveResidual);
+              }
+
+              const totalRestant = move.payment_state === 'paid' ? 0 : (moveResidual > 0 ? moveResidual : Math.max(0, totalMtAPayer - totalPaye));
+
+              const formatVal = (val: any) => {
+                const num = Number(val);
+                if (isNaN(num) || !isFinite(num)) return '0';
+                return Math.round(num).toLocaleString('fr-FR').replace(/\u00a0/g, ' ');
+              };
 
               return (
-                <div className="border-t border-b border-black py-2.5 px-2 bg-slate-50/50 flex flex-wrap justify-between items-center text-xs font-black text-slate-900 tracking-wide font-mono leading-none gap-y-2">
-                  <div className="flex items-center space-x-1">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">Total :</span>
-                    <span className="text-slate-900">{formatVal(totalTarifPlein)}</span>
+                <div className="space-y-2">
+                  <div className="border-t border-b border-black py-2.5 px-2 bg-slate-50/50 flex flex-wrap justify-between items-center text-xs font-black text-slate-900 tracking-wide font-mono leading-none gap-y-2">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider">Total :</span>
+                      <span className="text-slate-900">{formatVal(totalTarifPlein)}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider">Réduction :</span>
+                      <span className="text-slate-900">{formatVal(totalReduction)}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider">MT à payer :</span>
+                      <span className="text-slate-900 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">{formatVal(totalMtAPayer)}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider">Payé :</span>
+                      <span className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">{formatVal(totalPaye)}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider">Restant :</span>
+                      <span className={`px-1 py-0.5 rounded border ${totalRestant > 0 ? 'text-rose-800 bg-rose-50 border-rose-200' : 'text-slate-700 bg-slate-100 border-slate-300'}`}>{formatVal(totalRestant)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">Réduction :</span>
-                    <span className="text-slate-900">{formatVal(totalReduction)}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">MT à payer :</span>
-                    <span className="text-slate-900 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">{formatVal(totalMtAPayer)}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">Payé :</span>
-                    <span className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">{formatVal(totalPaye)}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">Restant :</span>
-                    <span className={`px-1 py-0.5 rounded border ${totalRestant > 0 ? 'text-rose-800 bg-rose-50 border-rose-200' : 'text-slate-700 bg-slate-100 border-slate-300'}`}>{formatVal(totalRestant)}</span>
-                  </div>
+
+                  {move.insurance_enabled && (
+                    <div className="text-[10px] font-mono font-bold bg-blue-50/70 border border-blue-200 text-blue-950 px-2.5 py-1 rounded flex flex-wrap justify-between items-center gap-2">
+                      <span>🛡️ Prise en charge : <strong className="text-blue-900">{move.insurance_name || 'Assurance'}</strong> ({move.insurance_coverage_rate || 80}%)</span>
+                      <span>Part Assurance : <strong className="text-blue-900">{formatVal(move.insurance_amount || (totalMtAPayer * (move.insurance_coverage_rate || 80) / 100))} FCFA</strong></span>
+                      <span>Ticket modérateur (Part Patient) : <strong className="text-blue-900">{formatVal(move.client_share_amount || (totalMtAPayer - (move.insurance_amount || (totalMtAPayer * (move.insurance_coverage_rate || 80) / 100))))} FCFA</strong></span>
+                    </div>
+                  )}
                 </div>
               );
             })()}

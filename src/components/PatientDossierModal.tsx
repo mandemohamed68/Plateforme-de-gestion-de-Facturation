@@ -68,7 +68,7 @@ export const PatientDossierModal: React.FC<PatientDossierModalProps> = ({
   return (
     <div 
       id="patient-dossier-modal" 
-      className="fixed inset-0 z-50 overflow-y-auto" 
+      className="fixed inset-0 z-[100] overflow-y-auto" 
       aria-labelledby="modal-title" 
       role="dialog" 
       aria-modal="true"

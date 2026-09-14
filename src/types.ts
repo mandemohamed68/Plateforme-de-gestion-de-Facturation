@@ -284,6 +284,8 @@ export interface AccountMove {
   client_share_amount?: number;
   // Medical billing extension fields from TARIFICATION image
   ndm?: string | null;
+  patient_name?: string | null;
+  patient_phone?: string | null;
   patient_age_y?: number | null;
   patient_age_m?: number | null;
   patient_age_d?: number | null;

@@ -764,6 +764,26 @@ WHERE e.state = 'saisi' AND (r.valider_ligne IS NOT TRUE OR r.valider_ligne = FA
 // Helpers to expand Move relations
 function expandMove(m: AccountMove): AccountMove {
   const partner = dbPartners.find((p) => p.id === m.partner_id);
+  const resolvedPartner = partner
+    ? {
+        ...partner,
+        name: m.patient_name || partner.name,
+        ndm: m.ndm || partner.ndm || null,
+        phone: m.patient_phone || partner.phone || null,
+      }
+    : (m.patient_name
+      ? ({
+          id: m.partner_id,
+          name: m.patient_name,
+          phone: m.patient_phone || null,
+          ndm: m.ndm || null,
+          customer_rank: 1,
+          supplier_rank: 0,
+          partner_type: 'patient',
+          active: true,
+        } as any)
+      : undefined);
+
   const invoice_user = dbUsers.find((u) => u.id === m.invoice_user_id);
   const currency = dbCurrencies.find((c) => c.id === m.currency_id);
   const lines = dbMoveLines
@@ -781,7 +801,9 @@ function expandMove(m: AccountMove): AccountMove {
 
   return {
     ...m,
-    partner,
+    patient_name: m.patient_name || partner?.name || null,
+    patient_phone: m.patient_phone || partner?.phone || null,
+    partner: resolvedPartner,
     invoice_user,
     currency,
     lines,
@@ -1497,15 +1519,24 @@ app.post('/api/partners', (req: Request, res: Response) => {
     }
   }
 
-  // If no ID provided but name matches an existing partner, update them instead of creating a duplicate
-  if (!body.id && body.name) {
-    const trimmedName = String(body.name).trim().toLowerCase();
-    const existingIndexByName = dbPartners.findIndex(
-      (p) => p.name && p.name.trim().toLowerCase() === trimmedName
-    );
-    if (existingIndexByName !== -1) {
-      const existing = dbPartners[existingIndexByName];
-      dbPartners[existingIndexByName] = {
+  // Only update existing partner if matched specifically by ID, NDM, or both exact name and phone
+  if (!body.id) {
+    let existingIndex = -1;
+    if (body.ndm && String(body.ndm).trim() !== '') {
+      existingIndex = dbPartners.findIndex(
+        (p) => p.ndm && p.ndm.trim().toLowerCase() === String(body.ndm).trim().toLowerCase()
+      );
+    } else if (body.name && body.phone && String(body.phone).trim() !== '') {
+      const trimmedName = String(body.name).trim().toLowerCase();
+      const cleanPhone = String(body.phone).trim();
+      existingIndex = dbPartners.findIndex(
+        (p) => p.name && p.name.trim().toLowerCase() === trimmedName && p.phone === cleanPhone
+      );
+    }
+
+    if (existingIndex !== -1) {
+      const existing = dbPartners[existingIndex];
+      dbPartners[existingIndex] = {
         ...existing,
         ...body,
         id: existing.id,
@@ -1515,7 +1546,7 @@ app.post('/api/partners', (req: Request, res: Response) => {
         updated_at: new Date().toISOString(),
       };
       saveDb();
-      return res.json(dbPartners[existingIndexByName]);
+      return res.json(dbPartners[existingIndex]);
     }
   }
 
@@ -2907,6 +2938,8 @@ app.post('/api/moves', (req: Request, res: Response) => {
     insurance_amount,
     client_share_amount,
     ndm,
+    patient_name,
+    patient_phone,
     patient_age_y,
     patient_age_m,
     patient_age_d,
@@ -2916,6 +2949,7 @@ app.post('/api/moves', (req: Request, res: Response) => {
 
   const partnerId = Number(partner_id);
   if (!partnerId) return res.status(400).json({ error: 'partner_id strictly required' });
+  const matchedPartner = dbPartners.find((p) => p.id === partnerId);
 
   let amountUntaxed = 0;
   let amountTax = 0;
@@ -3007,7 +3041,9 @@ app.post('/api/moves', (req: Request, res: Response) => {
     insurance_coverage_rate: Number(insurance_coverage_rate) || 0,
     insurance_amount: Number(insAmount.toFixed(2)),
     client_share_amount: Number(clientShare.toFixed(2)),
-    ndm: ndm || null,
+    ndm: ndm || matchedPartner?.ndm || null,
+    patient_name: patient_name || matchedPartner?.name || null,
+    patient_phone: patient_phone || matchedPartner?.phone || null,
     patient_age_y: patient_age_y !== undefined ? Number(patient_age_y) : null,
     patient_age_m: patient_age_m !== undefined ? Number(patient_age_m) : null,
     patient_age_d: patient_age_d !== undefined ? Number(patient_age_d) : null,
@@ -3050,6 +3086,8 @@ app.put('/api/moves/:id', (req: Request, res: Response) => {
     insurance_amount,
     client_share_amount,
     ndm,
+    patient_name,
+    patient_phone,
     patient_age_y,
     patient_age_m,
     patient_age_d,
@@ -3059,6 +3097,8 @@ app.put('/api/moves/:id', (req: Request, res: Response) => {
   } = req.body;
 
   if (till_session_id !== undefined) existingMove.till_session_id = till_session_id ? Number(till_session_id) : null;
+  if (patient_name !== undefined) existingMove.patient_name = patient_name;
+  if (patient_phone !== undefined) existingMove.patient_phone = patient_phone;
 
   if (is_tax_exempt !== undefined) existingMove.is_tax_exempt = !!is_tax_exempt;
   if (tax_exemption_reason !== undefined) existingMove.tax_exemption_reason = tax_exemption_reason;
@@ -3406,14 +3446,17 @@ app.post('/api/payments', (req: Request, res: Response) => {
         
         const { paramsList, expandedExams } = populateParametersForExams(rawExams, orderId);
 
+        const resolvedPatientName = move.patient_name || (partner ? partner.name : 'Patient');
+        const resolvedNdm = move.ndm || (partner ? partner.ndm : null);
+
         const newLabOrder: LabExamOrder = {
           id: orderId,
           order_number: `LAB-2026-${String(orderId).padStart(4, '0')}`,
           partner_id: move.partner_id,
-          partner_name: partner ? partner.name : 'Patient',
-          patient_gender: 'M',
-          patient_age: move.patient_age_y || 35,
-          prescribing_doctor: move.ref || 'Dr. Prescripteur Externe',
+          partner_name: resolvedPatientName,
+          patient_gender: (partner && partner.gender) || 'M',
+          patient_age: move.patient_age_y || partner?.age || 35,
+          prescribing_doctor: partner?.prescribing_doctor || move.ref || 'Dr. Prescripteur Externe',
           sampling_date: new Date().toISOString(),
           status: 'pending_sampling', // "Initié" - Waiting for drawing!
           department: dept,
