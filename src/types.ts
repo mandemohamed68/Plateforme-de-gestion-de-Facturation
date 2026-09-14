@@ -26,6 +26,7 @@ export interface FlashAnnouncement {
   start_date?: string;
   end_date?: string;
   link_url?: string;
+  target_profiles?: string[]; // ['all'] or ['facture', 'caisse', 'labo', 'comptabilite', 'direction', 'admin']
 }
 
 export interface CompanySettings {
@@ -553,6 +554,7 @@ export type AppView =
   | 'products'
   | 'users'
   | 'company'
+  | 'flash_announcements'
   | 'notifications'
   | 'logs_audit'
   | 'schema';

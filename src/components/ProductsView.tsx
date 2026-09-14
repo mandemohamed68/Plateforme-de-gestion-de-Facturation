@@ -177,8 +177,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setIsFormActive(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     if (!name.trim()) return;
 
     const profileExams = labProfileExamsText

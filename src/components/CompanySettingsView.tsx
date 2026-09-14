@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { CompanySettings, PaymentMethodItem, FlashAnnouncement } from '../types';
 import { getAppTheme } from '../lib/theme';
+import { DEFAULT_FLASH_ANNOUNCEMENTS } from './FlashAnnouncementsView';
 import { MobileMoneyAggregatorModal } from './MobileMoneyAggregatorModal';
 
 interface CompanySettingsViewProps {
@@ -123,25 +124,8 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
     watermark_opacity: company.watermark_opacity || 0.12,
     watermark_position: company.watermark_position || 'diagonal',
     flash_news_enabled: company.flash_news_enabled !== false,
-    flash_news_speed: company.flash_news_speed || 6,
-    flash_announcements: company.flash_announcements || [
-      {
-        id: 'flash-1',
-        title: 'Disponibilité du Dépistage PCR Direct',
-        message: 'Nouveau pôle d\'analyses rapides PCR disponible sans rendez-vous de 07h30 à 18h00 au guichet principal.',
-        type: 'info',
-        active: true,
-        priority: 1,
-      },
-      {
-        id: 'flash-2',
-        title: 'Convention Tiers-Payeur Unifiée',
-        message: 'Mise à jour des conventions d\'assurance 2026 : Prise en charge automatique jusqu\'à 90% pour les partenaires agréés.',
-        type: 'promo',
-        active: true,
-        priority: 2,
-      },
-    ],
+    flash_news_speed: company.flash_news_speed || 10,
+    flash_announcements: company.flash_announcements && company.flash_announcements.length > 0 ? company.flash_announcements : DEFAULT_FLASH_ANNOUNCEMENTS,
     payment_method_items: company.payment_method_items || DEFAULT_PAYMENT_METHOD_ITEMS,
     enabled_payment_methods: company.enabled_payment_methods || [
       'cash',
@@ -1060,6 +1044,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                           type: 'info',
                           active: true,
                           priority: (formData.flash_announcements || []).length + 1,
+                          target_profiles: ['all'],
                         });
                         setIsAnnouncementModalOpen(true);
                       }}
@@ -1122,7 +1107,12 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                             {ann.type}
                           </span>
                           <div className="min-w-0">
-                            <div className="text-xs font-extrabold text-slate-900 truncate">{ann.title}</div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs font-extrabold text-slate-900 truncate">{ann.title}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 text-slate-800 rounded border border-slate-300 shrink-0">
+                                🎯 {(!ann.target_profiles || ann.target_profiles.includes('all')) ? 'Tous les profils' : ann.target_profiles.join(', ')}
+                              </span>
+                            </div>
                             <div className="text-xs text-slate-600 truncate">{ann.message}</div>
                           </div>
                         </div>
@@ -2059,6 +2049,62 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                     onChange={(e) => setEditingAnnouncement({ ...editingAnnouncement, priority: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
                   />
+                </div>
+              </div>
+
+              {/* Target Profiles Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  🎯 Profils Cibles Destinataires du Message
+                </label>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Cochez "Tous les Profils" ou sélectionnez un ou plusieurs profils spécifiques pour restreindre l'affichage de cette notification.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-md">
+                  {[
+                    { id: 'all', label: '🌐 Tous les Profils' },
+                    { id: 'facture', label: '📄 Facturation / Accueil' },
+                    { id: 'caisse', label: '💵 Caisse / Caissier' },
+                    { id: 'labo', label: '🔬 Laboratoire / Biologie' },
+                    { id: 'comptabilite', label: '📊 Comptabilité' },
+                    { id: 'direction', label: '👑 Direction & Superviseur' },
+                    { id: 'admin', label: '⚙️ Administrateurs' },
+                  ].map((prof) => {
+                    const currentTargets = editingAnnouncement.target_profiles || ['all'];
+                    const isSelected = currentTargets.includes(prof.id);
+                    return (
+                      <label
+                        key={prof.id}
+                        className={`flex items-center space-x-2 p-2 rounded border cursor-pointer text-xs font-bold transition ${
+                          isSelected
+                            ? 'bg-indigo-50 border-indigo-400 text-indigo-900 shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            let updatedTargets = [...currentTargets];
+                            if (prof.id === 'all') {
+                              updatedTargets = ['all'];
+                            } else {
+                              updatedTargets = updatedTargets.filter((t) => t !== 'all');
+                              if (e.target.checked) {
+                                updatedTargets.push(prof.id);
+                              } else {
+                                updatedTargets = updatedTargets.filter((t) => t !== prof.id);
+                              }
+                              if (updatedTargets.length === 0) updatedTargets = ['all'];
+                            }
+                            setEditingAnnouncement({ ...editingAnnouncement, target_profiles: updatedTargets });
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="truncate">{prof.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 

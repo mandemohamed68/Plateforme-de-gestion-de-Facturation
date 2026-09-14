@@ -57,8 +57,9 @@ export const ALL_NAVIGATION_MENUS = [
   { id: 'lab_results', label: 'Examens & Résultats', category: 'PATIENTS & PLATEAU TECHNIQUE' },
   { id: 'products', label: 'Catalogue des Analyses', category: 'PATIENTS & PLATEAU TECHNIQUE' },
   { id: 'users', label: 'Utilisateurs & Droits', category: 'ADMINISTRATION & SÉCURITÉ' },
-  { id: 'company', label: 'Branding & Paramètres', category: 'ADMINISTRATION & SÉCURITÉ' },
-  { id: 'notifications', label: 'Annonces & Flash Info', category: 'ADMINISTRATION & SÉCURITÉ' },
+  { id: 'company', label: 'Branding & Filigrane', category: 'ADMINISTRATION & SÉCURITÉ' },
+  { id: 'flash_announcements', label: 'Annonces & Flash Info', category: 'ADMINISTRATION & SÉCURITÉ' },
+  { id: 'notifications', label: 'Relances & Alertes', category: 'AUDIT & TRAÇABILITÉ' },
   { id: 'schema', label: 'Schéma & Architecture BD', category: 'ADMINISTRATION & SÉCURITÉ' },
 ];
 
@@ -68,7 +69,7 @@ export function getDefaultViewsForRole(roleName?: string | null): string[] {
     return ALL_NAVIGATION_MENUS.map(m => m.id);
   }
   if (r.includes('superviseur')) {
-    return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
+    return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners', 'flash_announcements'];
   }
   if (r.includes('facturier') || r.includes('facture')) {
     return ['caisse_sessions', 'invoices', 'partners'];

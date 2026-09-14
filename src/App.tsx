@@ -21,6 +21,8 @@ import { InvoicePdfModal } from './components/InvoicePdfModal';
 import { PatientDossierModal } from './components/PatientDossierModal';
 import { PatientDossiersDirectoryView } from './components/PatientDossiersDirectoryView';
 import { InsuranceClaimsView } from './components/InsuranceClaimsView';
+import { FlashInfoTicker } from './components/FlashInfoTicker';
+import { FlashAnnouncementsView, DEFAULT_FLASH_ANNOUNCEMENTS } from './components/FlashAnnouncementsView';
 import {
   AccountMove,
   ResPartner,
@@ -114,6 +116,9 @@ export default function App() {
     lab_turnaround_default: "2 heures à 24 heures selon la spécialité",
     invoice_footer: "Document délivré à titre de quittance médicale officielle. Facture exonérée de TVA sur les prestations d'analyses médicales.",
     default_page_size: 50,
+    flash_news_enabled: true,
+    flash_news_speed: 10,
+    flash_announcements: DEFAULT_FLASH_ANNOUNCEMENTS,
   });
 
   // User & Auth State with localStorage persistence
@@ -436,13 +441,35 @@ export default function App() {
       }
 
       if (safeUsers.length > 0) {
-        // If saved user exists in safeUsers, keep it updated with backend groups & permissions
-        const existing = currentUser ? safeUsers.find((u) => u.id === currentUser.id) : null;
-        if (existing) {
-          setCurrentUser(existing);
-        } else if (!currentUser) {
-          setCurrentUser(safeUsers[0]);
-        }
+        setCurrentUser((prev) => {
+          if (!prev) {
+            const savedUserJson = localStorage.getItem('lis_current_user');
+            if (savedUserJson) {
+              try {
+                const parsed = JSON.parse(savedUserJson);
+                const found = safeUsers.find((u) => u.id === parsed.id || u.login === parsed.login);
+                if (found) return found;
+              } catch (e) {}
+            }
+            return safeUsers[0];
+          }
+          const existing = safeUsers.find((u) => u.id === prev.id);
+          if (!existing) return prev;
+
+          // Compare key identity fields to avoid replacing object reference on every background fetch
+          if (
+            prev.id === existing.id &&
+            prev.role === existing.role &&
+            prev.name === existing.name &&
+            prev.email === existing.email &&
+            JSON.stringify(prev.group_ids || []) === JSON.stringify(existing.group_ids || []) &&
+            JSON.stringify(prev.permissions || []) === JSON.stringify(existing.permissions || []) &&
+            JSON.stringify(prev.allowed_views || []) === JSON.stringify(existing.allowed_views || [])
+          ) {
+            return prev;
+          }
+          return existing;
+        });
       }
     } catch (err) {
       console.error('Erreur chargement données:', err);
@@ -680,7 +707,7 @@ export default function App() {
     setMoveTypeFilter(move.move_type);
     setSelectedMoveForPayment(move); // We'll use this to pass it to InvoicesView
     setAutoOpenInvoiceCreate(false);
-    setReturnToSessionMode(true);
+    setReturnToSessionMode(false);
     setCurrentView('invoices');
   };
 
@@ -1239,6 +1266,9 @@ export default function App() {
 
       {/* Main App Canvas - Full Width View Without Restrictive Width Constraints */}
       <main className="flex-1 lg:pl-64 transition-all p-3 sm:p-5 lg:p-6 w-full relative">
+        {/* Global Flash Info Ticker / Targeted Announcement Slides */}
+        <FlashInfoTicker company={company} currentUser={currentUser} />
+
         {isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
             <div
@@ -1389,13 +1419,13 @@ export default function App() {
                   await fetchAllData();
                   setMoveTypeFilter('out_invoice');
                   setAutoOpenInvoiceCreate(true);
-                  setReturnToSessionMode(true);
+                  setReturnToSessionMode(false);
                   setCurrentView('invoices');
                 }}
                 onOpenNewPayment={async () => {
                   await fetchAllData();
                   setAutoOpenPaymentModal(true);
-                  setReturnToSessionMode(true);
+                  setReturnToSessionMode(false);
                   setCurrentView('payments');
                 }}
                 onPayInvoice={handlePayInvoice}
@@ -1466,6 +1496,15 @@ export default function App() {
               <CompanySettingsView
                 company={company}
                 onSaveCompany={handleSaveCompany}
+              />
+            )}
+
+            {currentView === 'flash_announcements' && (
+              <FlashAnnouncementsView
+                company={company}
+                setCompany={setCompany}
+                onSaveCompany={handleSaveCompany}
+                currentUser={currentUser}
               />
             )}
 

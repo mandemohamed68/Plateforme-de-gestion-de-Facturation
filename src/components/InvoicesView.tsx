@@ -1182,13 +1182,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         'Facture Soumise à L\'Encaissement'
       );
 
-      // 3. AUTOMATICALLY ADVANCE TO STEP 2 (PAYMENT) OR STEP 3 (IF FACTURE PROFILE)
-      const profile = getUserBillingProfile(currentUser);
-      if (profile === 'facture') {
-        setCurrentStep(3); // strictly facturier profile skips payment step
-      } else {
-        setCurrentStep(2);
-      }
+      // 3. AUTOMATICALLY ADVANCE TO STEP 2 (RECAP & ENCAISSEMENT CAISSE) FOR ALL PROFILES
+      setCurrentStep(2);
     } catch (e) {
       console.error('Validation error:', e);
       notify('Erreur lors de la validation de la facture.', 'error', 'Erreur Facturation');
@@ -1201,11 +1196,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const handleExecutePaymentAndFinish = async () => {
     const profile = getUserBillingProfile(currentUser);
     if (profile === 'facture') {
-      notify(
-        "Accès restreint : Le profil Facturier est autorisé uniquement à établir des factures. L'encaissement est réservé au profil Caisse ou au Superviseur.",
-        'warning',
-        'Accès Restreint'
-      );
+      setCurrentStep(3);
+      notify("Facture enregistrée et transmise au guichet de caisse avec succès.", 'success', 'Transmis à la Caisse');
       return;
     }
 
@@ -2751,7 +2743,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         onClick={handleExecutePaymentAndFinish}
                         className="px-5 py-2.5 text-xs font-black text-white bg-slate-900 hover:bg-slate-800 rounded shadow-md flex items-center space-x-2 transition cursor-pointer"
                       >
-                        <span>Valider le Paiement &amp; Finaliser</span>
+                        <span>
+                          {getUserBillingProfile(currentUser) === 'facture'
+                            ? 'Transmettre à la Caisse & Finaliser'
+                            : 'Valider le Paiement & Finaliser'}
+                        </span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -2873,7 +2869,6 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       type="button"
                       onClick={() => {
                         handleCloseFormModal();
-                        if (onFinishAndReturnToSession) onFinishAndReturnToSession();
                       }}
                       className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-lg shadow-md flex items-center justify-center space-x-2 transition cursor-pointer"
                     >

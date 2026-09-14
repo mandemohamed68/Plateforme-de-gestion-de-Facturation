@@ -21,6 +21,7 @@ import {
   ScrollText,
   FolderOpen,
   Download,
+  Megaphone,
 } from 'lucide-react';
 import { ResUser, CompanySettings, ResGroup, AppView } from '../types';
 import { getAppTheme } from '../lib/theme';
@@ -68,23 +69,33 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     const groupIds = user.group_ids || [];
     const perms = user.permissions || [];
 
-    // 2. Superviseur Caisse & Facturation
-    if (
-      role.includes('superviseur') ||
-      login === 'superviseur' ||
-      billingProfile === 'superviseur' && !role.includes('admin') && !role.includes('directeur')
-    ) {
-      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'insurance_claims', 'partners'];
-    }
-
-    // 3. Admin / Directeur / Administrateur -> Accès complet à TOUS les menus
     const isAdmin =
       (login === 'admin' && !role.includes('superviseur')) ||
       (role.includes('directeur') && !role.includes('superviseur')) ||
       (role.includes('admin') && !role.includes('superviseur')) ||
       role.includes('administrateur') ||
-      perms.includes('all');
+      perms.includes('all') ||
+      groupIds.includes(1);
 
+    // 1. If user has custom allowed views configured specifically for them (from UsersView custom menu modal)
+    if (user.allowed_views && Array.isArray(user.allowed_views) && user.allowed_views.length > 0) {
+      const custom = [...(user.allowed_views as AppView[])];
+      if ((isAdmin || custom.includes('company') || perms.includes('can_manage_settings')) && !custom.includes('flash_announcements')) {
+        custom.push('flash_announcements');
+      }
+      return custom;
+    }
+
+    // 2. Superviseur Caisse & Facturation
+    if (
+      role.includes('superviseur') ||
+      login === 'superviseur' ||
+      (billingProfile === 'superviseur' && !role.includes('admin') && !role.includes('directeur'))
+    ) {
+      return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'insurance_claims', 'partners', 'flash_announcements'];
+    }
+
+    // 3. Admin / Directeur / Administrateur -> Accès complet à TOUS les menus
     if (isAdmin) {
       return [
         'dashboard',
@@ -100,6 +111,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'products',
         'users',
         'company',
+        'flash_announcements',
         'notifications',
         'logs_audit',
         'schema',
@@ -196,12 +208,16 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
 
   const allowed = getRawViews();
   if (Array.isArray(allowed)) {
-    if (allowed.includes('partners') && !allowed.includes('patient_dossiers')) {
-      return [...allowed, 'patient_dossiers'];
+    let result = [...allowed];
+    if (result.includes('partners') && !result.includes('patient_dossiers')) {
+      result.push('patient_dossiers');
     }
-    return allowed;
+    if ((result.includes('company') || user?.permissions?.includes('can_manage_settings') || user?.permissions?.includes('all')) && !result.includes('flash_announcements')) {
+      result.push('flash_announcements');
+    }
+    return result;
   }
-  return ['caisse_sessions', 'invoices', 'payments', 'partners', 'patient_dossiers'];
+  return ['caisse_sessions', 'invoices', 'payments', 'partners', 'patient_dossiers', 'flash_announcements'];
 }
 
 interface AppNavigationProps {
@@ -425,6 +441,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           shortLabel: 'Branding',
           icon: Settings,
           description: 'Logo, filigrane de fond, couleurs de la charte & coordonnées',
+        },
+        {
+          id: 'flash_announcements',
+          label: 'Annonces & Flash Info',
+          shortLabel: 'Annonces Flash',
+          icon: Megaphone,
+          description: 'Gestion des annonces défilantes, messages globaux et ciblés par profil',
         },
         {
           id: 'schema',

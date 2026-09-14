@@ -498,28 +498,29 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
       labelDiv.style.pageBreakAfter = 'always';
 
       labelDiv.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid black; padding-bottom: 1px; margin-bottom: 2px;">
-          <span style="font-size: 8px; font-weight: bold; text-transform: uppercase;">LABORATOIRE</span>
-          <span style="font-size: 7px; color: #555;">${dateStr}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #000; padding-bottom: 2px; margin-bottom: 3px;">
+          <span style="font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #000;">LABORATOIRE</span>
+          <span style="font-size: 7px; color: #333; font-weight: 600;">${dateStr}</span>
         </div>
-        <div style="font-size: 9px; font-weight: bold; line-height: 1.1; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-          ${o.partner_name}
+        <div style="font-size: 9.5px; font-weight: 800; line-height: 1.3; margin-top: 2px; margin-bottom: 3px; color: #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <span style="font-size: 7.5px; font-weight: 700; color: #444; text-transform: uppercase;">NOM: </span>${o.partner_name}
         </div>
-        <div style="font-size: 7.5px; color: #444; margin-bottom: 2px;">
-          NDM: <strong style="font-size: 8.5px;">${ndm}</strong>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 7.5px; color: #333; margin-bottom: 3px;">
+          <span>NDM: <strong style="font-size: 8.5px; font-weight: 800; color: #000;">${ndm}</strong></span>
+          ${o.patient_gender ? `<span style="font-size: 7.5px; font-weight: 700;">(${o.patient_gender}${o.patient_age ? `, ${o.patient_age}a` : ''})</span>` : ''}
         </div>
-        <div style="font-size: 7.5px; margin-bottom: 2px; font-weight: 500; display: flex; align-items: center; gap: 4px;">
+        <div style="font-size: 8px; margin-bottom: 3px; font-weight: 700; display: flex; align-items: center; gap: 4px; color: #111;">
           <svg width="8" height="8" style="min-width: 8px;">
             <circle cx="4" cy="4" r="3.5" fill="${tubeInfo.color}" stroke="black" stroke-width="0.5" />
           </svg>
-          <span style="font-size: 8px; font-weight: bold; font-family: sans-serif;">${tubeInfo.name}</span>
+          <span style="font-size: 8px; font-weight: 800; font-family: sans-serif;">${tubeInfo.name}</span>
         </div>
         
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: auto;">
-          <div style="display: flex; justify-content: center; width: 100%; height: 32px; background: white;">
+          <div style="display: flex; justify-content: center; width: 100%; height: 30px; background: white; overflow: hidden;">
             ${barcodeSvg}
           </div>
-          <div style="font-size: 10px; font-family: monospace; font-weight: bold; margin-top: 1px; letter-spacing: 1px;">
+          <div style="font-size: 9.5px; font-family: monospace; font-weight: 900; margin-top: 1px; letter-spacing: 1px; color: #000;">
             ${sid}
           </div>
         </div>
@@ -1186,11 +1187,13 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
 
                       {/* Patient info */}
                       <div className="mt-1">
-                        <div className="text-[11px] font-black text-slate-900 truncate">
+                        <div className="text-[11px] font-black text-slate-950 truncate leading-snug">
+                          <span className="text-[8px] font-bold text-slate-500 uppercase mr-1">NOM:</span>
                           {o.partner_name}
                         </div>
-                        <div className="text-[9px] text-slate-600 font-medium">
-                          NDM: <span className="font-mono font-bold text-slate-950">{ndm}</span>
+                        <div className="flex justify-between items-center text-[9px] text-slate-600 font-medium mt-0.5">
+                          <span>NDM: <span className="font-mono font-bold text-slate-950">{ndm}</span></span>
+                          {o.patient_gender && <span className="font-bold text-slate-700">({o.patient_gender}{o.patient_age ? `, ${o.patient_age}a` : ''})</span>}
                         </div>
                       </div>
 
