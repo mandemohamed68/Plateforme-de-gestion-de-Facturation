@@ -38,6 +38,26 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
 
   const isCustomerInvoice = move.move_type.startsWith('out');
 
+  const isPaid = move.payment_state === 'paid';
+  const isDraft = move.state === 'draft';
+  const isRefund = move.move_type === 'out_refund';
+
+  const documentTitle = isPaid
+    ? (company.invoice_title_paid || "REÇU DE CAISSE ET RÈGLEMENT")
+    : isRefund
+    ? "AVOIR ET REMBOURSEMENT CLIENT"
+    : isDraft
+    ? (company.invoice_title_draft || "FACTURE BROUILLON / DEVIS D'EXAMENS")
+    : (company.invoice_title_posted || "FACTURE D'ACTES ET ANALYSES MÉDICALES");
+
+  const documentNumberLabel = isPaid
+    ? "N° de reçu :"
+    : isRefund
+    ? "N° d'avoir :"
+    : isDraft
+    ? "N° de brouillon :"
+    : "N° de facture :";
+
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
@@ -50,7 +70,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
             <div className="truncate">
               <div className="flex items-center space-x-2">
                 <span className="font-extrabold text-sm text-slate-900 truncate">
-                  {move.name || `Facture Brouillon #${move.id}`}
+                  {documentTitle} ({move.name || `#${move.id}`})
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-wider shrink-0">
                   Document Officiel
@@ -190,6 +210,26 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
               </div>
             </div>
 
+            {/* Prominent Document Type Title Banner matching requested position in image.png */}
+            <div className="my-2 px-3 py-1.5 bg-slate-900 text-white rounded flex items-center justify-between shadow-xs border border-slate-800">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs font-black uppercase tracking-wider">
+                  {documentTitle}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider ${
+                  isPaid ? 'bg-emerald-600 text-white' : isDraft ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-100'
+                }`}>
+                  {isPaid ? 'PAYÉ & ENCAISSÉ' : isDraft ? 'BROUILLON' : 'À ENCAISSER'}
+                </span>
+                <span className="text-xs font-mono font-extrabold text-slate-100">
+                  {move.name || `FAC-${move.id}`}
+                </span>
+              </div>
+            </div>
+
             {/* Dotted Divider */}
             <div className="border-t border-dashed border-slate-400 my-1" />
 
@@ -256,11 +296,11 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
 
                   <div className="flex justify-between border-b border-slate-100 pb-0.5">
                     <span className="text-slate-500 font-bold uppercase">Nom et prénom :</span>
-                    <span className="font-black text-slate-900 text-xs">{move.partner?.name || 'DIALLO BINTA'}</span>
+                    <span className="font-black text-slate-900 text-xs">{move.patient_name || move.partner?.name || 'DIALLO BINTA'}</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-100 pb-0.5">
-                    <span className="text-slate-500 font-bold uppercase">N° de reçu :</span>
-                    <span className="font-mono font-black text-slate-900 text-xs">{move.name || '202600008091'}</span>
+                    <span className="text-slate-500 font-bold uppercase">{documentNumberLabel}</span>
+                    <span className="font-mono font-black text-slate-900 text-xs">{move.name || `FAC-${move.id}`}</span>
                   </div>
 
                   <div className="flex justify-between border-b border-slate-100 pb-0.5">

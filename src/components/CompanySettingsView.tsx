@@ -1208,6 +1208,79 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Position du Symbole Monétaire
+                  </label>
+                  <select
+                    value={formData.currency_position || 'after'}
+                    onChange={(e) => handleChange('currency_position', e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
+                  >
+                    <option value="after">Après le Montant (ex: 15 000 FCFA)</option>
+                    <option value="before">Avant le Montant (ex: FCFA 15 000)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Séparateur de Milliers (Chiffres &amp; Prix)
+                  </label>
+                  <select
+                    value={formData.thousand_separator || 'space'}
+                    onChange={(e) => handleChange('thousand_separator', e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md text-xs font-bold text-slate-900"
+                  >
+                    <option value="space">Espace "1 000 000" (Standard Francophone)</option>
+                    <option value="dot">Point "1.000.000" (Standard Européen)</option>
+                    <option value="comma">Virgule "1,000,000" (Standard Anglosaxon)</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 pt-3 border-t border-slate-100 space-y-3">
+                  <div className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Personnalisation Hyper-Détaillée des Intitulés de Documents (À la virgule près)
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Titre Reçu de Caisse (Réglé)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.invoice_title_paid || "REÇU DE CAISSE ET RÈGLEMENT"}
+                        onChange={(e) => handleChange('invoice_title_paid', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Titre Facture Validée
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.invoice_title_posted || "FACTURE D'ACTES ET ANALYSES MÉDICALES"}
+                        onChange={(e) => handleChange('invoice_title_posted', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Titre Devis / Brouillon
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.invoice_title_draft || "FACTURE BROUILLON / DEVIS D'EXAMENS"}
+                        onChange={(e) => handleChange('invoice_title_draft', e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Pagination par Défaut (Lignes par Tableau)
                   </label>
                   <select

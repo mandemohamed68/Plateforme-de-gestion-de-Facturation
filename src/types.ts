@@ -88,6 +88,15 @@ export interface CompanySettings {
 
   // Sandbox vs Production Mode Configuration
   is_sandbox?: boolean; // Whether LIMS is in sandbox (simulated/test) or production (live) mode
+
+  // Granular Formatting & Document Customizer (Back-Office / Admin)
+  currency_position?: 'after' | 'before';
+  thousand_separator?: 'space' | 'dot' | 'comma';
+  signature_title_biologist?: string;
+  signature_title_cashier?: string;
+  invoice_title_paid?: string;
+  invoice_title_posted?: string;
+  invoice_title_draft?: string;
 }
 
 export interface ResGroup {
