@@ -1,0 +1,343 @@
+================================================================================
+  PROCÉDURE DE DÉPLOIEMENT LOCAL (WINDOWS + GIT + MARIADB / HEIDISQL)
+  Application : Facturation Pro, Caisse & Laboratoire Médical
+================================================================================
+
+TABLE DES MATIÈRES :
+1. Prérequis logiciels sous Windows
+2. Accès à MariaDB et création de la base de données
+3. Script d'injection SQL complet (Structure & Données initiales)
+4. Clonage Git et installation des dépendances Node.js
+5. Configuration des variables d'environnement (.env)
+6. Compilation et démarrage de l'application
+7. Configuration du redémarrage automatique avec PM2 (Optionnel)
+8. Ouverture du Pare-Feu Windows pour accès réseau local
+
+--------------------------------------------------------------------------------
+1. PRÉREQUIS LOGICIELS SOUS WINDOWS
+--------------------------------------------------------------------------------
+Assurez-vous que les logiciels suivants sont installés sur votre poste Windows :
+- Node.js (version 20 ou 22 LTS) : https://nodejs.org/
+- Git pour Windows : https://git-scm.com/
+- MariaDB Server : https://mariadb.org/ (inclut l'outil graphique HeidiSQL)
+
+--------------------------------------------------------------------------------
+2. ACCÈS À MARIADB ET CRÉATION DE LA BASE DE DONNÉES
+--------------------------------------------------------------------------------
+Méthode recommandée avec HeidiSQL (Interface graphique) :
+1. Ouvrez l'application "HeidiSQL" depuis le menu Démarrer.
+2. Créez une nouvelle session de connexion :
+   - Type réseau   : MariaDB ou MySQL (TCP/IP)
+   - Hôte / IP     : 127.0.0.1 ou localhost
+   - Utilisateur   : root
+   - Mot de passe  : [votre mot de passe administrateur MariaDB]
+   - Port          : 3306
+3. Cliquez sur "Ouvrir".
+4. Dans l'onglet "Requête" (ou touche F9), exécutez la création de la base :
+
+   CREATE DATABASE IF NOT EXISTS lab_facturation_db 
+   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+   CREATE USER IF NOT EXISTS 'lab_user'@'localhost' IDENTIFIED BY 'LabPassword2026!';
+   GRANT ALL PRIVILEGES ON lab_facturation_db.* TO 'lab_user'@'localhost';
+   FLUSH PRIVILEGES;
+
+--------------------------------------------------------------------------------
+3. SCRIPT D'INJECTION SQL COMPLET (STRUCTURE & DONNÉES DE DÉPART)
+--------------------------------------------------------------------------------
+Dans HeidiSQL, sélectionnez la base "lab_facturation_db", collez le script ci-dessous 
+dans l'onglet "Requête" et cliquez sur "Exécuter" (F9) :
+
+-- ==================== DÉBUT DU SCRIPT SQL ====================
+
+USE lab_facturation_db;
+
+-- 1. Table des Utilisateurs
+DROP TABLE IF EXISTS res_users;
+CREATE TABLE res_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    login VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL DEFAULT 'admin',
+    role VARCHAR(100) NOT NULL,
+    email VARCHAR(150),
+    department VARCHAR(100),
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO res_users (id, name, login, password_hash, role, email, department) VALUES
+(1, 'MOHAMED MANDÉ', 'mandemohamed68@gmail.com', 'admin', 'Directeur Général & Administrateur', 'mandemohamed68@gmail.com', 'Direction Générale'),
+(2, 'Dr. Aminata Touré', 'dr.toure', 'admin', 'Biologiste Médical / Responsable Labo', 'dr.toure@laboratoire.ci', 'Laboratoire Médical'),
+(3, 'Koffi Konan', 'facturier', 'admin', 'Facturier (Établissement Factures Seul)', 'facturier@laboratoire.ci', 'Facturation & Accueil'),
+(4, 'Awa Coulibaly', 'caissier', 'admin', 'Caissier (Encaissement Paiements Seul)', 'caissier@laboratoire.ci', 'Caisse & Trésorerie'),
+(5, 'Sékou Traoré', 'technicien', 'admin', 'Technicien Supérieur Analyses Médicales', 'technicien@laboratoire.ci', 'Laboratoire Médical');
+
+-- 2. Table des Patients et Tiers-Payeurs
+DROP TABLE IF EXISTS res_partner;
+CREATE TABLE res_partner (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    partner_type ENUM('patient', 'insurance', 'doctor', 'customer') DEFAULT 'patient',
+    ndm VARCHAR(50) UNIQUE,
+    phone VARCHAR(50),
+    email VARCHAR(150),
+    city VARCHAR(100) DEFAULT 'Abidjan',
+    gender ENUM('male', 'female', 'other') DEFAULT 'male',
+    birth_date DATE,
+    prescribing_doctor VARCHAR(150),
+    insurance_name VARCHAR(150),
+    insurance_policy_number VARCHAR(100),
+    insurance_coverage_rate DECIMAL(5,2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO res_partner (id, name, partner_type, ndm, phone, email, city, gender, birth_date, prescribing_doctor, insurance_name, insurance_policy_number, insurance_coverage_rate) VALUES
+(1, 'M. Ibrahim Touré', 'patient', 'NDM-00270410', '+225 07 08 09 10 11', 'ibrahim.toure@gmail.com', 'Abidjan Cocody', 'male', '1984-06-12', 'Dr. Kouassi', 'ASCOMA Côte d''Ivoire', 'POL-884920-CI', 80.00),
+(2, 'Mme Aminata Diallo', 'patient', 'NDM-00270411', '+225 05 06 07 08 09', 'aminata.diallo@yahoo.fr', 'Abidjan Marcory', 'female', '1992-11-23', 'Dr. Bamba', 'CNAM - CMU', 'CMU-902144-01', 70.00),
+(3, 'M. Jean-Marc Yacé', 'patient', 'NDM-00270412', '+225 01 02 03 04 05', 'jm.yace@gmail.com', 'Abidjan Plateau', 'male', '1976-03-15', 'Dr. Aké', 'SUNU Assurances', 'SUNU-440192', 85.00),
+(4, 'Enfant Marie-Ange Kouamé', 'patient', 'NDM-00270413', '+225 07 11 22 33 44', 'kouame.famille@gmail.com', 'Abidjan Yopougon', 'female', '2018-09-05', 'Dr. Touré Pédiatrie', 'NSIA Assurances', 'NSIA-229410', 80.00),
+(5, 'ASCOMA Côte d''Ivoire (Tiers-Payeur)', 'insurance', 'TIERS-ASCOMA', '+225 27 20 25 30 00', 'contact@ascoma.ci', 'Abidjan Plateau', 'other', NULL, NULL, NULL, NULL, 0),
+(6, 'CNAM - Couverture Maladie Universelle (CMU)', 'insurance', 'TIERS-CMU', '+225 27 20 25 40 00', 'contact@cnam.ci', 'Abidjan', 'other', NULL, NULL, NULL, NULL, 0);
+
+-- 3. Table du Catalogue des Examens
+DROP TABLE IF EXISTS product_template;
+CREATE TABLE product_template (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    default_code VARCHAR(50) UNIQUE,
+    list_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+    lab_department VARCHAR(100) NOT NULL,
+    tube_type VARCHAR(100) DEFAULT 'Tube Sec Jaune',
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO product_template (id, name, default_code, list_price, lab_department, tube_type, description) VALUES
+(1, 'Hémogramme Complet / NFS (Numération Formule Sanguine)', 'EX-NFS-01', 7500.00, 'HÉMATOLOGIE', 'Tube EDTA Violet', 'Évaluation globale des éléments figurés du sang (GB, GR, Hb, Plaquettes)'),
+(2, 'Glycémie à Jeun (Sérique / Plasmatique)', 'EX-GLY-01', 3500.00, 'BIOCHIMIE', 'Tube Fluorure Gris', 'Dosage quantitatif de la glycémie veineuse à jeun'),
+(3, 'Bilan Lipidique Complet (Cholestérol Total, HDL, LDL, Triglycérides)', 'EX-LIP-01', 14000.00, 'BIOCHIMIE', 'Tube Sec Jaune', 'Profil cardiovasculaire complet'),
+(4, 'Créatininémie + Clairance estimée (DFG)', 'EX-CREAT-01', 4500.00, 'BIOCHIMIE', 'Tube Sec Jaune', 'Évaluation précise de la fonction de filtration rénale'),
+(5, 'Uricémie (Acide Urique)', 'EX-URIC-01', 4000.00, 'BIOCHIMIE', 'Tube Sec Jaune', 'Diagnostic de la goutte et du syndrome métabolique'),
+(6, 'Protéine C-Réactive Ultra-Sensible (CRP-us)', 'EX-CRP-01', 6500.00, 'IMMUNOLOGIE & SÉROLOGIE', 'Tube Sec Jaune', 'Marqueur sensible de l''inflammation aiguë et du risque vasculaire'),
+(7, 'Temps de Quick / Taux de Prothrombine (TP / INR)', 'EX-TP-01', 6000.00, 'COAGULATION & HÉMOSTASE', 'Tube Citrate Bleu', 'Bilan pré-opératoire et suivi des traitements antivitamine K'),
+(8, 'Examen Cytobactériologique des Urines (ECBU) + Antibiogramme', 'EX-ECBU-01', 12000.00, 'BACTÉRIOLOGIE', 'Flacon Stérile Urinaire', 'Isolement bactériologique et sensibilité aux antibiotiques');
+
+-- 4. Table des Sessions de Caisse
+DROP TABLE IF EXISTS caisse_session;
+CREATE TABLE caisse_session (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_code VARCHAR(100) NOT NULL UNIQUE,
+    till_name VARCHAR(100) NOT NULL,
+    cashier_id INT,
+    cashier_name VARCHAR(150) NOT NULL,
+    opening_balance DECIMAL(12,2) DEFAULT 0,
+    total_cash_collected DECIMAL(12,2) DEFAULT 0,
+    total_mobile_money_collected DECIMAL(12,2) DEFAULT 0,
+    total_card_collected DECIMAL(12,2) DEFAULT 0,
+    total_collected DECIMAL(12,2) DEFAULT 0,
+    state ENUM('in_progress', 'closed') DEFAULT 'in_progress',
+    opening_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    closing_date DATETIME,
+    FOREIGN KEY (cashier_id) REFERENCES res_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO caisse_session (id, session_code, till_name, cashier_id, cashier_name, opening_balance, total_cash_collected, total_mobile_money_collected, total_card_collected, total_collected, state, opening_date) VALUES
+(1, 'SESS-2026-09-001', 'Caisse Principale Guichet 1', 4, 'Awa Coulibaly', 50000.00, 25000.00, 15000.00, 0.00, 40000.00, 'in_progress', NOW());
+
+-- 5. Table des Factures (Account Move)
+DROP TABLE IF EXISTS account_move;
+CREATE TABLE account_move (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    move_type VARCHAR(50) DEFAULT 'out_invoice',
+    state VARCHAR(50) DEFAULT 'posted',
+    partner_id INT NOT NULL,
+    invoice_date DATE,
+    invoice_date_due DATE,
+    amount_untaxed DECIMAL(12,2) DEFAULT 0,
+    amount_tax DECIMAL(12,2) DEFAULT 0,
+    amount_total DECIMAL(12,2) DEFAULT 0,
+    amount_residual DECIMAL(12,2) DEFAULT 0,
+    insurance_enabled BOOLEAN DEFAULT FALSE,
+    insurance_name VARCHAR(150),
+    insurance_policy_number VARCHAR(100),
+    insurance_rate DECIMAL(5,2) DEFAULT 0,
+    insurance_amount DECIMAL(12,2) DEFAULT 0,
+    patient_amount DECIMAL(12,2) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (partner_id) REFERENCES res_partner(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO account_move (id, name, move_type, state, partner_id, invoice_date, invoice_date_due, amount_untaxed, amount_tax, amount_total, amount_residual, insurance_enabled, insurance_name, insurance_policy_number, insurance_rate, insurance_amount, patient_amount) VALUES
+(1, 'FC/2026/0001', 'out_invoice', 'posted', 1, CURDATE(), CURDATE(), 21500.00, 0.00, 21500.00, 0.00, TRUE, 'ASCOMA Côte d''Ivoire', 'POL-884920-CI', 80.00, 17200.00, 4300.00),
+(2, 'FC/2026/0002', 'out_invoice', 'posted', 2, CURDATE(), CURDATE(), 11000.00, 0.00, 11000.00, 0.00, TRUE, 'CNAM - CMU', 'CMU-902144-01', 70.00, 7700.00, 3300.00),
+(3, 'FC/2026/0003', 'out_invoice', 'posted', 3, CURDATE(), CURDATE(), 18500.00, 0.00, 18500.00, 18500.00, FALSE, NULL, NULL, 0, 0, 18500.00);
+
+-- 6. Lignes de Factures
+DROP TABLE IF EXISTS account_move_line;
+CREATE TABLE account_move_line (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    move_id INT NOT NULL,
+    product_id INT,
+    name VARCHAR(255) NOT NULL,
+    quantity DECIMAL(10,2) DEFAULT 1,
+    price_unit DECIMAL(12,2) DEFAULT 0,
+    price_subtotal DECIMAL(12,2) DEFAULT 0,
+    FOREIGN KEY (move_id) REFERENCES account_move(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES product_template(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO account_move_line (move_id, product_id, name, quantity, price_unit, price_subtotal) VALUES
+(1, 1, 'Hémogramme Complet / NFS', 1.00, 7500.00, 7500.00),
+(1, 3, 'Bilan Lipidique Complet', 1.00, 14000.00, 14000.00),
+(2, 1, 'Hémogramme Complet / NFS', 1.00, 7500.00, 7500.00),
+(2, 2, 'Glycémie à Jeun', 1.00, 3500.00, 3500.00),
+(3, 4, 'Créatininémie + Clairance', 1.00, 4500.00, 4500.00),
+(3, 3, 'Bilan Lipidique Complet', 1.00, 14000.00, 14000.00);
+
+-- 7. Table des Paiements et Règlements
+DROP TABLE IF EXISTS account_payment;
+CREATE TABLE account_payment (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    partner_id INT NOT NULL,
+    move_id INT,
+    session_id INT,
+    amount DECIMAL(12,2) NOT NULL,
+    payment_date DATE,
+    payment_method VARCHAR(50) DEFAULT 'cash',
+    journal_name VARCHAR(100) DEFAULT 'Espèces (Caisse)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (partner_id) REFERENCES res_partner(id) ON DELETE CASCADE,
+    FOREIGN KEY (move_id) REFERENCES account_move(id) ON DELETE SET NULL,
+    FOREIGN KEY (session_id) REFERENCES caisse_session(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO account_payment (id, name, partner_id, move_id, session_id, amount, payment_date, payment_method, journal_name) VALUES
+(1, 'PAY/2026/0001', 1, 1, 1, 4300.00, CURDATE(), 'cash', 'Espèces (Caisse)'),
+(2, 'PAY/2026/0002', 2, 2, 1, 3300.00, CURDATE(), 'wave', 'Wave Mobile Money');
+
+-- 8. Table des Prélèvements et Échantillons
+DROP TABLE IF EXISTS labo_echantillon;
+CREATE TABLE labo_echantillon (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sid_code VARCHAR(100) NOT NULL UNIQUE,
+    partner_id INT NOT NULL,
+    move_id INT,
+    technician_name VARCHAR(150) DEFAULT 'Sékou Traoré',
+    status ENUM('pending_sampling', 'in_progress', 'results_entered', 'validated') DEFAULT 'results_entered',
+    tubes_collected VARCHAR(255) DEFAULT 'Tube EDTA Violet, Tube Sec Jaune',
+    sampling_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (partner_id) REFERENCES res_partner(id) ON DELETE CASCADE,
+    FOREIGN KEY (move_id) REFERENCES account_move(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO labo_echantillon (id, sid_code, partner_id, move_id, technician_name, status, tubes_collected, sampling_date) VALUES
+(1, 'SID-2026-0001', 1, 1, 'Sékou Traoré', 'validated', 'Tube EDTA Violet, Tube Sec Jaune', NOW()),
+(2, 'SID-2026-0002', 2, 2, 'Sékou Traoré', 'results_entered', 'Tube EDTA Violet, Tube Fluorure Gris', NOW());
+
+-- 9. Table des Résultats d'Analyses
+DROP TABLE IF EXISTS resultat_resultat_labo;
+CREATE TABLE resultat_resultat_labo (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    echantillon_id INT NOT NULL,
+    exam_name VARCHAR(255) NOT NULL,
+    parameter_name VARCHAR(255) NOT NULL,
+    valeur_mesuree VARCHAR(100) NOT NULL,
+    unite VARCHAR(50),
+    valeurs_reference VARCHAR(150),
+    is_abnormal BOOLEAN DEFAULT FALSE,
+    valide_par_technicien VARCHAR(150) DEFAULT 'Sékou Traoré',
+    valide_par_biologiste VARCHAR(150) DEFAULT 'Dr. Aminata Touré',
+    status ENUM('saisi', 'valide_tech', 'validated') DEFAULT 'validated',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (echantillon_id) REFERENCES labo_echantillon(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO resultat_resultat_labo (echantillon_id, exam_name, parameter_name, valeur_mesuree, unite, valeurs_reference, is_abnormal, status) VALUES
+(1, 'NFS', 'Hémoglobine', '14.2', 'g/dL', '13.0 - 17.5', FALSE, 'validated'),
+(1, 'NFS', 'Leucocytes (Globules Blancs)', '6800', '/mm3', '4000 - 10000', FALSE, 'validated'),
+(1, 'NFS', 'Plaquettes', '245000', '/mm3', '150000 - 450000', FALSE, 'validated'),
+(1, 'Bilan Lipidique', 'Cholestérol Total', '2.45', 'g/L', '< 2.00', TRUE, 'validated'),
+(1, 'Bilan Lipidique', 'Triglycérides', '1.30', 'g/L', '< 1.50', FALSE, 'validated'),
+(2, 'Glycémie', 'Glycémie à Jeun', '0.95', 'g/L', '0.70 - 1.10', FALSE, 'validated');
+
+-- ==================== FIN DU SCRIPT SQL ====================
+
+--------------------------------------------------------------------------------
+4. CLONAGE GIT ET INSTALLATION DES DÉPENDANCES
+--------------------------------------------------------------------------------
+Ouvrez PowerShell ou l'invite de commande sous Windows :
+
+# Se placer dans votre dossier de travail
+cd C:\projets
+
+# Cloner le dépôt Git
+git clone <URL_DE_VOTRE_DEPOT_GIT> lab-app
+cd lab-app
+
+# Installer les dépendances du projet
+npm install
+
+--------------------------------------------------------------------------------
+5. CONFIGURATION DES VARIABLES D'ENVIRONNEMENT (.env)
+--------------------------------------------------------------------------------
+Créez ou modifiez le fichier ".env" situé à la racine du projet (C:\projets\lab-app\.env) :
+
+PORT=3000
+NODE_ENV=production
+
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=lab_user
+DB_PASSWORD=LabPassword2026!
+DB_NAME=lab_facturation_db
+
+--------------------------------------------------------------------------------
+6. COMPILATION ET DÉMARRAGE DE L'APPLICATION
+--------------------------------------------------------------------------------
+Dans votre terminal PowerShell dans le dossier "C:\projets\lab-app" :
+
+# 1. Compiler l'application pour la production
+npm run build
+
+# 2. Démarrer le serveur
+npm start
+
+# 3. Accéder à l'application dans votre navigateur :
+http://localhost:3000
+
+Identifiants par défaut :
+- Identifiant : mandemohamed68@gmail.com
+- Mot de passe : admin
+
+--------------------------------------------------------------------------------
+7. CONFIGURATION DU DÉMARRAGE AUTOMATIQUE AVEC PM2 (RECOMMANDÉ)
+--------------------------------------------------------------------------------
+Pour que le serveur reste actif en arrière-plan et redémarre avec Windows :
+
+npm install -g pm2
+pm2 start dist/server.cjs --name "lab-facturation-app"
+pm2 save
+
+# Optionnel : Démarrage automatique au démarrage de la session Windows
+npm install -g pm2-windows-startup
+pm2-startup install
+pm2 save
+
+--------------------------------------------------------------------------------
+8. OUVERTURE DU PARE-FEU WINDOWS (POUR ACCÈS SUR LE RÉSEAU LOCAL)
+--------------------------------------------------------------------------------
+Pour que les autres ordinateurs de la clinique / du laboratoire puissent accéder
+à l'application via le réseau local :
+
+1. Ouvrez PowerShell en tant qu'Administrateur.
+2. Exécutez la commande :
+
+New-NetFirewallRule -DisplayName "App Laboratoire Facturation (Port 3000)" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
+
+3. Les postes clients pourront se connecter en tapant dans leur navigateur :
+   http://192.168.1.X:3000  (en remplaçant par l'adresse IP de votre serveur Windows)
+================================================================================
