@@ -2840,7 +2840,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       <span>Imprimer Reçu / Facture PDF</span>
                     </button>
 
-                    {onNavigateToLab && (
+                    {/* "Aller aux Prélèvements Labo" : Uniquement pour profils autorisés (masqué pour caisse et facture pure) */}
+                    {onNavigateToLab && profile !== 'caisse' && profile !== 'facture' && (
                       <button
                         type="button"
                         onClick={() => {
@@ -2854,16 +2855,19 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleOpenCreateModal(true);
-                      }}
-                      className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Nouveau Patient / Facture</span>
-                    </button>
+                    {/* "Nouveau Patient / Facture" : Autorisé pour Facturier & Superviseur (masqué pour Caisse pure) */}
+                    {profile !== 'caisse' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleOpenCreateModal(true);
+                        }}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Nouveau Patient / Facture</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"

@@ -192,7 +192,7 @@ export default function App() {
   const [lookupPatient, setLookupPatient] = useState<ResPartner | null>(null);
   const [isLookupOpen, setIsLookupOpen] = useState(false);
 
-  // Loading & Real-time Toast Notifications
+  // Loading & Real-time Spaced Toast Queue System (1s delay between notifications, max 2 visible, deduplicated)
   const [isLoading, setIsLoading] = useState(true);
   const [toasts, setToasts] = useState<
     Array<{
@@ -203,9 +203,16 @@ export default function App() {
     }>
   >([]);
 
+  const toastQueueRef = useRef<
+    Array<{
+      text: string;
+      type: 'success' | 'error' | 'warning' | 'info';
+      title?: string;
+    }>
+  >([]);
+
   const showToast = useCallback(
     (text: string, type: 'success' | 'error' | 'warning' | 'info' = 'success', title?: string) => {
-      const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       const defaultTitle =
         type === 'success'
           ? 'Opération Réussie'
@@ -215,15 +222,44 @@ export default function App() {
           ? 'Attention'
           : 'Notification';
 
-      const newToast = { id, text, type, title: title || defaultTitle };
-      setToasts((prev) => [...prev.slice(-3), newToast]);
+      const finalTitle = title || defaultTitle;
 
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 4500);
+      // Prevent exact duplicate notifications from queueing
+      const inQueue = toastQueueRef.current.some((t) => t.text === text);
+      if (!inQueue) {
+        toastQueueRef.current.push({ text, type, title: finalTitle });
+      }
     },
     []
   );
+
+  useEffect(() => {
+    const queueTimer = setInterval(() => {
+      if (toastQueueRef.current.length > 0) {
+        setToasts((prev) => {
+          // Limit to maximum 2 visible toasts simultaneously
+          if (prev.length >= 2) return prev;
+
+          const nextToast = toastQueueRef.current.shift();
+          if (!nextToast) return prev;
+
+          // Prevent duplicate if already visible
+          if (prev.some((t) => t.text === nextToast.text)) return prev;
+
+          const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const newToastItem = { id, ...nextToast };
+
+          setTimeout(() => {
+            setToasts((current) => current.filter((t) => t.id !== id));
+          }, 4500);
+
+          return [...prev, newToastItem];
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(queueTimer);
+  }, []);
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
