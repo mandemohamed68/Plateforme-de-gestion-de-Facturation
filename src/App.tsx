@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, ShieldAlert, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
-import { AppNavigation, AppView, getAllowedViews } from './components/AppNavigation';
+import { AppNavigation, AppView } from './components/AppNavigation';
+import { getAllowedViews } from './utils/navigation';
 import { LoginView } from './components/LoginView';
 import { CompanySettingsView } from './components/CompanySettingsView';
 import { DashboardView } from './components/DashboardView';
