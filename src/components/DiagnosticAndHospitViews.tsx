@@ -533,7 +533,7 @@ export const ImagerieReportsTableView: React.FC<DiagnosticHospitProps> = ({
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div id="imaging-results-container" className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             Registre des comptes-rendus
