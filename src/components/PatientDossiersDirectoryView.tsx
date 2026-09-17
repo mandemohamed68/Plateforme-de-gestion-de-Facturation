@@ -241,13 +241,13 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
             <h4 className="text-xl font-black text-slate-900">{totalInvoicesCount}</h4>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-md border border-slate-700/50 flex items-center space-x-4">
-          <div className="p-3 bg-white/10 rounded-xl text-white">
-            <TrendingUp className="w-5 h-5 text-indigo-300" />
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center space-x-4">
+          <div className="p-3 bg-slate-100 rounded-xl text-slate-700 border border-slate-200">
+            <TrendingUp className="w-5 h-5 text-slate-700" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Qualité & Suivi Dossier</p>
-            <h4 className="text-sm font-black">Historique 100% Synchronisé</h4>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Qualité & Suivi Dossier</p>
+            <h4 className="text-sm font-bold text-slate-900">Historique 100% Synchronisé</h4>
           </div>
         </div>
       </div>

@@ -13,12 +13,12 @@ import { ResUser, CompanySettings } from '../types';
 const DEFAULT_FALLBACK_USERS: ResUser[] = [
   {
     id: 1,
-    name: 'Mohamed Mandé (Admin Universel)',
+    name: 'Mohamed Mandé (Super Admin)',
     login: 'mandemohamed68@gmail.com',
     email: 'mandemohamed68@gmail.com',
     active: true,
     partner_id: 1,
-    role: 'Administrateur Universel',
+    role: 'Super Admin (Administrateur Universel)',
     department: 'Direction Générale',
     group_ids: [1],
     permissions: ['all'],
@@ -27,40 +27,28 @@ const DEFAULT_FALLBACK_USERS: ResUser[] = [
     updated_at: '2026-01-01',
   },
   {
-    id: 6,
-    name: 'Mande (Superviseur Caisse)',
-    login: 'mande',
-    email: 'mande@laboratoire.pro',
+    id: 2,
+    name: 'Superviseur Caisse / Facture',
+    login: 'superviseur',
+    email: 'superviseur@clinic.pro',
     active: true,
     partner_id: 1,
     role: 'Superviseur Caisse / Facture',
-    department: 'Supervision',
+    department: 'Facturation & Supervision',
     group_ids: [1],
     password: 'admin',
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
   },
   {
-    id: 2,
-    name: 'Jean Facturier',
-    login: 'facturier',
-    email: 'facturier@laboratoire.pro',
-    active: true,
-    partner_id: 2,
-    role: 'Facturier',
-    group_ids: [2],
-    password: 'admin',
-    created_at: '2026-01-01',
-    updated_at: '2026-01-01',
-  },
-  {
     id: 3,
-    name: 'Marcelle Caissière',
+    name: 'Caisse (Caissier)',
     login: 'caissier',
-    email: 'caissier@laboratoire.pro',
+    email: 'caissier@clinic.pro',
     active: true,
     partner_id: 3,
     role: 'Caissier',
+    department: 'Caisse',
     group_ids: [3],
     password: 'admin',
     created_at: '2026-01-01',
@@ -68,26 +56,112 @@ const DEFAULT_FALLBACK_USERS: ResUser[] = [
   },
   {
     id: 4,
-    name: 'Sophie Polyvalente',
-    login: 'facture_caisse',
-    email: 'polyvalent@laboratoire.pro',
+    name: 'Factures (Facturier)',
+    login: 'facturier',
+    email: 'facturier@clinic.pro',
     active: true,
-    partner_id: 4,
-    role: 'Facture / Caisse',
-    group_ids: [4],
+    partner_id: 2,
+    role: 'Facturier',
+    department: 'Facturation',
+    group_ids: [2],
     password: 'admin',
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
   },
   {
     id: 5,
-    name: 'Dr. Aminata Touré (Biologiste)',
-    login: 'dr.toure',
-    email: 'biologiste@laboratoire.pro',
+    name: 'Caisse & Facture (Polyvalent)',
+    login: 'caisse_facture',
+    email: 'polyvalent@clinic.pro',
     active: true,
-    partner_id: 5,
-    role: 'Biologiste Médical',
+    partner_id: 4,
+    role: 'Facture / Caisse',
+    department: 'Facturation & Caisse',
+    group_ids: [4],
+    password: 'admin',
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  },
+  {
+    id: 6,
+    name: 'Infirmier (Triage & Constantes)',
+    login: 'infirmier',
+    email: 'infirmier@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Infirmier (Triage & Constantes)',
+    department: 'Soins & Triage',
+    group_ids: [8],
+    password: 'admin',
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  },
+  {
+    id: 7,
+    name: 'Médecin Généraliste',
+    login: 'medecin',
+    email: 'medecin@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Médecin Généraliste',
+    department: 'Consultations Générales',
+    group_ids: [9],
+    password: 'admin',
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  },
+  {
+    id: 8,
+    name: 'Médecin Spécialiste',
+    login: 'specialiste',
+    email: 'specialiste@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Médecin Spécialiste',
+    department: 'Consultations Spécialisées',
+    group_ids: [10],
+    password: 'admin',
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  },
+  {
+    id: 9,
+    name: 'Laboratoire (Biologiste / Technicien)',
+    login: 'laboratoire',
+    email: 'labo@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Biologiste / Technicien',
+    department: "Laboratoire d'Analyses",
     group_ids: [5],
+    password: 'admin',
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  },
+  {
+    id: 10,
+    name: 'Imagerie Médicale (Radiologue)',
+    login: 'imagerie',
+    email: 'imagerie@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Radiologue',
+    department: 'Imagerie Médicale & PACS',
+    group_ids: [11],
+    password: 'admin',
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  },
+  {
+    id: 11,
+    name: 'Gestionnaire Hospitalisation',
+    login: 'hospitalisation',
+    email: 'hospit@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Gestionnaire Hospitalisation',
+    department: 'Hospitalisation & Lits',
+    group_ids: [6],
     password: 'admin',
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
@@ -109,19 +183,35 @@ export const LoginView: React.FC<LoginViewProps> = ({ users = [], company, onLog
 
   const rawUsers = Array.isArray(users) && users.length > 0 ? users : DEFAULT_FALLBACK_USERS;
 
-  const safeUsers: ResUser[] = (() => {
-    const list = [...rawUsers];
-    const adminIdx = list.findIndex(
+  const safeUsers: ResUser[] = React.useMemo(() => {
+    const userMap = new Map<number, ResUser>();
+    
+    // Check if an admin user already exists
+    const hasAdmin = rawUsers.some(
       (u) =>
         u.login?.toLowerCase() === 'mandemohamed68@gmail.com' ||
         u.email?.toLowerCase() === 'mandemohamed68@gmail.com'
     );
-    if (adminIdx !== -1) {
-      const [adm] = list.splice(adminIdx, 1);
-      return [adm, ...list];
+
+    if (!hasAdmin) {
+      userMap.set(DEFAULT_FALLBACK_USERS[0].id, DEFAULT_FALLBACK_USERS[0]);
     }
-    return [DEFAULT_FALLBACK_USERS[0], ...list];
-  })();
+
+    rawUsers.forEach((u, idx) => {
+      if (u) {
+        const keyId = u.id !== undefined && u.id !== null ? u.id : idx + 100;
+        if (!userMap.has(keyId)) {
+          userMap.set(keyId, u);
+        } else {
+          // If collision on ID, resolve with next available ID
+          const fallbackId = Math.max(...Array.from(userMap.keys()), 0) + 1;
+          userMap.set(fallbackId, { ...u, id: fallbackId });
+        }
+      }
+    });
+
+    return Array.from(userMap.values());
+  }, [rawUsers]);
 
   const companyName = company?.name || "LABORATOIRE D'ANALYSES MEDICALES";
 
@@ -278,8 +368,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ users = [], company, onLog
               className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs py-2 pl-3 pr-8 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer appearance-none"
             >
               <option value="" disabled>Sélectionner un compte de test...</option>
-              {safeUsers.map((u) => (
-                <option key={u.id} value={u.id}>
+              {safeUsers.map((u, idx) => (
+                <option key={`login-opt-${u.id}-${u.login || idx}`} value={u.id}>
                   {u.name} — {u.role}
                 </option>
               ))}

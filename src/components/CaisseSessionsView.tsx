@@ -26,10 +26,11 @@ import {
   Calendar,
   ShieldCheck,
   History,
+  Stethoscope,
 } from 'lucide-react';
 import { TillSession, TillSessionTransaction, CompanySettings, ResUser, AccountMove } from '../types';
 import { getAppTheme } from '../lib/theme';
-import { printElement } from '../lib/printUtils';
+import { printElement, printDocumentById } from '../lib/printUtils';
 import { formatFCFA, getUserBillingProfile } from '../lib/formatters';
 
 interface CaisseSessionsViewProps {
@@ -38,6 +39,7 @@ interface CaisseSessionsViewProps {
   moves: AccountMove[];
   tillSessions?: TillSession[];
   onSessionChange?: () => void;
+  onRefreshData?: () => void;
   onOpenNewInvoice?: () => void;
   onOpenNewPayment?: (sessionId?: number) => void;
   onPayInvoice?: (move: AccountMove) => void;
@@ -64,6 +66,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   moves = [],
   tillSessions,
   onSessionChange,
+  onRefreshData,
   onOpenNewInvoice,
   onOpenNewPayment,
   onPayInvoice,
@@ -160,10 +163,10 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   const [sessionToPrint, setSessionToPrint] = useState<TillSession | null>(null);
 
   // Fetch Sessions from Backend
-  const fetchSessions = async () => {
+  const fetchSessions = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/till-sessions');
+      const res = await fetch('/api/till-sessions', { signal });
       if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
@@ -171,15 +174,21 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
           setSessions(Array.isArray(data) ? data : []);
         }
       }
-    } catch (err) {
-      console.error('Erreur chargement sessions:', err);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.warn('Chargement sessions mode autonome / local:', err?.message || err);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSessions();
+    const controller = new AbortController();
+    fetchSessions(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   // Identify current user's active session
@@ -321,53 +330,23 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
     }
   };
 
-  // Strict partitioning: Invoices belonging specifically to the ACTIVE session
+  // Invoices ready for collection: All unpaid client invoices (Facturation & Prescriptions, draft or posted)
   const activeSessionPendingInvoices = useMemo(() => {
     return moves.filter((m) => {
-      if (m.move_type !== 'out_invoice' || m.state !== 'posted' || m.payment_state === 'paid') return false;
-      if (!myActiveSession) return true; // If no session yet, show invoices to be settled
-      
-      // 1. Strict match by till_session_id
-      if (m.till_session_id) {
-        return m.till_session_id === myActiveSession.id;
-      }
-
-      // 2. Fallback: created during this active session timeframe
-      const sessionStartStr = myActiveSession.created_at || myActiveSession.create_date;
-      const invoiceDateStr = m.created_at || m.create_date || m.invoice_date;
-      if (sessionStartStr && invoiceDateStr) {
-        const sessionStart = new Date(sessionStartStr).getTime();
-        const invoiceTime = new Date(invoiceDateStr).getTime();
-        return invoiceTime >= sessionStart - 60000;
-      }
-      return false;
+      if (m.move_type !== 'out_invoice' || m.state === 'cancel' || m.payment_state === 'paid') return false;
+      return true;
     });
-  }, [moves, myActiveSession]);
+  }, [moves]);
 
   // Dedicated Reliquats: Invoices from past/closed sessions or anterior dates that remain unpaid
   const priorResidualInvoices = useMemo(() => {
     return moves.filter((m) => {
-      if (m.move_type !== 'out_invoice' || m.state !== 'posted' || m.payment_state === 'paid') return false;
-      if (!myActiveSession) return false;
-
-      // Belongs to another session
-      if (m.till_session_id && m.till_session_id !== myActiveSession.id) {
-        return true;
-      }
-
-      // Or created before this session was opened
-      const sessionStartStr = myActiveSession.created_at || myActiveSession.create_date;
-      const invoiceDateStr = m.created_at || m.create_date || m.invoice_date;
-      if (sessionStartStr && invoiceDateStr) {
-        const sessionStart = new Date(sessionStartStr).getTime();
-        const invoiceTime = new Date(invoiceDateStr).getTime();
-        if (invoiceTime < sessionStart - 60000) {
-          return true;
-        }
-      }
-      return false;
+      if (m.move_type !== 'out_invoice' || m.state === 'cancel' || m.payment_state === 'paid') return false;
+      const invDate = m.invoice_date || m.date;
+      const todayStr = new Date().toISOString().split('T')[0];
+      return invDate && invDate < todayStr;
     });
-  }, [moves, myActiveSession]);
+  }, [moves]);
 
   // Backward compatibility alias for views expecting pendingInvoices
   const pendingInvoices = activeSessionPendingInvoices;
@@ -375,18 +354,24 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   // Filter invoices created by current user strictly in the CURRENT active session (for Facturier)
   const myCreatedInvoices = useMemo(() => {
     if (isSupervisor) return moves;
-    if (!myActiveSession) return [];
 
     return moves.filter((m) => {
+      const isUser = m.invoice_user_id === currentUser?.id || (!m.invoice_user_id && isBiller);
+      if (!isUser) return false;
+
+      if (!myActiveSession) {
+        // If no active session, show invoices created by them today
+        const invDate = m.invoice_date || m.date;
+        const todayStr = new Date().toISOString().split('T')[0];
+        return invDate && invDate.startsWith(todayStr);
+      }
+
       // 1. Strict match by till_session_id
       if (m.till_session_id) {
         return m.till_session_id === myActiveSession.id;
       }
 
-      // 2. Fallback matching: user id + created within this active session time
-      const isUser = m.invoice_user_id === currentUser?.id || (!m.invoice_user_id && isBiller);
-      if (!isUser) return false;
-
+      // 2. Fallback matching: created within this active session time
       const sessionStartStr = myActiveSession.created_at || myActiveSession.create_date;
       const invoiceDateStr = m.created_at || m.create_date || m.invoice_date;
       if (sessionStartStr && invoiceDateStr) {
@@ -423,6 +408,8 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   const handlePrintZ = () => {
     if (printRef.current) {
       printElement(printRef.current, `Arrete_Caisse_${sessionToPrint?.session_code || 'Z'}`);
+    } else {
+      printDocumentById('caisse-session-rapport-z-sheet', `Arrete_Caisse_${sessionToPrint?.session_code || 'Z'}`);
     }
   };
 
@@ -759,7 +746,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                     </>
                   )}
 
-                  {isCashier && (
+                  {(!isSupervisor || activeTab === 'pending' || activeTab === 'reliquats') && (
                     <>
                       <button
                         onClick={() => setActiveTab('pending')}
@@ -790,17 +777,17 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                   <button
                     onClick={() => setActiveTab('my_operations')}
                     className={`px-3.5 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                      activeTab === 'my_operations' || (!isCashier && !isSupervisor && activeTab === 'pending')
+                      activeTab === 'my_operations'
                         ? 'border-slate-900 text-slate-900 bg-white rounded-t-md'
                         : 'border-transparent text-slate-500 hover:text-slate-900'
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5" />
                     {profile === 'superviseur'
-                      ? `Journal & Traçabilité (${myActiveSession.transactions.length})`
+                      ? `Journal & Traçabilité (${myActiveSession?.transactions?.length || 0})`
                       : profile === 'facture'
                       ? `Mes Factures Établies (${myCreatedInvoices.length})`
-                      : `Mes Encaissements (${myActiveSession.transactions.length})`}
+                      : `Mes Encaissements (${myActiveSession?.transactions?.length || 0})`}
                   </button>
 
                   {isCashier && (
@@ -1013,8 +1000,8 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {moves.slice(0, 15).map((m) => (
-                            <tr key={m.id} className="hover:bg-slate-50/70 transition">
+                          {moves.slice(0, 15).map((m, idx) => (
+                            <tr key={`move-caisse-${m.id}-${idx}`} className="hover:bg-slate-50/70 transition">
                               <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={m.name || `FAC #${m.id}`}>
                                 {m.name || `FAC #${m.id}`}
                               </td>
@@ -1064,20 +1051,32 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                   </div>
                 )}
 
-                {/* TAB CONTENT 1: PENDING INVOICES QUEUE FOR CURRENT ACTIVE SESSION (CASHIER) */}
-                {isCashier && activeTab === 'pending' && (
+                {/* TAB CONTENT 1: PENDING INVOICES QUEUE FOR CURRENT ACTIVE SESSION */}
+                {activeTab === 'pending' && (
                   <div className="p-4 space-y-3">
                     <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                       <div className="flex items-center gap-2">
                         <Clock className="w-3.5 h-3.5 text-slate-600" />
                         <span className="font-semibold text-slate-800">
-                          Flux de la session active ({myActiveSession.session_code || 'En cours'})
+                          Flux de la session active ({myActiveSession?.session_code || 'En cours'})
                         </span>
                         <span>— Factures générées dans le périmètre de cette session</span>
                       </div>
-                      <span className="font-bold text-slate-700">
-                        {activeSessionPendingInvoices.length} à encaisser
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-slate-700">
+                          {activeSessionPendingInvoices.length} à encaisser
+                        </span>
+                        {onRefreshData && (
+                          <button
+                            onClick={onRefreshData}
+                            className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded transition cursor-pointer"
+                            title="Actualiser la liste"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Actualiser
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {activeSessionPendingInvoices.length === 0 ? (
@@ -1101,10 +1100,23 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {activeSessionPendingInvoices.map((inv) => (
-                              <tr key={inv.id} className="hover:bg-slate-50/70 transition">
-                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={inv.name || `Brouillon #${inv.id}`}>
-                                  {inv.name || `Brouillon #${inv.id}`}
+                            {activeSessionPendingInvoices.map((inv, idx) => (
+                              <tr key={`pending-inv-${inv.id}-${idx}`} className="hover:bg-slate-50/70 transition">
+                                <td className="py-2.5 px-3">
+                                  <div className="font-mono font-bold text-slate-900 truncate" title={inv.name || `Brouillon #${inv.id}`}>
+                                    {inv.name || `Brouillon #${inv.id}`}
+                                  </div>
+                                  {(inv.is_prescription_invoice || inv.ref?.startsWith('PRESCR:')) && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded mt-0.5">
+                                      <Stethoscope className="w-2.5 h-2.5 text-slate-500" />
+                                      Prescription {inv.prescribing_doctor ? `Dr. ${inv.prescribing_doctor}` : 'Interne'}
+                                    </span>
+                                  )}
+                                  {inv.ref?.startsWith('RELIQUAT:') && (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded mt-0.5">
+                                      Reliquat Référence
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-2.5 px-3 truncate">
                                   <div className="font-semibold text-slate-900 truncate" title={inv.patient_name || inv.partner?.name || 'Patient'}>
@@ -1129,7 +1141,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                                     className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-md shadow-xs inline-flex items-center gap-1 transition cursor-pointer"
                                   >
                                     <CreditCard className="w-3 h-3" />
-                                    <span>Payer</span>
+                                    <span>Encaisser</span>
                                   </button>
                                 </td>
                               </tr>
@@ -1152,9 +1164,21 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                         </span>
                         <span>— Factures non soldées issues de sessions passées ou antérieures</span>
                       </div>
-                      <span className="font-bold text-amber-900">
-                        {priorResidualInvoices.length} reliquat{priorResidualInvoices.length > 1 ? 's' : ''}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-amber-900">
+                          {priorResidualInvoices.length} reliquat{priorResidualInvoices.length > 1 ? 's' : ''}
+                        </span>
+                        {onRefreshData && (
+                          <button
+                            onClick={onRefreshData}
+                            className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-amber-700 bg-white hover:bg-amber-100 hover:text-amber-900 border border-amber-200 rounded transition cursor-pointer"
+                            title="Actualiser la liste"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Actualiser
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {priorResidualInvoices.length === 0 ? (
@@ -1178,8 +1202,8 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {priorResidualInvoices.map((inv) => (
-                              <tr key={inv.id} className="hover:bg-amber-50/30 transition">
+                            {priorResidualInvoices.map((inv, idx) => (
+                              <tr key={`prior-inv-${inv.id}-${idx}`} className="hover:bg-amber-50/30 transition">
                                 <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={inv.name || `FAC #${inv.id}`}>
                                   <div>{inv.name || `FAC #${inv.id}`}</div>
                                   <div className="text-[10px] font-normal text-slate-400 font-sans">{inv.invoice_date || inv.date}</div>
@@ -1224,6 +1248,18 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                 {/* TAB CONTENT 2: MY OPERATIONS (BILLER OR CASHIER) */}
                 {(activeTab === 'my_operations' || (!isCashier && activeTab === 'pending')) && (
                   <div className="p-4">
+                    {onRefreshData && (
+                      <div className="flex justify-end mb-3">
+                        <button
+                          onClick={onRefreshData}
+                          className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-slate-600 bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded transition cursor-pointer"
+                          title="Actualiser la liste"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Actualiser
+                        </button>
+                      </div>
+                    )}
                     {profile === 'facture' ? (
                       /* Biller View: list of invoices he created */
                       myCreatedInvoices.length === 0 ? (
@@ -1253,8 +1289,8 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {myCreatedInvoices.map((inv) => (
-                                <tr key={inv.id} className="hover:bg-slate-50/70 transition">
+                              {myCreatedInvoices.map((inv, idx) => (
+                                <tr key={`my-inv-${inv.id}-${idx}`} className="hover:bg-slate-50/70 transition">
                                   <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={inv.name || `FAC #${inv.id}`}>
                                     {inv.name || `FAC #${inv.id}`}
                                   </td>
@@ -1295,7 +1331,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                       )
                     ) : (
                       /* Cashier View: list of payments collected in session */
-                      myActiveSession.transactions.length === 0 ? (
+                      (!myActiveSession || !myActiveSession.transactions || myActiveSession.transactions.length === 0) ? (
                         <div className="text-center py-10 text-slate-400 space-y-1.5">
                           <CreditCard className="w-8 h-8 text-slate-300 mx-auto" />
                           <p className="font-bold text-xs text-slate-700">
@@ -1318,7 +1354,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {[...myActiveSession.transactions].sort((a, b) => b.id - a.id).map((tx) => (
+                              {[...(myActiveSession?.transactions || [])].sort((a, b) => b.id - a.id).map((tx) => (
                                 <tr key={tx.id} className="hover:bg-slate-50/70 transition">
                                   <td className="py-2.5 px-3 text-[11px] text-slate-500 hidden sm:table-cell truncate">{tx.date}</td>
                                   <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={tx.reference}>
@@ -2017,6 +2053,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
 
             {/* PRINTABLE CONTAINER */}
             <div
+              id="caisse-session-rapport-z-sheet"
               ref={printRef}
               className="p-5 bg-white border border-slate-200 rounded-lg font-mono text-xs text-slate-900 space-y-3"
             >

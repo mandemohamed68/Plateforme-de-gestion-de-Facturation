@@ -67,27 +67,35 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
   const [showWorkflowDashboard, setShowWorkflowDashboard] = useState(false);
   const [isAutoPilotOn, setIsAutoPilotOn] = useState(false);
 
-  const fetchWorkflowData = async () => {
+  const fetchWorkflowData = async (signal?: AbortSignal) => {
     try {
-      const logRes = await fetch('/api/lab-workflow-logs');
-      if (logRes.ok) {
-        const data = await logRes.json();
-        setWorkflowLogs(data);
+      const [logRes, queueRes] = await Promise.allSettled([
+        fetch('/api/lab-workflow-logs', { signal }).then(r => r.ok ? r.json() : null),
+        fetch('/api/lab-notifications', { signal }).then(r => r.ok ? r.json() : null)
+      ]);
+      if (logRes.status === 'fulfilled' && Array.isArray(logRes.value)) {
+        setWorkflowLogs(logRes.value);
       }
-      const queueRes = await fetch('/api/lab-notifications');
-      if (queueRes.ok) {
-        const data = await queueRes.json();
-        setNotificationQueue(data);
+      if (queueRes.status === 'fulfilled' && Array.isArray(queueRes.value)) {
+        setNotificationQueue(queueRes.value);
       }
-    } catch (e) {
-      console.error('Error fetching workflow metadata:', e);
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') {
+        console.warn('[LabSamplingView] Mode autonome métadonnées labo:', e?.message || e);
+      }
     }
   };
 
   useEffect(() => {
-    fetchWorkflowData();
-    const interval = setInterval(fetchWorkflowData, 4000);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    fetchWorkflowData(controller.signal);
+    const interval = setInterval(() => {
+      fetchWorkflowData(controller.signal);
+    }, 12000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -731,79 +739,79 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
 
           {/* Action Buttons for Selection */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
-            {/* Quick Filter States */}
+            {/* Quick Filter States - Unified Clean Palette */}
             <div className="flex items-center space-x-1.5 overflow-x-auto py-1 scrollbar-none">
               <button
                 onClick={() => { setActiveStatusFilter('all'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer ${
                   activeStatusFilter === 'all'
                     ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                 }`}
               >
                 <span>Tous</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeStatusFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
+                  activeStatusFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'
                 }`}>
                   {filterCounts.all}
                 </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('pending_sampling'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer ${
                   activeStatusFilter === 'pending_sampling'
-                    ? 'bg-teal-700 text-white shadow-xs'
-                    : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                 }`}
               >
                 <span>Initié</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeStatusFilter === 'pending_sampling' ? 'bg-teal-800 text-white' : 'bg-teal-100 text-teal-900'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
+                  activeStatusFilter === 'pending_sampling' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'
                 }`}>
                   {filterCounts.pending_sampling}
                 </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('in_progress'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer ${
                   activeStatusFilter === 'in_progress'
-                    ? 'bg-blue-700 text-white shadow-xs'
-                    : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                 }`}
               >
                 <span>Prélevé</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeStatusFilter === 'in_progress' ? 'bg-blue-800 text-white' : 'bg-blue-100 text-blue-900'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
+                  activeStatusFilter === 'in_progress' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'
                 }`}>
                   {filterCounts.in_progress}
                 </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('results_entered'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer ${
                   activeStatusFilter === 'results_entered'
-                    ? 'bg-amber-700 text-white shadow-xs'
-                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                 }`}
               >
                 <span>Saisi</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeStatusFilter === 'results_entered' ? 'bg-amber-800 text-white' : 'bg-amber-100 text-amber-900'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
+                  activeStatusFilter === 'results_entered' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'
                 }`}>
                   {filterCounts.results_entered}
                 </span>
               </button>
               <button
                 onClick={() => { setActiveStatusFilter('validated'); setSelectedOrderIds([]); }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider transition flex items-center space-x-1.5 ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer ${
                   activeStatusFilter === 'validated'
-                    ? 'bg-purple-700 text-white shadow-xs'
-                    : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                 }`}
               >
                 <span>Validé</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  activeStatusFilter === 'validated' ? 'bg-purple-800 text-white' : 'bg-purple-100 text-purple-900'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
+                  activeStatusFilter === 'validated' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'
                 }`}>
                   {filterCounts.validated}
                 </span>

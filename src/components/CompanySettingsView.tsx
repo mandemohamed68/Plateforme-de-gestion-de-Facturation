@@ -2062,13 +2062,13 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-md">
                   {[
-                    { id: 'all', label: '🌐 Tous les Profils' },
-                    { id: 'facture', label: '📄 Facturation / Accueil' },
-                    { id: 'caisse', label: '💵 Caisse / Caissier' },
-                    { id: 'labo', label: '🔬 Laboratoire / Biologie' },
-                    { id: 'comptabilite', label: '📊 Comptabilité' },
-                    { id: 'direction', label: '👑 Direction & Superviseur' },
-                    { id: 'admin', label: '⚙️ Administrateurs' },
+                    { id: 'all', label: 'Tous les Profils' },
+                    { id: 'facture', label: 'Facturation / Accueil' },
+                    { id: 'caisse', label: 'Caisse / Caissier' },
+                    { id: 'labo', label: 'Laboratoire / Biologie' },
+                    { id: 'comptabilite', label: 'Comptabilité' },
+                    { id: 'direction', label: 'Direction & Superviseur' },
+                    { id: 'admin', label: 'Administrateurs' },
                   ].map((prof) => {
                     const currentTargets = editingAnnouncement.target_profiles || ['all'];
                     const isSelected = currentTargets.includes(prof.id);

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { AccountMove, ResPartner, CompanySettings, ResUser } from '../types';
 import { formatFCFA } from '../lib/formatters';
+import { printDocumentById } from '../lib/printUtils';
 
 interface InsuranceClaimsViewProps {
   moves: AccountMove[];
@@ -698,7 +699,7 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
 
       {/* SECTION 5: OFFICIAL PRINTABLE SLIP / BORDEREAU DE TRANSMISSION */}
       {isPrintSlipMode ? (
-        <div className="bg-white p-8 sm:p-12 rounded-2xl border border-slate-300 shadow-lg space-y-6 print:m-0 print:p-0 print:border-none print:shadow-none">
+        <div id="insurance-slip-sheet" className="bg-white p-8 sm:p-12 rounded-2xl border border-slate-300 shadow-lg space-y-6 print:m-0 print:p-0 print:border-none print:shadow-none">
           {/* Slip Header */}
           <div className="flex items-start justify-between border-b-2 border-slate-900 pb-6">
             <div className="space-y-1">
@@ -838,8 +839,8 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
-              className="px-6 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 flex items-center space-x-2 cursor-pointer"
+              onClick={() => printDocumentById('insurance-slip-sheet', 'Bordereau_Tiers_Payant_Assurance')}
+              className="px-6 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 flex items-center space-x-2 cursor-pointer shadow-xs"
             >
               <Printer className="w-4 h-4 text-amber-400" />
               <span>Imprimer (A4)</span>

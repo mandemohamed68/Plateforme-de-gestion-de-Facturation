@@ -121,7 +121,7 @@ export const FlashAnnouncementsView: React.FC<FlashAnnouncementsViewProps> = ({
       try {
         setIsSaving(true);
         await onSaveCompany(updatedCompany);
-        setSaveSuccessMsg('Modifications enregistrées avec succès ! 💾');
+        setSaveSuccessMsg('Modifications enregistrées avec succès.');
         setTimeout(() => setSaveSuccessMsg(null), 4000);
       } catch (err) {
         console.error('Erreur sauvegarde flash info:', err);
@@ -129,7 +129,7 @@ export const FlashAnnouncementsView: React.FC<FlashAnnouncementsViewProps> = ({
         setIsSaving(false);
       }
     } else {
-      setSaveSuccessMsg('Modifications appliquées en direct ! ⚡');
+      setSaveSuccessMsg('Modifications appliquées en direct');
       setTimeout(() => setSaveSuccessMsg(null), 3000);
     }
   };

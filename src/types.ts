@@ -177,6 +177,9 @@ export interface ResPartner {
   contact_person_relationship?: string | null; // Personne de contact : Lien avec le patient
   contact_person_phone?: string | null; // Personne de contact : Tél.
   patient_photo?: string | null; // Base64 or placeholder URL for portrait photo
+  allergies?: string | string[] | null;
+  antecedents?: string | string[] | null;
+  blood_group?: string | null;
   // Computed balance summary
   country_name?: string;
   total_invoiced?: number;
@@ -209,8 +212,8 @@ export interface ProductTemplate {
   updated_at: string;
   // Computed/Expanded
   uom_name?: string;
-  // Medical Analysis Laboratory fields
-  category_type?: 'service' | 'lab_exam' | 'lab_profile';
+  // Medical Analysis Laboratory & Hospital Prestations fields
+  category_type?: 'service' | 'lab_exam' | 'lab_profile' | 'medication' | 'imaging' | 'hospitalization';
   lab_department?: string; // Hématologie, Biochimie, Sérologie, etc.
   lab_sample_type?: string; // Tube EDTA, Tube Sec, Urines, etc.
   lab_reference_range?: string; // ex: "70 - 110 mg/dL"
@@ -234,8 +237,8 @@ export interface ProductProduct {
   prix_tm?: number; // Prix Ticket Modérateur
   prix_hp?: number; // Prix Hors Patient / Privé
   uom_id?: number | null;
-  // Medical Analysis Laboratory fields
-  category_type?: 'service' | 'lab_exam' | 'lab_profile';
+  // Medical Analysis Laboratory & Hospital Prestations fields
+  category_type?: 'service' | 'lab_exam' | 'lab_profile' | 'medication' | 'imaging' | 'hospitalization';
   lab_department?: string;
   lab_sample_type?: string;
   lab_reference_range?: string;
@@ -303,6 +306,9 @@ export interface AccountMove {
   cancel_reason?: string | null;
   till_session_id?: number | null;
   session_id?: number | null;
+  prescribing_doctor?: string | null;
+  is_prescription_invoice?: boolean;
+  consultation_id?: number | null;
   // Expanded relations
   partner?: ResPartner;
   invoice_user?: ResUser;
@@ -338,6 +344,7 @@ export interface AccountMoveLine {
 
 export interface AccountPayment {
   id: number;
+  name?: string;
   user_id?: number | null;
   move_id: number | null;
   partner_id: number | null;
@@ -354,6 +361,11 @@ export interface AccountPayment {
   move_name?: string;
   journal_name?: string;
   payment_method_code?: string;
+  till_session_id?: number | null;
+  payment_type?: string;
+  partner_type?: string;
+  date?: string;
+  payment_method_line_id?: number;
 }
 
 export interface ResCurrency {
@@ -437,6 +449,8 @@ export interface LabExamOrder {
   validated_by_id?: number;
   validated_at?: string;
   invoice_id?: number;
+  total_amount?: number;
+  company_id?: number;
   created_at: string;
   updated_at: string;
 
@@ -542,6 +556,7 @@ export interface NotificationQueueEntry {
 
 export type AppView =
   | 'dashboard'
+  | 'consultations'
   | 'invoices'
   | 'payments'
   | 'caisse_sessions'
@@ -557,7 +572,124 @@ export type AppView =
   | 'flash_announcements'
   | 'notifications'
   | 'logs_audit'
-  | 'schema';
+  | 'schema'
+  // Scénarios Hospitaliers (S01 à S50) selon specification_hopital.txt:
+  | 'scenarios_s01_s50'
+  // Patient 360 & Journey:
+  | 'patient_journey'
+  // Custom SIH views requested by the user:
+  | 'appointments'
+  | 'bed_management'
+  | 'letters_referrals'
+  | 'care_plans'
+  | 'transmissions'
+  | 'nurse_schedule'
+  | 'surgery_theater'
+  | 'imaging_pacs'
+  | 'pharmacy_dispensing'
+  | 'sterilization_log'
+  | 'quality_vigilance'
+  | 'hr_management'
+  // Profile 1: Facturation Superviseur
+  | 'superviseur_dashboard'
+  | 'superviseur_sessions'
+  | 'superviseur_invoices'
+  | 'superviseur_caisses'
+  | 'superviseur_payments'
+  | 'superviseur_reports'
+  // Profile 2: Facturation Caisse
+  | 'caisse_dashboard'
+  | 'caisse_new_payment'
+  | 'caisse_payments'
+  | 'caisse_cloture'
+  // Profile 3: Facturation Factures
+  | 'factures_dashboard'
+  | 'factures_new_invoice'
+  | 'factures_all'
+  | 'factures_draft'
+  | 'factures_paid'
+  | 'factures_unpaid'
+  | 'factures_cancelled'
+  // Profile 4: Facturation Caisse & Facture
+  | 'caisse_facture_dashboard'
+  | 'caisse_facture_sessions'
+  | 'caisse_facture_new_payment'
+  | 'caisse_facture_new_invoice'
+  | 'caisse_facture_all_invoices'
+  | 'caisse_facture_all_payments'
+  | 'caisse_facture_draft'
+  | 'caisse_facture_paid'
+  | 'caisse_facture_unpaid'
+  | 'caisse_facture_cancelled'
+  | 'caisse_facture_cloture'
+  // Profile 5: Médical Infirmier
+  | 'infirmier_dashboard'
+  | 'infirmier_queue'
+  | 'infirmier_triage'
+  | 'infirmier_vitals'
+  | 'infirmier_prescriptions'
+  | 'infirmier_referred'
+  | 'infirmier_care'
+  // Profile 6: Médical Médecin (Généraliste)
+  | 'medecin_dashboard'
+  | 'medecin_queue'
+  | 'medecin_consultations'
+  | 'medecin_dossiers'
+  | 'medecin_prescriptions'
+  // Profile 7: Médical Médecin Spécialiste
+  | 'specialiste_dashboard'
+  | 'specialiste_referred'
+  | 'specialiste_consultations'
+  | 'specialiste_followup'
+  | 'specialiste_patients'
+  | 'specialiste_prescriptions'
+  // Profile 8: Examens Laboratoire
+  | 'labo_dashboard'
+  | 'labo_queue'
+  | 'labo_sampling'
+  | 'labo_in_progress'
+  | 'labo_results'
+  | 'labo_validation'
+  | 'labo_catalog'
+  // Profile 9: Examens Imagerie
+  | 'imagerie_dashboard'
+  | 'imagerie_queue'
+  | 'imagerie_scheduled'
+  | 'imagerie_completed'
+  | 'imagerie_reports'
+  | 'imagerie_validation'
+  | 'imagerie_prescriptions'
+  // Profile 10: Hospitalisation
+  | 'hospit_dashboard'
+  | 'hospit_admissions'
+  | 'hospit_patients'
+  | 'hospit_beds'
+  | 'hospit_transfers'
+  | 'hospit_monitoring'
+  | 'hospit_discharges'
+  // Profile 11: Administration
+  | 'admin_dashboard'
+  | 'admin_users'
+  | 'admin_roles'
+  | 'admin_permissions'
+  | 'admin_company'
+  | 'admin_pricing'
+  | 'admin_medical_settings'
+  | 'admin_reports'
+  | 'admin_audit'
+  // Navigation Groups (Hierarchical)
+  | 'superviseur_group'
+  | 'caisse_group'
+  | 'factures_group'
+  | 'caisse_facture_group'
+  | 'infirmier_group'
+  | 'medecin_group'
+  | 'specialiste_group'
+  | 'labo_group'
+  | 'imagerie_group'
+  | 'hospitalisation_module'
+  | 'admin_module'
+  | 'accueil_module';
 
 export interface PartnerReduction {
   id: number;
@@ -567,4 +699,213 @@ export interface PartnerReduction {
   active: boolean;
   created_at?: string;
 }
+
+export interface MedicalVitals {
+  temperature?: number | null; // ex: 37.2 °C
+  bp_systolic?: number | null; // ex: 120 mmHg
+  bp_diastolic?: number | null; // ex: 80 mmHg
+  blood_pressure_systolic?: number | null; // alias
+  blood_pressure_diastolic?: number | null; // alias
+  heart_rate?: number | null; // ex: 72 bpm
+  respiratory_rate?: number | null; // ex: 18 /min
+  oxygen_saturation?: number | null; // alias for spo2
+  weight?: number | null; // ex: 70 kg
+  height?: number | null; // ex: 175 cm
+  bmi?: number | null; // IMC calculé
+  spo2?: number | null; // ex: 98 %
+  blood_sugar?: number | null; // ex: 0.95 g/L
+  pain_level?: number | null; // 0 à 10
+  triage_level?: 'normal' | 'urgent' | 'critique';
+  vitals_notes?: string | null;
+  taken_by_name?: string | null;
+  nurse_name?: string | null; // alias
+  taken_at?: string | null;
+  recorded_at?: string | null; // alias
+}
+
+export interface PrescribedItem {
+  id: string;
+  type: 'lab_exam' | 'imaging' | 'medication' | 'act';
+  product_id?: number | null;
+  name: string;
+  category?: string;
+  price_unit: number;
+  quantity: number;
+  total_price: number;
+  instructions?: string; // Posologie ou consigne (ex: "1 cp matin et soir pendant 7 jours")
+  dosage?: string; // ex: "1g"
+  duration?: string; // ex: "7 jours"
+  workflow_status?: 'pending' | 'confirmed' | 'cancelled' | 'postponed';
+  item_name?: string; // alias for name
+  unit_price?: number; // alias for price_unit
+}
+
+export interface MedicalConsultation {
+  id: number;
+  consultation_number: string; // ex: "CONS-2026-0012"
+  partner_id: number; // Patient
+  patient_name: string;
+  patient_ndm?: string | null;
+  patient_gender?: string | null;
+  patient_age?: number | null;
+  patient_phone?: string | null;
+  insurance_name?: string | null;
+  insurance_coverage_rate?: number | null;
+  doctor_id?: number | null;
+  doctor_name: string;
+  specialty?: string | null; // ex: "Médecine Générale", "Pédiatrie", "Cardiologie"
+  consultation_date: string; // ISO String
+  status: 'pending_payment' | 'triage' | 'waiting' | 'in_consultation' | 'completed' | 'cancelled' | 'referred' | 'transferred';
+  chief_complaint: string; // Motif de consultation
+  history_of_present_illness?: string | null; // Anamnèse / Histoire de la maladie
+  medical_history?: string | null; // Antécédents
+  allergies?: string | null; // Allergies connues
+  physical_examination?: string | null; // Examen clinique
+  diagnosis: string; // Diagnostic clinique
+  diagnosis_code?: string | null; // Code CIM-10 / ICD-10 (ex: "J06.9", "E11")
+  vitals: MedicalVitals;
+  prescribed_items: PrescribedItem[];
+  medical_notes?: string | null; // Recommandations / Consignes
+  next_appointment_date?: string | null;
+  external_prescription?: boolean;
+  doctor_type?: 'triage' | 'gueri' | 'generaliste' | 'specialiste';
+  referral_reason?: string | null;
+  referred_from?: string | null;
+  referral_history?: Array<{
+    id?: string;
+    timestamp?: string;
+    date?: string;
+    from_role?: string;
+    from_name?: string;
+    to_role?: string;
+    target_level?: string;
+    target_specialty?: string;
+    reason?: string;
+    doctor_name?: string;
+    clinical_summary?: string;
+    priority?: string;
+  }>;
+  created_at: string;
+  updated_at: string;
+  invoice_id?: number | null; // Link to associated invoice if billable
+  exam_invoice_id?: number | null; // Link to associated exam invoice
+  lab_order_ids?: number[]; // Links to generated lab exam orders
+  box_assigned?: string | null;
+  priority?: 'normal' | 'urgent' | 'critique' | 'tres_urgent';
+  // Referral Reliquat Fee Gate fields
+  has_pending_balance?: boolean;
+  reliquat_amount?: number;
+  reliquat_invoice_id?: number | null;
+  reliquat_invoice_name?: string | null;
+  reliquat_paid?: boolean;
+  reliquat_receipt_number?: string | null;
+  reliquat_reason?: string | null;
+  patient_choice?: 'internal' | 'external';
+  referred_to_doctor?: boolean;
+}
+
+// ============================================================
+// SPECIFICATION HOPITAL: ACTEURS, REGLES, SCENARIOS (S01-S50)
+// ============================================================
+
+export type HospitalActor =
+  | 'Superviseur'
+  | 'Caisse'
+  | 'Facturation'
+  | 'Infirmier'
+  | 'Médecin'
+  | 'Médecin spécialiste'
+  | 'Laboratoire'
+  | 'Imagerie'
+  | 'Hospitalisation'
+  | 'Administration'
+  | 'Patient';
+
+export interface HospitalGlobalRule {
+  code: string; // R01 à R10
+  titre: string;
+  description: string;
+  applicable_modules: string[];
+}
+
+export interface HospitalScenario {
+  id: string; // "S01" à "S50"
+  nom: string;
+  acteur: HospitalActor;
+  declencheur: string;
+  preconditions: string;
+  etapes: string[];
+  menus: string[];
+  lectures: string[];
+  ecritures: string[];
+  postconditions: string;
+  regles: string[]; // ["R01", "R02", "R09"]
+  targetView?: AppView;
+  description_courte?: string;
+  derniere_execution?: {
+    date: string;
+    acteur: string;
+    succes: boolean;
+    reference?: string;
+    details?: string;
+  };
+}
+
+export interface JournalEntry {
+  id_log: number;
+  id_utilisateur?: number;
+  utilisateur_nom?: string;
+  action: string;
+  date: string;
+  details: string;
+  scenario_id?: string;
+  numero_dossier?: string;
+  id_patient?: number;
+  patient_nom?: string;
+  statut?: 'succes' | 'alerte' | 'bloque';
+  metadata?: Record<string, any>;
+}
+
+export interface Patient360Data {
+  patient: ResPartner;
+  dossier: {
+    id_dossier: number;
+    numero_dossier: string;
+    date_creation: string;
+    statut: string;
+  };
+  allergies: string[];
+  antecedents: string[];
+  traitements_en_cours: string[];
+  derniere_consultation?: MedicalConsultation | null;
+  consultations: MedicalConsultation[];
+  examens_labo: LabExamOrder[];
+  examens_imagerie: Array<{
+    id: number;
+    examen_name: string;
+    prescripteur: string;
+    statut: string;
+    date: string;
+    compte_rendu?: string;
+    valide: boolean;
+  }>;
+  hospitalisation_en_cours?: {
+    id_hospitalisation: number;
+    service: string;
+    id_lit: string;
+    chambre: string;
+    date_admission: string;
+    statut: string;
+    medecin_referent: string;
+    motif: string;
+  } | null;
+  hospitalisations_passees: any[];
+  factures: AccountMove[];
+  total_impaye: number;
+  total_facture: number;
+  alerte_impaye: boolean;
+  alerte_hospitalisation: boolean;
+  journal_activites: JournalEntry[];
+}
+
 

@@ -35,6 +35,7 @@ import {
   RotateCcw,
   Sparkles,
   Stethoscope,
+  FlaskConical,
   BadgeCheck,
   Receipt,
   Wallet,
@@ -52,6 +53,7 @@ import {
   LabExamOrder,
   CompanySettings,
   PartnerReduction,
+  MedicalConsultation,
 } from '../types';
 import { formatFCFA, getUserBillingProfile } from '../lib/formatters';
 import { PaginationControls } from './PaginationControls';
@@ -89,6 +91,11 @@ interface InvoicesViewProps {
   tillSessions?: any[];
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
   onNavigateToLab?: () => void;
+  consultations?: MedicalConsultation[];
+  stateFilter?: string;
+  setStateFilter?: (s: string) => void;
+  paymentFilter?: string;
+  setPaymentFilter?: (s: string) => void;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -97,6 +104,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   users = [],
   products = [],
   taxes = [],
+  consultations = [],
   currentUser = null,
   onSaveMove,
   onPostMove,
@@ -121,6 +129,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   tillSessions = [],
   onShowToast,
   onNavigateToLab,
+  stateFilter: externalStateFilter,
+  setStateFilter: setExternalStateFilter,
+  paymentFilter: externalPaymentFilter,
+  setPaymentFilter: setExternalPaymentFilter,
 }) => {
   const notify = (
     text: string,
@@ -135,8 +147,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [stateFilter, setStateFilter] = useState<string>('all');
-  const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [internalStateFilter, setInternalStateFilter] = useState<string>('all');
+  const [internalPaymentFilter, setInternalPaymentFilter] = useState<string>('all');
+
+  const stateFilter = externalStateFilter || internalStateFilter;
+  const setStateFilter = setExternalStateFilter || setInternalStateFilter;
+  const paymentFilter = externalPaymentFilter || internalPaymentFilter;
+  const setPaymentFilter = setExternalPaymentFilter || setInternalPaymentFilter;
   const [showRequireSessionModal, setShowRequireSessionModal] = useState(false);
 
   // Pagination State
@@ -172,7 +189,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   // Safe In-App Delete Modal State
   const [moveToDelete, setMoveToDelete] = useState<AccountMove | null>(null);
 
+  // Billing view tabs: Invoices Register vs Pending Medical Prescriptions
+  const [billingViewTab, setBillingViewTab] = useState<'invoices' | 'prescriptions'>('invoices');
+  const [selectedConsultationForInvoice, setSelectedConsultationForInvoice] = useState<MedicalConsultation | null>(null);
+  const [prescriptionsSearch, setPrescriptionsSearch] = useState('');
+
   // --- Step 1: Facturation (Interface Unique Complète) ---
+  const [invoiceCategory, setInvoiceCategory] = useState<'exam' | 'consultation'>('consultation');
+  const [consultationType, setConsultationType] = useState<'infirmier' | 'generaliste' | 'specialiste' | ''>('');
+  const [consultationDoctorId, setConsultationDoctorId] = useState<number | null>(null);
+
   const [partnerId, setPartnerId] = useState<number>(partners[0]?.id || 1);
   const [partnerNameInput, setPartnerNameInput] = useState<string>('');
   const [patientPhone, setPatientPhone] = useState<string>('');
@@ -448,15 +474,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   // Financial Computations
-  const computedUntaxed = lines.reduce((acc, l) => {
-    if (l.type === 'section' || l.type === 'note') return acc;
-    const qty = Number(l.quantity) || 0;
-    const pu = Number(l.price_unit) || 0;
-    const disc = Number(l.discount) || 0;
-    return acc + qty * pu * (1 - disc / 100);
-  }, 0);
+  const computedConsultationPrice = invoiceCategory === 'consultation'
+    ? (consultationType === 'infirmier'
+        ? 5000
+        : consultationType === 'specialiste'
+        ? 15000
+        : consultationType === 'generaliste'
+        ? 10000
+        : 0)
+    : 0;
 
-  const computedTax = isTaxExempt
+  const computedUntaxed = invoiceCategory === 'consultation'
+    ? computedConsultationPrice
+    : lines.reduce((acc, l) => {
+        if (l.type === 'section' || l.type === 'note') return acc;
+        const qty = Number(l.quantity) || 0;
+        const pu = Number(l.price_unit) || 0;
+        const disc = Number(l.discount) || 0;
+        return acc + qty * pu * (1 - disc / 100);
+      }, 0);
+
+  const computedTax = isTaxExempt || invoiceCategory === 'consultation'
     ? 0
     : lines.reduce((acc, l) => {
         if (l.type === 'section' || l.type === 'note') return acc;
@@ -673,6 +711,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
     // Empty lines by default on new invoice
     setLines([]);
+    setInvoiceCategory('consultation');
+    setConsultationType('');
+    setConsultationDoctorId(null);
 
     setShowCatalogue(false);
     setIsFormOpen(true);
@@ -682,8 +723,6 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     setEditingMove(move);
     if (move.state === 'posted' && move.payment_state === 'paid') {
       setCurrentStep(3);
-    } else if (move.state === 'posted') {
-      setCurrentStep(2);
     } else {
       setCurrentStep(1);
     }
@@ -713,6 +752,41 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     const matchedIns = insurancePartners.find((i) => i.name === move.insurance_name);
     setInsurancePartnerId(matchedIns?.id || null);
 
+    // Detect consultation vs exam category
+    const hasConsultLine = move.lines?.some(l => 
+      l.product_id === 12 || 
+      l.product_id === 991 || 
+      l.product_id === 992 || 
+      l.product_id === 993 || 
+      (l.name && l.name.toLowerCase().includes('consultation'))
+    );
+
+    if (hasConsultLine) {
+      setInvoiceCategory('consultation');
+      const consultLine = move.lines?.find(l => 
+        l.product_id === 12 || 
+        l.product_id === 991 || 
+        l.product_id === 992 || 
+        l.product_id === 993 || 
+        (l.name && l.name.toLowerCase().includes('consultation'))
+      );
+      if (consultLine) {
+        const lineName = (consultLine.name || '').toLowerCase();
+        if (consultLine.product_id === 991 || lineName.includes('infirmier')) {
+          setConsultationType('infirmier');
+          setConsultationDoctorId(15);
+        } else if (consultLine.product_id === 993 || lineName.includes('spécialiste') || lineName.includes('specialiste')) {
+          setConsultationType('specialiste');
+          setConsultationDoctorId(17);
+        } else {
+          setConsultationType('generaliste');
+          setConsultationDoctorId(16);
+        }
+      }
+    } else {
+      setInvoiceCategory('exam');
+    }
+
     if (move.lines && move.lines.length > 0) {
       setLines(
         move.lines.map((l) => ({
@@ -738,6 +812,110 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     setTransmittedLabOrderNumber('');
     setShowCatalogue(false);
     setIsFormOpen(true);
+  };
+
+  const pendingPrescriptionConsultations = React.useMemo(() => {
+    return (consultations || []).filter((c) => {
+      const hasItems = c.prescribed_items && c.prescribed_items.length > 0;
+      const isInternal = c.patient_choice === 'internal';
+      return hasItems || isInternal;
+    }).sort((a, b) => {
+      const tA = new Date(a.updated_at || a.consultation_date || a.created_at).getTime();
+      const tB = new Date(b.updated_at || b.consultation_date || b.created_at).getTime();
+      return tB - tA;
+    });
+  }, [consultations]);
+
+  const filteredPrescriptions = React.useMemo(() => {
+    if (!prescriptionsSearch.trim()) return pendingPrescriptionConsultations;
+    const q = prescriptionsSearch.toLowerCase();
+    return pendingPrescriptionConsultations.filter((c) =>
+      (c.patient_name && c.patient_name.toLowerCase().includes(q)) ||
+      (c.patient_ndm && c.patient_ndm.toLowerCase().includes(q)) ||
+      (c.doctor_name && c.doctor_name.toLowerCase().includes(q)) ||
+      (c.consultation_number && c.consultation_number.toLowerCase().includes(q))
+    );
+  }, [pendingPrescriptionConsultations, prescriptionsSearch]);
+
+  const handleLoadFromConsultation = (c: MedicalConsultation) => {
+    setSelectedConsultationForInvoice(c);
+    setEditingMove(null);
+    setCurrentStep(1);
+
+    const matchedPartner = partners.find(
+      (p) =>
+        p.id === c.partner_id ||
+        (c.patient_ndm && p.ndm === c.patient_ndm) ||
+        p.name.toLowerCase() === (c.patient_name || '').toLowerCase()
+    );
+
+    setPartnerId(matchedPartner?.id || c.partner_id || null);
+    setPartnerNameInput(c.patient_name || matchedPartner?.name || '');
+    setPatientPhone(c.patient_phone || matchedPartner?.phone || '');
+    setPrescribingDoctor(c.doctor_name || 'Dr. ' + (currentUser?.name || 'Médecin'));
+    setNdm(c.patient_ndm || matchedPartner?.ndm || generateNextNdm());
+    setPatientAgeY(c.patient_age ?? matchedPartner?.age ?? 30);
+    setPatientAgeM(0);
+    setPatientAgeD(0);
+    setMedicalService(c.specialty || 'Médecine Générale');
+    setCancelReason('');
+    setRef(`PRESCR:${c.consultation_number || c.id}`);
+    setInvoiceDate(new Date().toISOString().replace('T', ' ').substring(0, 16));
+    setInvoiceDateDue(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
+    setInvoiceUserId(currentUser?.id || 1);
+    setIsTaxExempt(true);
+    setTaxExemptionReason('Exonération médicale / Actes et ordonnances internes');
+    setPatientNotes(`Prescriptions émises par Dr. ${c.doctor_name} lors de la consultation ${c.consultation_number || ''}`);
+    setPaymentSuccess(false);
+    setLabOrderTransmitted(false);
+    setTransmittedLabOrderNumber('');
+
+    if (c.insurance_name) {
+      setInsuranceEnabled(true);
+      setInsuranceName(c.insurance_name);
+      setInsuranceCoverageRate(c.insurance_coverage_rate ?? 80);
+      const matchedIns = insurancePartners.find((i) => i.name.toLowerCase() === c.insurance_name?.toLowerCase());
+      setInsurancePartnerId(matchedIns?.id || null);
+    } else {
+      setInsuranceEnabled(false);
+      setInsurancePartnerId(null);
+      setInsuranceName('');
+      setInsuranceCoverageRate(80);
+    }
+
+    setInvoiceCategory('exam');
+
+    if (c.prescribed_items && c.prescribed_items.length > 0) {
+      const generatedLines = c.prescribed_items.map((item, idx) => {
+        const itemName = (item as any).item_name || item.name || 'Prestation';
+        const matched = products.find(
+          (p) => p.name.trim().toLowerCase() === itemName.trim().toLowerCase()
+        );
+        const pu = (item as any).unit_price || item.price_unit || (matched ? matched.list_price : 0) || 5000;
+        return {
+          id: -(idx + 1),
+          product_id: matched ? matched.id : 0,
+          name: itemName + (item.dosage ? ` (${item.dosage})` : ''),
+          quantity: item.quantity || 1,
+          price_unit: pu,
+          discount: 0,
+          tax_ids: [],
+          tax_rate: 0,
+          type: 'product' as const,
+        };
+      });
+      setLines(generatedLines);
+    } else {
+      setLines([]);
+    }
+
+    setShowCatalogue(false);
+    setIsFormOpen(true);
+    notify(
+      `Prescriptions du patient ${c.patient_name} importées (${c.prescribed_items?.length || 0} prestations).`,
+      'info',
+      'Prescriptions Importées'
+    );
   };
 
   const handleCreateProductOnTheFly = async (searchText: string, lineIndex: number) => {
@@ -1034,6 +1212,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       notify('Veuillez renseigner le nom du patient avant de sauvegarder.', 'warning', 'Saisie Incomplète');
       return;
     }
+    if (invoiceCategory === 'consultation') {
+      if (!consultationType) {
+        notify('Veuillez sélectionner un type de consultation.', 'warning', 'Saisie Incomplète');
+        return;
+      }
+      if (!consultationDoctorId) {
+        notify('Veuillez sélectionner un médecin ou praticien affecté.', 'warning', 'Saisie Incomplète');
+        return;
+      }
+    }
     setIsSubmitting(true);
     try {
       const resolvedId = await resolvePartnerId();
@@ -1043,6 +1231,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         partner_id: resolvedId,
         patient_name: partnerNameInput.trim(),
         patient_phone: patientPhone || null,
+        prescribing_doctor: prescribingDoctor || null,
+        is_prescription_invoice: selectedConsultationForInvoice ? true : (editingMove as any)?.is_prescription_invoice,
         ref,
         invoice_date: invoiceDate,
         invoice_date_due: invoiceDateDue,
@@ -1061,26 +1251,54 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         patient_age_d: patientAgeD,
         medical_service: medicalService,
         cancel_reason: cancelReason,
-        lines: lines.map((l, index) => {
-          const qty = Number(l.quantity) || 1;
-          const pu = Number(l.price_unit) || 0;
-          const disc = Number(l.discount) || 0;
-          const taxR = isTaxExempt ? 0 : Number(l.tax_rate ?? 18);
-          const subtotal = qty * pu * (1 - disc / 100);
-          return {
-            id: l.id,
-            product_id: l.product_id || null,
-            name: l.name || (l.product_id ? 'Article' : 'Prestation'),
-            quantity: qty,
-            price_unit: pu,
-            discount: disc,
-            tax_ids: l.tax_ids,
-            tax_rate: taxR,
-            price_subtotal: subtotal,
-            price_total: subtotal * (1 + taxR / 100),
-            sequence: index + 1,
-          };
-        }),
+        lines: invoiceCategory === 'consultation'
+          ? [
+              {
+                id: editingMove?.lines?.[0]?.id || undefined,
+                product_id: consultationType === 'infirmier' ? 991 : consultationType === 'specialiste' ? 993 : 992,
+                name: `Consultation Médicale (${
+                  consultationType === 'infirmier'
+                    ? 'Infirmier / Triage'
+                    : consultationType === 'specialiste'
+                    ? 'Médecin Spécialiste'
+                    : 'Médecin Généraliste'
+                }) - ${
+                  consultationDoctorId === 15
+                    ? 'Awa Diabate (Infirmier)'
+                    : consultationDoctorId === 17
+                    ? 'Dr. Mamadou Cisse'
+                    : 'Dr. Aboubacar Toure'
+                }`,
+                quantity: 1,
+                price_unit: computedConsultationPrice,
+                discount: 0,
+                tax_ids: [],
+                tax_rate: 0,
+                price_subtotal: computedConsultationPrice,
+                price_total: computedConsultationPrice,
+                sequence: 1,
+              }
+            ]
+          : lines.map((l, index) => {
+              const qty = Number(l.quantity) || 1;
+              const pu = Number(l.price_unit) || 0;
+              const disc = Number(l.discount) || 0;
+              const taxR = isTaxExempt ? 0 : Number(l.tax_rate ?? 18);
+              const subtotal = qty * pu * (1 - disc / 100);
+              return {
+                id: l.id,
+                product_id: l.product_id || null,
+                name: l.name || (l.product_id ? 'Article' : 'Prestation'),
+                quantity: qty,
+                price_unit: pu,
+                discount: disc,
+                tax_ids: l.tax_ids,
+                tax_rate: taxR,
+                price_subtotal: subtotal,
+                price_total: subtotal * (1 + taxR / 100),
+                sequence: index + 1,
+              };
+            }),
       };
 
       const saved = await onSaveMove(moveData);
@@ -1102,7 +1320,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       notify('Veuillez renseigner le nom du patient.', 'warning', 'Saisie Incomplète');
       return;
     }
-    if (lines.length === 0) {
+    if (invoiceCategory === 'consultation') {
+      if (!consultationType) {
+        notify('Veuillez sélectionner un type de consultation.', 'warning', 'Saisie Incomplète');
+        return;
+      }
+      if (!consultationDoctorId) {
+        notify('Veuillez sélectionner un médecin ou praticien affecté.', 'warning', 'Saisie Incomplète');
+        return;
+      }
+    }
+    if (invoiceCategory !== 'consultation' && lines.length === 0) {
       notify('Veuillez ajouter au moins une analyse ou prestation médicale.', 'warning', 'Aucune Prestation');
       return;
     }
@@ -1116,6 +1344,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         partner_id: resolvedId,
         patient_name: partnerNameInput.trim(),
         patient_phone: patientPhone || null,
+        prescribing_doctor: prescribingDoctor || null,
+        is_prescription_invoice: selectedConsultationForInvoice ? true : (editingMove as any)?.is_prescription_invoice,
         ref,
         invoice_date: invoiceDate,
         invoice_date_due: invoiceDateDue,
@@ -1134,26 +1364,54 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         patient_age_d: patientAgeD,
         medical_service: medicalService,
         cancel_reason: cancelReason,
-        lines: lines.map((l, index) => {
-          const qty = Number(l.quantity) || 1;
-          const pu = Number(l.price_unit) || 0;
-          const disc = Number(l.discount) || 0;
-          const taxR = isTaxExempt ? 0 : Number(l.tax_rate ?? 18);
-          const subtotal = qty * pu * (1 - disc / 100);
-          return {
-            id: l.id,
-            product_id: l.product_id || null,
-            name: l.name || (l.product_id ? 'Article' : 'Prestation'),
-            quantity: qty,
-            price_unit: pu,
-            discount: disc,
-            tax_ids: l.tax_ids,
-            tax_rate: taxR,
-            price_subtotal: subtotal,
-            price_total: subtotal * (1 + taxR / 100),
-            sequence: index + 1,
-          };
-        }),
+        lines: invoiceCategory === 'consultation'
+          ? [
+              {
+                id: editingMove?.lines?.[0]?.id || undefined,
+                product_id: consultationType === 'infirmier' ? 991 : consultationType === 'specialiste' ? 993 : 992,
+                name: `Consultation Médicale (${
+                  consultationType === 'infirmier'
+                    ? 'Infirmier / Triage'
+                    : consultationType === 'specialiste'
+                    ? 'Médecin Spécialiste'
+                    : 'Médecin Généraliste'
+                }) - ${
+                  consultationDoctorId === 15
+                    ? 'Awa Diabate (Infirmier)'
+                    : consultationDoctorId === 17
+                    ? 'Dr. Mamadou Cisse'
+                    : 'Dr. Aboubacar Toure'
+                }`,
+                quantity: 1,
+                price_unit: computedConsultationPrice,
+                discount: 0,
+                tax_ids: [],
+                tax_rate: 0,
+                price_subtotal: computedConsultationPrice,
+                price_total: computedConsultationPrice,
+                sequence: 1,
+              }
+            ]
+          : lines.map((l, index) => {
+              const qty = Number(l.quantity) || 1;
+              const pu = Number(l.price_unit) || 0;
+              const disc = Number(l.discount) || 0;
+              const taxR = isTaxExempt ? 0 : Number(l.tax_rate ?? 18);
+              const subtotal = qty * pu * (1 - disc / 100);
+              return {
+                id: l.id,
+                product_id: l.product_id || null,
+                name: l.name || (l.product_id ? 'Article' : 'Prestation'),
+                quantity: qty,
+                price_unit: pu,
+                discount: disc,
+                tax_ids: l.tax_ids,
+                tax_rate: taxR,
+                price_subtotal: subtotal,
+                price_total: subtotal * (1 + taxR / 100),
+                sequence: index + 1,
+              };
+            }),
       };
 
       // 1. Save move
@@ -1176,13 +1434,33 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       }
 
       const invCode = posted?.name || saved?.name || `#${moveIdToPost}`;
+
+      if (selectedConsultationForInvoice?.id && moveIdToPost) {
+        try {
+          await fetch(`/api/medical-consultations/${selectedConsultationForInvoice.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              exam_invoice_id: moveIdToPost,
+            }),
+          });
+        } catch (linkErr) {
+          console.warn('Erreur liaison consultation - facture:', linkErr);
+        }
+      }
+
+      const isAlreadyPosted = editingMove?.id && editingMove.state === 'posted';
+
       notify(
-        `La facture ${invCode} a été enregistrée avec succès et soumise à l'encaissement à la Caisse pour le patient ${partnerNameInput.trim()} !`,
+        isAlreadyPosted 
+          ? `La facture ${invCode} a été mise à jour avec succès !`
+          : `La facture ${invCode} a été enregistrée avec succès et soumise à l'encaissement à la Caisse pour le patient ${partnerNameInput.trim()} !`,
         'success',
-        'Facture Soumise à L\'Encaissement'
+        isAlreadyPosted ? 'Mise à jour réussie' : 'Facture Soumise à L\'Encaissement'
       );
 
-      // 3. AUTOMATICALLY ADVANCE TO STEP 2 (RECAP & ENCAISSEMENT CAISSE) FOR ALL PROFILES
+      // 3. ALWAYS ADVANCE TO STEP 2 (ENCAISSEMENT CAISSE)
+      // Any validated or edited invoice must always go through the cash desk step.
       setCurrentStep(2);
     } catch (e) {
       console.error('Validation error:', e);
@@ -1192,92 +1470,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     }
   };
 
-  // Step 2 -> Step 3: VALIDATE PAYMENT & AUTOMATICALLY SWITCH TO RECEIPT & LAB
+  // Step 2 -> Step 3: TRANSMIT TO CASH DESK & FINALIZE
   const handleExecutePaymentAndFinish = async () => {
-    const profile = getUserBillingProfile(currentUser);
-    if (profile === 'facture') {
-      setCurrentStep(3);
-      notify("Facture enregistrée et transmise au guichet de caisse avec succès.", 'success', 'Transmis à la Caisse');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const moveId = editingMove?.id;
-      const amountToPay = Number(paymentAmount) || computedClientShare;
-
-      if (onRegisterPayment) {
-        await onRegisterPayment({
-          move_id: moveId || null,
-          partner_id: partnerId,
-          amount: amountToPay,
-          journal_id: paymentJournalId,
-          payment_method: paymentMethod,
-          payment_date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          notes: `Règlement ticket modérateur par ${paymentMethod.toUpperCase()}`,
-        });
-      } else {
-        await fetch('/api/payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            move_id: moveId || null,
-            partner_id: partnerId,
-            amount: amountToPay,
-            journal_id: paymentJournalId,
-            payment_method: paymentMethod,
-            payment_date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          }),
-        });
-      }
-
-      setPaymentSuccess(true);
-      if (editingMove) {
-        setEditingMove({
-          ...editingMove,
-          payment_state: 'paid',
-          amount_residual: Math.max(0, (editingMove.amount_residual || computedClientShare) - amountToPay),
-        });
-      }
-
-      // Auto-create lab order in the background for technical laboratory
-      try {
-        const examNames = lines
-          .filter((l) => l.type === 'product' && l.name)
-          .map((l) => l.name);
-
-        const newLabOrderNumber = `LAB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-        if (onSaveLabOrder) {
-          await onSaveLabOrder({
-            order_number: newLabOrderNumber,
-            partner_id: partnerId,
-            partner_name: partnerNameInput,
-            prescribing_doctor: prescribingDoctor,
-            sampling_date: new Date().toISOString(),
-            status: 'pending_sampling',
-            department: 'Biochimie & Hématologie',
-            exam_names: examNames.length > 0 ? examNames : ['Analyses Générales'],
-            parameters: [],
-            invoice_id: moveId,
-          });
-        }
-        setLabOrderTransmitted(true);
-        setTransmittedLabOrderNumber(newLabOrderNumber);
-        notify('Bon de prélèvement généré et transmis au Laboratoire !', 'info', 'Ordre Laboratoire');
-      } catch (e) {
-        console.warn('Auto lab transmission info:', e);
-      }
-
-      notify(`Paiement de ${formatFCFA(amountToPay)} encaissé avec succès !`, 'success', 'Encaissement Validé');
-      // AUTOMATICALLY ADVANCE TO STEP 3 (RECEIPT & LAB COMPLETION)
-      setCurrentStep(3);
-    } catch (e) {
-      console.error('Payment error:', e);
-      notify("Erreur lors de l'enregistrement du paiement.", 'error', 'Erreur Paiement');
-    } finally {
-      setIsSubmitting(false);
-    }
+    setCurrentStep(3);
+    notify("Facture enregistrée et transmise au guichet de caisse avec succès.", 'success', 'Transmis à la Caisse');
+    return;
   };
 
   // Skip payment (differed payment) and advance to Step 3
@@ -1381,8 +1578,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   const stepsList = [
     { num: 1, label: '1. Facturation (Saisie Intégrale)', short: '1. Facture', icon: FileText },
-    { num: 2, label: '2. Encaissement Caisse', short: '2. Paiement', icon: CreditCard },
-    { num: 3, label: '3. Reçu & Plateau Labo', short: '3. Reçu / Labo', icon: CheckCircle2 },
+    { num: 2, label: '2. Envoi à la Caisse', short: '2. Envoi Caisse', icon: CreditCard },
+    { num: 3, label: '3. Transmission Réussie', short: '3. Terminé', icon: CheckCircle2 },
   ];
 
   return (
@@ -1448,7 +1645,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold rounded-md flex items-center space-x-1.5 transition cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>⬅️ Revenir à ma Session</span>
+              <span>Revenir à ma Session</span>
             </button>
           )}
 
@@ -1465,7 +1662,50 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         </div>
       </div>
 
-      {/* Filter Toolbar */}
+      {/* Module Tabs (Registre des Factures vs Prescriptions Médicales à Facturer) */}
+      <div className="flex border-b border-slate-200 gap-6 text-xs font-semibold px-1">
+        <button
+          type="button"
+          onClick={() => setBillingViewTab('invoices')}
+          className={`pb-2.5 border-b-2 transition flex items-center gap-2 cursor-pointer ${
+            billingViewTab === 'invoices'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>Registre des Factures</span>
+          <span className="text-[11px] font-medium px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+            {filteredMoves.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setBillingViewTab('prescriptions')}
+          className={`pb-2.5 border-b-2 transition flex items-center gap-2 cursor-pointer ${
+            billingViewTab === 'prescriptions'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Stethoscope className="w-4 h-4" />
+          <span>Prescriptions Médicales à Facturer</span>
+          <span
+            className={`text-[11px] font-bold px-1.5 py-0.2 rounded ${
+              pendingPrescriptionConsultations.length > 0
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            {pendingPrescriptionConsultations.length}
+          </span>
+        </button>
+      </div>
+
+      {billingViewTab === 'invoices' ? (
+        <>
+          {/* Filter Toolbar */}
       <div className="bg-white rounded-md p-3 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-bold text-slate-500 mr-1">Statut :</span>
@@ -1551,7 +1791,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredMoves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((m) => {
+                filteredMoves.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((m, idx) => {
                   const pName = m.patient_name || m.partner?.name || 'Patient';
                   const insName = m.insurance_name;
                   const covRate = m.insurance_coverage_rate;
@@ -1559,13 +1799,19 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   const clientShare = m.client_share_amount !== undefined ? m.client_share_amount : m.amount_total;
 
                   return (
-                    <tr key={m.id} className="hover:bg-slate-50/80 transition">
+                    <tr key={`move-row-${m.id || ''}-${m.name || ''}-${idx}`} className="hover:bg-slate-50/80 transition">
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-900 truncate" title={m.name || `#${m.id}`}>
                         {m.name || <span className="text-slate-400 italic font-sans text-[11px]">Brouillon (#{m.id})</span>}
                       </td>
                       <td className="py-2.5 px-3 truncate">
                         <div className="font-bold text-slate-900 truncate" title={pName}>{pName}</div>
                         {m.ref && <div className="text-[10px] text-slate-500 font-mono truncate">Réf: {m.ref}</div>}
+                        {(m.is_prescription_invoice || (m.ref && m.ref.startsWith('PRESCR:'))) && (
+                          <div className="inline-flex items-center gap-1 text-[9px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded mt-0.5">
+                            <Stethoscope className="w-2.5 h-2.5 text-slate-500" />
+                            <span>Prescription {m.prescribing_doctor ? `Dr. ${m.prescribing_doctor}` : 'Interne'}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-slate-600 font-mono text-[10px] truncate hidden md:table-cell">
                         {(m.invoice_date || m.date || m.created_at).replace('T', ' ').substring(0, 16)}
@@ -1621,9 +1867,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             type="button"
                             onClick={() => handleOpenEditModal(m)}
                             className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition cursor-pointer"
-                            title={isCashierOnly ? "Consulter la facture" : "Ouvrir la facture"}
+                            title={isCashierOnly || m.state !== 'draft' ? "Consulter la facture" : "Ouvrir / Éditer la facture"}
                           >
-                            {isCashierOnly ? <Search className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
+                            {isCashierOnly || m.state !== 'draft' ? <Search className="w-3.5 h-3.5" /> : <Edit2 className="w-3.5 h-3.5" />}
                           </button>
                           <button
                             type="button"
@@ -1687,6 +1933,148 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           itemLabel="factures"
         />
       </div>
+        </>
+      ) : (
+        <div className="space-y-3">
+          {/* Subheader / Search */}
+          <div className="bg-white rounded-md p-3 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-bold text-slate-900">
+                {pendingPrescriptionConsultations.length} dossier(s) de consultation avec prescriptions
+              </span>
+              <span className="hidden md:inline text-slate-400">— Prise en charge interne des actes de biologie, imagerie et ordonnances</span>
+            </div>
+            <div className="relative w-full sm:w-80">
+              <input
+                type="text"
+                placeholder="Rechercher par patient, NDM, médecin..."
+                value={prescriptionsSearch}
+                onChange={(e) => setPrescriptionsSearch(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-1.5 pl-8 text-xs font-medium focus:border-slate-800"
+              />
+              <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" />
+            </div>
+          </div>
+
+          {/* Prescriptions Table */}
+          <div className="bg-white rounded-md border border-slate-200 shadow-xs overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                  <th className="py-2.5 px-3 min-w-[120px]">Consultation</th>
+                  <th className="py-2.5 px-3 min-w-[180px]">Patient</th>
+                  <th className="py-2.5 px-3 min-w-[140px]">Médecin Prescripteur</th>
+                  <th className="py-2.5 px-3 min-w-[240px]">Prestations & Médicaments Prescrits</th>
+                  <th className="py-2.5 px-3 min-w-[130px]">Assurance</th>
+                  <th className="py-2.5 px-3 text-right min-w-[110px]">Total Estimé</th>
+                  <th className="py-2.5 px-3 text-center min-w-[120px]">Statut</th>
+                  <th className="py-2.5 px-3 text-right min-w-[140px] pr-4">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {filteredPrescriptions.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400 bg-slate-50/50">
+                      Aucune prescription médicale en attente de facturation.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPrescriptions.map((c) => {
+                    const existingInvoice = moves.find(
+                      (m) =>
+                        m.id === c.exam_invoice_id ||
+                        (m.ref && (m.ref === `PRESCR:${c.consultation_number}` || m.ref === `PRESCR:${c.id}`))
+                    );
+                    const totalEst = (c.prescribed_items || []).reduce(
+                      (sum, it) => sum + (it.unit_price || 5000) * (it.quantity || 1),
+                      0
+                    );
+
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-2.5 px-3">
+                          <div className="font-mono font-bold text-slate-900">
+                            {c.consultation_number || `CONS-#${c.id}`}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            {(c.consultation_date || c.created_at || '').substring(0, 10)}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-bold text-slate-900">{c.patient_name}</div>
+                          <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5">
+                            {c.patient_ndm && <span>NDM: {c.patient_ndm}</span>}
+                            {c.patient_phone && <span>• {c.patient_phone}</span>}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-slate-900">Dr. {c.doctor_name}</div>
+                          <div className="text-[10px] text-slate-500">{c.specialty || 'Médecine Générale'}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {(c.prescribed_items || []).map((it, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700"
+                              >
+                                {(it as any).item_name || it.name} {it.quantity > 1 ? `(x${it.quantity})` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {c.insurance_name ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                              {c.insurance_name} ({c.insurance_coverage_rate || 80}%)
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">Comptant</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                          {formatFCFA(totalEst)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {existingInvoice ? (
+                            <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Facturé ({existingInvoice.name || `#${existingInvoice.id}`})
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-800 border border-amber-200">
+                              À Facturer
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right pr-4">
+                          {existingInvoice ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(existingInvoice)}
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded font-semibold text-xs transition cursor-pointer"
+                            >
+                              Voir Facture
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleLoadFromConsultation(c)}
+                              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded font-bold text-xs transition shadow-xs cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span>Établir Facture</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* GUIDED AUTOMATIC WORKFLOW MODAL */}
@@ -1704,7 +2092,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-bold flex items-center gap-1 transition shadow-xs cursor-pointer mr-1"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>⬅️ Retour</span>
+                  <span>Retour</span>
                 </button>
                 <div className="p-2 bg-slate-900 text-white rounded">
                   <FileText className="w-4 h-4" />
@@ -1735,8 +2123,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   </div>
                   <p className="text-[11px] text-slate-500 font-medium">
                     {currentStep === 1 && 'Étape 1 : Saisie intégrale de la facture sur une interface unique'}
-                    {currentStep === 2 && 'Étape 2 : Encaissement & Règlement Caisse'}
-                    {currentStep === 3 && 'Étape 3 : Reçu de Caisse & Transmission au Laboratoire'}
+                    {currentStep === 2 && 'Étape 2 : Transmission de la facture au guichet de caisse'}
+                    {currentStep === 3 && 'Étape 3 : Transmission Réussie & Confirmation'}
                   </p>
                 </div>
               </div>
@@ -1810,6 +2198,156 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               {currentStep === 1 && (
                 <div className="space-y-5 animate-in fade-in duration-150">
                   
+                  {/* Quick Importer from Pending Medical Prescriptions */}
+                  {pendingPrescriptionConsultations.length > 0 && !editingMove && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Stethoscope className="w-4 h-4 text-slate-700 shrink-0" />
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block">
+                            Charger depuis une prescription médicale en attente
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Pré-remplit automatiquement le patient, l'assurance et la liste des prestations
+                          </span>
+                        </div>
+                      </div>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const selected = pendingPrescriptionConsultations.find((c) => c.id === val);
+                          if (selected) handleLoadFromConsultation(selected);
+                        }}
+                        className="bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:border-slate-800 cursor-pointer max-w-xs truncate"
+                      >
+                        <option value="" disabled>
+                          -- Sélectionner un patient prescrit ({pendingPrescriptionConsultations.length}) --
+                        </option>
+                        {pendingPrescriptionConsultations.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.patient_name} {c.patient_ndm ? `(${c.patient_ndm})` : ''} — Dr. {c.doctor_name} ({c.prescribed_items?.length || 0} actes)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Type de Facture Segment Selector */}
+                  <div className="bg-slate-100 p-1.5 rounded-lg flex items-center max-w-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceCategory('consultation');
+                        // Reset lines so that consultation is the single exclusive line
+                        setLines([]);
+                      }}
+                      className={`flex-1 py-2 text-xs font-black rounded-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                        invoiceCategory === 'consultation'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Stethoscope className="w-3.5 h-3.5" />
+                      <span>Facture de Consultation Directe</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceCategory('exam')}
+                      className={`flex-1 py-2 text-xs font-black rounded-md transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                        invoiceCategory === 'exam'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                      }`}
+                    >
+                      <FlaskConical className="w-3.5 h-3.5" />
+                      <span>Facture d'Examens &amp; Prestations</span>
+                    </button>
+                  </div>
+
+                  {invoiceCategory === 'consultation' && (
+                    <div className="p-4 bg-teal-50/40 border border-teal-200 rounded-lg space-y-4 animate-in fade-in">
+                      <div className="flex items-center space-x-2 border-b border-teal-100 pb-2">
+                        <Stethoscope className="w-4 h-4 text-teal-600 animate-pulse" />
+                        <h4 className="text-xs font-black text-teal-950 uppercase tracking-wider">
+                          Paramètres de la Consultation Médicale Directe
+                        </h4>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* 1. Niveau / Type de Consultation */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-teal-900 block">Type de Consultation (Régime &amp; Tarif)</label>
+                          <div className="grid grid-cols-1 gap-2">
+                            {[
+                              { key: 'infirmier', label: 'Infirmier (Triage & Constantes)', price: '5 000 FCFA' },
+                              { key: 'generaliste', label: 'Médecin Généraliste', price: '10 000 FCFA' },
+                              { key: 'specialiste', label: 'Médecin Spécialiste', price: '15 000 FCFA' },
+                            ].map((opt) => (
+                              <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => {
+                                  setConsultationType(opt.key as any);
+                                  // Auto set default doctor matching selection
+                                  if (opt.key === 'infirmier') setConsultationDoctorId(15);
+                                  else if (opt.key === 'specialiste') setConsultationDoctorId(17);
+                                  else setConsultationDoctorId(16);
+                                }}
+                                className={`p-2.5 rounded-lg border text-left transition flex items-center justify-between cursor-pointer ${
+                                  consultationType === opt.key
+                                    ? 'bg-teal-600 text-white border-teal-700'
+                                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span className="text-xs font-bold">{opt.label}</span>
+                                <span className={`text-xs font-black ${consultationType === opt.key ? 'text-white' : 'text-teal-600'}`}>{opt.price}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 2. Sélection de l'intervenant / médecin */}
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="text-xs font-bold text-teal-900 block">Médecin / Pratiquant Affecté (Prise en Charge Directe)</label>
+                          <div className="grid grid-cols-1 gap-2">
+                            {[
+                              { id: 15, name: 'Awa Diabate (Infirmier)', specialty: 'Triage & Soins d\'Urgence', role: 'infirmier' },
+                              { id: 16, name: 'Dr. Aboubacar Toure', specialty: 'Médecine Générale', role: 'generaliste' },
+                              { id: 17, name: 'Dr. Mamadou Cisse', specialty: 'Médecine Spécialisée (Cardiologie)', role: 'specialiste' },
+                            ].map((doc) => (
+                              <button
+                                key={doc.id}
+                                type="button"
+                                onClick={() => {
+                                  setConsultationDoctorId(doc.id);
+                                  setConsultationType(doc.role as any);
+                                }}
+                                className={`p-2.5 rounded-lg border text-left transition flex items-center justify-between cursor-pointer ${
+                                  consultationDoctorId === doc.id
+                                    ? 'bg-slate-900 text-white border-slate-900'
+                                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="text-xs font-black">{doc.name}</div>
+                                  <div className={`text-[10px] ${consultationDoctorId === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.specialty}</div>
+                                </div>
+                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border ${
+                                  consultationDoctorId === doc.id 
+                                    ? 'bg-teal-600 text-white border-teal-500' 
+                                    : 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}>
+                                  {doc.role === 'infirmier' ? 'Infirmier' : doc.role === 'specialiste' ? 'Spécialiste' : 'Généraliste'}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Section 1: Informations Patient & Prescripteur */}
                   <div className="space-y-3">
                     <div className="border-b border-slate-200 pb-1.5 flex items-center justify-between">
@@ -1831,35 +2369,28 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3.5 rounded border border-slate-200">
-                      {/* Real-time Alerts if Patient doesn't exist */}
-                      {ndm.trim() !== '' && !partners.some((p) => p.ndm && p.ndm.toLowerCase() === ndm.trim().toLowerCase()) && (
-                        <div className="sm:col-span-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-800 animate-in fade-in">
+                      {/* Unified Real-time Alert if Patient or NDM doesn't exist */}
+                      {((ndm.trim() !== '' && !partners.some((p) => p.ndm && p.ndm.toLowerCase() === ndm.trim().toLowerCase())) ||
+                        (partnerNameInput.trim() !== '' && !partners.some((p) => p.name.toLowerCase() === partnerNameInput.trim().toLowerCase()))) && (
+                        <div className="sm:col-span-4 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-800 gap-3 animate-in fade-in">
                           <span className="flex items-center space-x-2 font-semibold">
-                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                            <span>Le dossier patient N° <strong>"{ndm}"</strong> n'existe pas dans le système.</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => openPatientCreationModal('', ndm)}
-                            className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1 rounded text-[11px] transition"
-                          >
-                            Créer le Dossier NDM
-                          </button>
-                        </div>
-                      )}
-
-                      {partnerNameInput.trim() !== '' && !partners.some((p) => p.name.toLowerCase() === partnerNameInput.trim().toLowerCase()) && (
-                        <div className="sm:col-span-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-800 animate-in fade-in">
-                          <span className="flex items-center space-x-2 font-semibold">
-                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                            <span>Le patient nommé <strong>"{partnerNameInput}"</strong> n'est pas enregistré.</span>
+                            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                            <span>
+                              {ndm.trim() !== '' && !partners.some((p) => p.ndm && p.ndm.toLowerCase() === ndm.trim().toLowerCase()) && partnerNameInput.trim() !== '' && !partners.some((p) => p.name.toLowerCase() === partnerNameInput.trim().toLowerCase()) ? (
+                                <>Le patient <strong>"{partnerNameInput}"</strong> avec le dossier N° <strong>"{ndm}"</strong> n'est pas enregistré dans le système.</>
+                              ) : ndm.trim() !== '' && !partners.some((p) => p.ndm && p.ndm.toLowerCase() === ndm.trim().toLowerCase()) ? (
+                                <>Le N° de dossier patient <strong>"{ndm}"</strong> n'existe pas encore dans le système.</>
+                              ) : (
+                                <>Le patient nommé <strong>"{partnerNameInput}"</strong> n'est pas encore enregistré dans le système.</>
+                              )}
+                            </span>
                           </span>
                           <button
                             type="button"
                             onClick={() => openPatientCreationModal(partnerNameInput, ndm)}
-                            className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1 rounded text-[11px] transition"
+                            className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded text-[11px] transition shadow-xs cursor-pointer shrink-0"
                           >
-                            Créer la Fiche Patient
+                            Créer la Fiche & son Dossier Patient
                           </button>
                         </div>
                       )}
@@ -1879,8 +2410,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <datalist id="ndm-invoice-datalist">
                           {partners
                             .filter((p) => p.ndm)
-                            .map((p) => (
-                              <option key={p.id} value={p.ndm || ''} label={p.name} />
+                            .map((p, idx) => (
+                              <option key={`ndm-opt-${p.id}-${idx}`} value={p.ndm || ''} label={p.name} />
                             ))}
                         </datalist>
                       </div>
@@ -1897,8 +2428,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:border-slate-800 transition"
                         />
                         <datalist id="partners-invoice-datalist">
-                          {partners.map((p) => (
-                            <option key={p.id} value={p.name} />
+                          {partners.map((p, idx) => (
+                            <option key={`partner-opt-${p.id}-${idx}`} value={p.name} />
                           ))}
                         </datalist>
                       </div>
@@ -2125,7 +2656,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   </div>
 
                   {/* Section 3: Tableau des Analyses & Prestations Médicales */}
-                  <div className="space-y-2.5">
+                  {invoiceCategory === 'exam' && (
+                    <div className="space-y-2.5">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
                       <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
                         <ShoppingBag className="w-3.5 h-3.5 text-slate-700" />
@@ -2225,9 +2757,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                                 Aucun examen ou service trouvé pour les critères sélectionnés.
                               </div>
                             ) : (
-                              filtered.slice(0, 48).map((p) => (
+                              filtered.slice(0, 48).map((p, pIdx) => (
                                 <button
-                                  key={p.id}
+                                  key={`cat-prod-${p.id}-${pIdx}`}
                                   type="button"
                                   onClick={() => handleAddProductFromCatalog(p)}
                                   className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-800 rounded-lg text-left transition flex flex-col justify-between min-h-[82px] h-auto group shadow-2xs gap-1"
@@ -2284,7 +2816,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               const lineSubtotal = qty * pu * (1 - disc / 100);
 
                               return (
-                                <tr key={idx} className="hover:bg-slate-50/40 align-middle">
+                                <tr key={`inv-line-${idx}-${line.product_id || 'new'}`} className="hover:bg-slate-50/40 align-middle">
                                   <td className="py-2 px-2.5 relative">
                                     {(() => {
                                       const query = lineSearchQueries[idx] !== undefined 
@@ -2337,11 +2869,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                                                   )}
                                                 </div>
                                               ) : (
-                                                matchedList.map((prod) => {
+                                                matchedList.map((prod, prodIdx) => {
                                                   const codeStr = prod.default_code ? `[${prod.default_code}] ` : '';
                                                   return (
                                                     <button
-                                                      key={prod.id}
+                                                      key={`match-prod-${prod.id}-${prodIdx}`}
                                                       type="button"
                                                       onMouseDown={() => {
                                                         const updated = [...lines];
@@ -2473,6 +3005,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       </table>
                     </div>
                   </div>
+                  )}
 
                   {/* Section 4: TVA & Récapitulatif Financier Complet */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 border-t border-slate-200">
@@ -2560,16 +3093,22 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       {/* MAIN VALIDATION BUTTON: Posts invoice and AUTOMATICALLY switches to payment */}
                       <button
                         type="button"
-                        disabled={isSubmitting || !partnerNameInput || !partnerNameInput.trim() || lines.length === 0}
+                        disabled={isSubmitting || !partnerNameInput || !partnerNameInput.trim() || (invoiceCategory !== 'consultation' && lines.length === 0)}
                         onClick={handleValidateInvoiceAndGoToPayment}
                         className={`flex-1 sm:flex-none px-5 py-2.5 text-xs font-black text-white rounded shadow-md flex items-center justify-center space-x-2 transition ${
-                          !partnerNameInput || !partnerNameInput.trim() || lines.length === 0
+                          !partnerNameInput || !partnerNameInput.trim() || (invoiceCategory !== 'consultation' && lines.length === 0)
                             ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                             : 'bg-slate-900 hover:bg-slate-800 cursor-pointer'
                         }`}
                       >
-                        <span>Valider la Facture &amp; Passer au Paiement</span>
-                        <ArrowRight className="w-4 h-4" />
+                        <span>
+                          {editingMove?.id && editingMove.state === 'posted'
+                            ? 'Enregistrer les Modifications'
+                            : getUserBillingProfile(currentUser) === 'facture'
+                            ? 'Valider & Transmettre à la Caisse'
+                            : 'Valider la Facture & Passer au Paiement'}
+                        </span>
+                        {!(editingMove?.id && editingMove.state === 'posted') && <ArrowRight className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
@@ -2702,27 +3241,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       </div>
                     )}
 
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={handleSkipPayment}
-                        className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition cursor-pointer"
-                      >
-                        Payer plus tard (Paiement différé) →
-                      </button>
-
-                      {/* VALIDATE PAYMENT: Registers payment and AUTOMATICALLY switches to Step 3 */}
+                     <div className="flex items-center space-x-2">
+                      {/* TRANSMIT TO CASH DESK & FINALIZE: Moves invoice to the queue for Cashier payment registration */}
                       <button
                         type="button"
                         disabled={isSubmitting}
                         onClick={handleExecutePaymentAndFinish}
-                        className="px-5 py-2.5 text-xs font-black text-white bg-slate-900 hover:bg-slate-800 rounded shadow-md flex items-center space-x-2 transition cursor-pointer"
+                        className="px-6 py-3 text-xs font-black text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-md flex items-center space-x-2 transition cursor-pointer"
                       >
-                        <span>
-                          {getUserBillingProfile(currentUser) === 'facture'
-                            ? 'Transmettre à la Caisse & Finaliser'
-                            : 'Valider le Paiement & Finaliser'}
-                        </span>
+                        <span>Envoyer à la Caisse pour Paiement &amp; Finaliser</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
@@ -2784,14 +3311,24 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       <span className="text-slate-500">Patient :</span>
                       <span className="font-bold text-slate-900">{partnerNameInput}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Montant Encaissé :</span>
-                      <span className="font-bold text-slate-900">{formatFCFA(computedClientShare)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Mode de Règlement :</span>
-                      <span className="font-bold text-slate-900">{paymentMethod.toUpperCase()}</span>
-                    </div>
+                    {(() => {
+                      const profile = getUserBillingProfile(currentUser);
+                      const isPaid = editingMove?.payment_state === 'paid' || (paymentSuccess && currentStep === 3 && profile !== 'facture');
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">{isPaid ? 'Montant Encaissé :' : 'Montant à Encaisser :'}</span>
+                            <span className="font-bold text-slate-900">{formatFCFA(computedClientShare)}</span>
+                          </div>
+                          {isPaid && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Mode de Règlement :</span>
+                              <span className="font-bold text-slate-900">{(editingMove?.payment_method || paymentMethod || 'cash').toUpperCase()}</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="flex justify-between border-t border-slate-200 pt-2">
                       <span className="text-slate-500">N° Ordre Laboratoire :</span>
                       <span className="font-bold text-slate-900">{transmittedLabOrderNumber || `LAB-${new Date().getFullYear()}-0028`}</span>
@@ -2810,21 +3347,6 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       <Printer className="w-4 h-4 text-slate-600" />
                       <span>Imprimer Reçu / Facture PDF</span>
                     </button>
-
-                    {/* "Aller aux Prélèvements Labo" : Uniquement pour profils autorisés (masqué pour caisse et facture pure) */}
-                    {onNavigateToLab && profile !== 'caisse' && profile !== 'facture' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleCloseFormModal();
-                          onNavigateToLab();
-                        }}
-                        className="w-full sm:w-auto px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg flex items-center justify-center space-x-2 transition shadow-xs cursor-pointer"
-                      >
-                        <Activity className="w-4 h-4" />
-                        <span>Aller aux Prélèvements Labo →</span>
-                      </button>
-                    )}
 
                     {/* "Nouveau Patient / Facture" : Autorisé pour Facturier & Superviseur (masqué pour Caisse pure) */}
                     {profile !== 'caisse' && (

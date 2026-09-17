@@ -19,7 +19,10 @@ import {
   initialEmailNotifications,
   initialLabOrders,
   initialTillSessions,
+  initialConsultations,
 } from './server/seedData';
+import { registerHospitalScenariosRoutes } from './server/hospitalScenariosEngine';
+import { registerFhirRoutes } from './server/fhirRoutes';
 import {
   ResCountry,
   ResCurrency,
@@ -40,6 +43,7 @@ import {
   TillSession,
   TillSessionTransaction,
   PartnerReduction,
+  MedicalConsultation,
 } from './src/types';
 
 const app = express();
@@ -126,6 +130,7 @@ let dbPayments: AccountPayment[] = [...initialPayments];
 let dbEmailNotifications: EmailNotification[] = [...initialEmailNotifications];
 let dbLabOrders: LabExamOrder[] = [...initialLabOrders];
 let dbTillSessions: TillSession[] = [...initialTillSessions];
+let dbConsultations: MedicalConsultation[] = [...initialConsultations];
 
 const defaultPartnerReductions: PartnerReduction[] = [
   { id: 1, patient_type: "Patient assuré 100%", category_name: "All", reduction_rate: 100.00, active: true },
@@ -165,6 +170,59 @@ let dbNotificationQueue: NotificationQueueEntry[] = [];
 let nextWorkflowLogId = 1;
 let nextNotificationQueueId = 1;
 
+export interface JournalEntry {
+  id_log: number;
+  id_utilisateur?: number;
+  utilisateur_nom?: string;
+  action: string;
+  date: string;
+  details: string;
+  scenario_id?: string;
+  numero_dossier?: string;
+  id_patient?: number;
+  patient_nom?: string;
+  statut?: 'succes' | 'alerte' | 'bloque';
+  metadata?: Record<string, any>;
+}
+
+let dbJournal: JournalEntry[] = [];
+let nextJournalLogId = 1;
+
+function logToJournal(
+  action: string,
+  details: string,
+  meta?: {
+    id_utilisateur?: number;
+    utilisateur_nom?: string;
+    scenario_id?: string;
+    numero_dossier?: string;
+    id_patient?: number;
+    patient_nom?: string;
+    statut?: 'succes' | 'alerte' | 'bloque';
+    metadata?: Record<string, any>;
+  }
+): JournalEntry {
+  const entry: JournalEntry = {
+    id_log: nextJournalLogId++,
+    id_utilisateur: meta?.id_utilisateur || 1,
+    utilisateur_nom: meta?.utilisateur_nom || 'Système Hopital',
+    action,
+    date: new Date().toISOString(),
+    details,
+    scenario_id: meta?.scenario_id,
+    numero_dossier: meta?.numero_dossier,
+    id_patient: meta?.id_patient,
+    patient_nom: meta?.patient_nom,
+    statut: meta?.statut || 'succes',
+    metadata: meta?.metadata,
+  };
+  dbJournal.unshift(entry);
+  if (dbJournal.length > 500) {
+    dbJournal = dbJournal.slice(0, 500);
+  }
+  return entry;
+}
+
 // Helper ID counters
 let nextPartnerId = 20;
 let nextProductId = 30;
@@ -179,6 +237,7 @@ let nextVendorSeq = 5;
 let nextGroupId = 10;
 let nextTillSessionSeq = 794;
 let nextPartnerReductionId = 4;
+let nextConsultationId = 10;
 
 // Disk persistence manager: guarantees all changes remain permanent across restarts & refreshes
 const DB_STORE_DIR = path.join(process.cwd(), 'data');
@@ -207,9 +266,12 @@ function saveDb() {
       dbEmailNotifications,
       dbLabOrders,
       dbTillSessions,
+      dbConsultations,
       dbPartnerReductions,
       dbWorkflowLogs,
       dbNotificationQueue,
+      dbJournal,
+      nextJournalLogId,
       nextWorkflowLogId,
       nextNotificationQueueId,
       nextPartnerId,
@@ -225,6 +287,7 @@ function saveDb() {
       nextGroupId,
       nextTillSessionSeq,
       nextPartnerReductionId,
+      nextConsultationId,
       savedAt: new Date().toISOString(),
     };
     const serialized = JSON.stringify(store, null, 2);
@@ -236,6 +299,95 @@ function saveDb() {
   } catch (err) {
     console.error('[Persistent DB] Error saving to disk:', err);
   }
+}
+
+function syncConsultationForMove(move: AccountMove): MedicalConsultation | null {
+  if (!move || !move.id) return null;
+  const invoiceLines = dbMoveLines.filter(l => l.move_id === move.id);
+  const consultLine = invoiceLines.find(l => 
+    l.product_id === 12 || 
+    l.product_id === 991 || 
+    l.product_id === 992 || 
+    l.product_id === 993 || 
+    (l.name && (
+      l.name.toLowerCase().includes('consultation') || 
+      l.name.toLowerCase().includes('infirmier') || 
+      l.name.toLowerCase().includes('triage') ||
+      l.name.toLowerCase().includes('constantes')
+    ))
+  );
+
+  if (!consultLine) return null;
+
+  let existing = dbConsultations.find(c => c.invoice_id === move.id || (c.consultation_number && move.ref && move.ref.includes(c.consultation_number)));
+
+  let docId = 16;
+  let docName = 'Dr. Aboubacar Toure';
+  let specialty = 'Médecine Générale';
+  let chiefComplaint = 'Consultation médecine générale';
+
+  if (consultLine.product_id === 991 || (consultLine.name && consultLine.name.toLowerCase().includes('infirmier'))) {
+    docId = 15;
+    docName = 'Awa Diabate (Infirmier)';
+    specialty = 'Soins & Triage Infirmier';
+    chiefComplaint = 'Consultation Infirmier (Triage & Constantes)';
+  } else if (consultLine.product_id === 993 || (consultLine.name && consultLine.name.toLowerCase().includes('spécialiste'))) {
+    docId = 17;
+    docName = 'Dr. Mamadou Cisse';
+    specialty = 'Médecine Spécialisée (Cardiologie)';
+    chiefComplaint = 'Consultation Spécialisée';
+  }
+
+  const partner = dbPartners.find(p => p.id === move.partner_id);
+  const patName = move.patient_name || partner?.name || 'Patient Inconnu';
+  const patNdm = move.ndm || partner?.ndm || `NDM-${move.partner_id}`;
+
+  if (existing) {
+    if (move.payment_state === 'paid' && existing.status === 'pending_payment') {
+      existing.status = 'triage';
+      existing.updated_at = new Date().toISOString();
+    }
+    if (!existing.patient_name || existing.patient_name === 'Patient Inconnu') {
+      existing.patient_name = patName;
+    }
+    if (!existing.patient_ndm) {
+      existing.patient_ndm = patNdm;
+    }
+    return existing;
+  }
+
+  const nextSeqNum = nextConsultationId++;
+  const consNumber = `CONS-${new Date().getFullYear()}-${String(nextSeqNum).padStart(4, '0')}`;
+
+  const newConsultation: MedicalConsultation = {
+    id: nextSeqNum,
+    consultation_number: consNumber,
+    partner_id: move.partner_id,
+    patient_name: patName,
+    patient_ndm: patNdm,
+    patient_gender: partner?.gender || 'M',
+    patient_age: move.patient_age_y || partner?.age || 30,
+    patient_phone: move.patient_phone || partner?.phone || null,
+    insurance_name: move.insurance_name || partner?.insurance_name || null,
+    insurance_coverage_rate: move.insurance_coverage_rate ?? partner?.insurance_coverage_rate ?? null,
+    doctor_id: docId,
+    doctor_name: docName,
+    specialty: specialty,
+    consultation_date: move.invoice_date ? new Date(move.invoice_date).toISOString() : new Date().toISOString(),
+    status: move.payment_state === 'paid' ? 'triage' : 'pending_payment',
+    chief_complaint: chiefComplaint,
+    diagnosis: '',
+    vitals: {
+      triage_level: 'normal',
+    },
+    prescribed_items: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    invoice_id: move.id,
+  };
+
+  dbConsultations.unshift(newConsultation);
+  return newConsultation;
 }
 
 function loadDb() {
@@ -259,39 +411,120 @@ function loadDb() {
       if (store.dbTaxes) dbTaxes = store.dbTaxes;
       if (store.dbProductTemplates) {
         dbProductTemplates = store.dbProductTemplates;
-        // Backfill lab_tests from initialProductTemplates if empty or missing
-        dbProductTemplates.forEach(t => {
-          const initT = initialProductTemplates.find(it => it.id === t.id || it.name.trim().toLowerCase() === t.name.trim().toLowerCase());
-          if (initT && (!t.lab_tests || t.lab_tests.length === 0)) {
-            t.lab_tests = initT.lab_tests;
+        // Merge missing initial items (e.g., medication, imaging, hospitalization)
+        initialProductTemplates.forEach((initT) => {
+          const exists = dbProductTemplates.some((t) => t.id === initT.id || t.name.trim().toLowerCase() === initT.name.trim().toLowerCase());
+          if (!exists) {
+            dbProductTemplates.push(initT);
+          } else {
+            const current = dbProductTemplates.find((t) => t.id === initT.id || t.name.trim().toLowerCase() === initT.name.trim().toLowerCase());
+            if (current) {
+              if (initT.prix_tm && !current.prix_tm) current.prix_tm = initT.prix_tm;
+              if (initT.prix_hp && !current.prix_hp) current.prix_hp = initT.prix_hp;
+              if (initT.lab_tests && (!current.lab_tests || current.lab_tests.length === 0)) current.lab_tests = initT.lab_tests;
+            }
           }
         });
       }
-      if (store.dbProductProducts) dbProductProducts = store.dbProductProducts;
+      if (store.dbProductProducts) {
+        dbProductProducts = store.dbProductProducts;
+        initialProductProducts.forEach((initP) => {
+          const exists = dbProductProducts.some((p) => p.id === initP.id || p.default_code === initP.default_code);
+          if (!exists) {
+            dbProductProducts.push(initP);
+          }
+        });
+      }
+
+      // Ensure every template has at least one product variant
+      dbProductTemplates.forEach((tmpl) => {
+        const hasVariant = dbProductProducts.some((p) => p.product_tmpl_id === tmpl.id);
+        if (!hasVariant) {
+          dbProductProducts.push({
+            id: tmpl.id,
+            product_tmpl_id: tmpl.id,
+            default_code: `PRD-${tmpl.id}`,
+            barcode: `376000000${tmpl.id}`,
+            active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
+      });
       if (store.dbMoves) dbMoves = store.dbMoves;
       if (store.dbMoveLines) dbMoveLines = store.dbMoveLines;
       if (store.dbPayments) dbPayments = store.dbPayments;
       if (store.dbEmailNotifications) dbEmailNotifications = store.dbEmailNotifications;
       if (store.dbLabOrders) dbLabOrders = store.dbLabOrders;
       if (store.dbTillSessions) dbTillSessions = store.dbTillSessions;
+      if (store.dbConsultations) dbConsultations = store.dbConsultations;
       if (store.dbPartnerReductions) dbPartnerReductions = store.dbPartnerReductions;
       if (store.dbWorkflowLogs) dbWorkflowLogs = store.dbWorkflowLogs;
       if (store.dbNotificationQueue) dbNotificationQueue = store.dbNotificationQueue;
+      if (store.dbJournal && Array.isArray(store.dbJournal)) {
+        dbJournal = store.dbJournal;
+      }
+      if (store.nextJournalLogId) {
+        nextJournalLogId = store.nextJournalLogId;
+      } else if (dbJournal.length > 0) {
+        nextJournalLogId = Math.max(...dbJournal.map(j => j.id_log || 0), 0) + 1;
+      }
       if (store.nextWorkflowLogId) nextWorkflowLogId = store.nextWorkflowLogId;
       if (store.nextNotificationQueueId) nextNotificationQueueId = store.nextNotificationQueueId;
-      if (store.nextPartnerId) nextPartnerId = store.nextPartnerId;
-      if (store.nextProductId) nextProductId = store.nextProductId;
-      if (store.nextMoveId) nextMoveId = store.nextMoveId;
-      if (store.nextMoveLineId) nextMoveLineId = store.nextMoveLineId;
-      if (store.nextPaymentId) nextPaymentId = store.nextPaymentId;
-      if (store.nextUserId) nextUserId = store.nextUserId;
-      if (store.nextNotificationId) nextNotificationId = store.nextNotificationId;
-      if (store.nextLabOrderId) nextLabOrderId = store.nextLabOrderId;
+      
+      // Deduplicate partners by ID if any collision exists
+      const partnerIdsSeen = new Set<number>();
+      let maxPartnerIdInDb = 0;
+      dbPartners.forEach(p => {
+        if (!p.id || partnerIdsSeen.has(p.id)) {
+          maxPartnerIdInDb++;
+          p.id = maxPartnerIdInDb;
+        } else {
+          partnerIdsSeen.add(p.id);
+          if (p.id > maxPartnerIdInDb) maxPartnerIdInDb = p.id;
+        }
+      });
+
+      // Deduplicate moves by ID
+      const moveIdsSeen = new Set<number>();
+      let maxMoveIdInDb = 0;
+      dbMoves.forEach(m => {
+        if (!m.id || moveIdsSeen.has(m.id)) {
+          maxMoveIdInDb++;
+          m.id = maxMoveIdInDb;
+        } else {
+          moveIdsSeen.add(m.id);
+          if (m.id > maxMoveIdInDb) maxMoveIdInDb = m.id;
+        }
+      });
+
+      // Deduplicate move lines by ID
+      const moveLineIdsSeen = new Set<number>();
+      let maxMoveLineIdInDb = 0;
+      dbMoveLines.forEach(l => {
+        if (!l.id || moveLineIdsSeen.has(l.id)) {
+          maxMoveLineIdInDb++;
+          l.id = maxMoveLineIdInDb;
+        } else {
+          moveLineIdsSeen.add(l.id);
+          if (l.id > maxMoveLineIdInDb) maxMoveLineIdInDb = l.id;
+        }
+      });
+
+      nextPartnerId = Math.max(store.nextPartnerId || 0, maxPartnerIdInDb + 1, 30);
+      nextProductId = Math.max(store.nextProductId || 0, ...dbProductProducts.map(p => p.id || 0), 500);
+      nextMoveId = Math.max(store.nextMoveId || 0, maxMoveIdInDb + 1, 100);
+      nextMoveLineId = Math.max(store.nextMoveLineId || 0, maxMoveLineIdInDb + 1, 500);
+      nextPaymentId = Math.max(store.nextPaymentId || 0, ...dbPayments.map(p => p.id || 0), 100);
+      nextUserId = Math.max(store.nextUserId || 0, ...dbUsers.map(u => u.id || 0), 50);
+      nextNotificationId = Math.max(store.nextNotificationId || 0, ...dbEmailNotifications.map(n => n.id || 0), 50);
+      nextLabOrderId = Math.max(store.nextLabOrderId || 0, ...dbLabOrders.map(o => o.id || 0), 50);
       if (store.nextInvoiceSeq) nextInvoiceSeq = store.nextInvoiceSeq;
       if (store.nextVendorSeq) nextVendorSeq = store.nextVendorSeq;
       if (store.nextGroupId) nextGroupId = store.nextGroupId;
       if (store.nextTillSessionSeq) nextTillSessionSeq = store.nextTillSessionSeq;
       if (store.nextPartnerReductionId) nextPartnerReductionId = store.nextPartnerReductionId;
+      nextConsultationId = Math.max(store.nextConsultationId || 0, ...dbConsultations.map(c => c.id || 0), 50);
 
       // Ensure the 4 official security groups exist and are synced
       initialGroups.forEach((ig) => {
@@ -334,35 +567,90 @@ function loadDb() {
         updated_at: new Date().toISOString(),
       };
 
-      const adminIdx = dbUsers.findIndex(
-        (u) =>
-          u.login === 'mandemohamed68@gmail.com' ||
-          u.email === 'mandemohamed68@gmail.com' ||
-          u.id === 1
-      );
+      // Strict cleaning: Keep only the official 11 system profiles
+      const validLogins = new Set([
+        'mandemohamed68@gmail.com',
+        'super_admin',
+        'superviseur',
+        'caissier',
+        'facturier',
+        'caisse_facture',
+        'infirmier',
+        'medecin',
+        'specialiste',
+        'laboratoire',
+        'imagerie',
+        'hospitalisation'
+      ]);
 
-      if (adminIdx !== -1) {
-        dbUsers[adminIdx] = {
-          ...universalAdmin,
-          ...dbUsers[adminIdx],
-          id: dbUsers[adminIdx].id || 1,
+      // Initialize clean user list based on initialUsers
+      const cleanUsers: ResUser[] = initialUsers.map((iu) => {
+        const existing = dbUsers.find((u) => u.login === iu.login || (u.email && u.email === iu.email) || u.id === iu.id);
+        if (existing) {
+          return {
+            ...existing,
+            id: iu.id,
+            login: iu.login,
+            name: iu.name,
+            email: iu.email,
+            role: iu.role,
+            department: iu.department,
+            group_ids: iu.group_ids,
+            active: true,
+            permissions: iu.permissions || existing.permissions || (iu.id === 1 ? ['all'] : []),
+            allowed_views: undefined,
+            password: 'admin',
+            password_hash: 'admin',
+          };
+        }
+        return {
+          ...iu,
+          password: 'admin',
+          password_hash: 'admin',
         };
-      } else {
-        dbUsers.unshift(universalAdmin);
-      }
+      });
 
-      initialUsers.forEach((iu) => {
-        const uIdx = dbUsers.findIndex((u) => u.login === iu.login || (u.email && u.email === iu.email));
-        if (uIdx !== -1) {
-          dbUsers[uIdx].role = iu.role;
-          dbUsers[uIdx].name = iu.name;
-          dbUsers[uIdx].group_ids = iu.group_ids;
-          dbUsers[uIdx].department = iu.department;
-          if (iu.permissions) dbUsers[uIdx].permissions = iu.permissions;
-        } else {
-          dbUsers.push(iu);
+      dbUsers = cleanUsers;
+
+      // Clean up past auto-created consultations that had fake taken_at but no actual vitals measurements:
+      dbConsultations.forEach(c => {
+        if (c.vitals && c.vitals.taken_by_name === 'Système' && !c.vitals.bp_systolic && !c.vitals.temperature && !c.vitals.heart_rate) {
+          delete c.vitals.taken_at;
+          delete c.vitals.taken_by_name;
         }
       });
+
+      // Synchronize consultations for all consultation invoices (e.g. Move 30 MANDE mohamed)
+      dbMoves.forEach(m => syncConsultationForMove(m));
+
+      // Seed initial audit journal entries if empty (R02)
+      if (dbJournal.length === 0) {
+        logToJournal('INITIALISATION_SYSTEME', 'Démarrage du Système d\'Information Hospitalier - Application des règles R01 à R10', {
+          id_utilisateur: 1,
+          utilisateur_nom: 'Super Administrateur',
+          statut: 'succes',
+        });
+        logToJournal('CREATION_DOSSIER', 'Création du dossier médical NDM-0048 avec contrôle d\'unicité (R01)', {
+          id_utilisateur: 1,
+          utilisateur_nom: 'Accueil Admissions',
+          numero_dossier: 'NDM-0048',
+          scenario_id: 'S01',
+          statut: 'succes',
+        });
+        logToJournal('VALIDATION_LABO', 'Validation médicale du bilan hématologique NFS par le biologiste (R06)', {
+          id_utilisateur: 9,
+          utilisateur_nom: 'Dr. Biologiste',
+          numero_dossier: 'NDM-0048',
+          scenario_id: 'S20',
+          statut: 'succes',
+        });
+        logToJournal('OUVERTURE_CAISSE', 'Ouverture de session caisse principale avec fond de caisse conforme (R07, R10)', {
+          id_utilisateur: 3,
+          utilisateur_nom: 'Caissier Principal',
+          scenario_id: 'S28',
+          statut: 'succes',
+        });
+      }
 
       saveDb();
       console.log('[Persistent DB] Loaded persistent database state from disk successfully.');
@@ -1451,6 +1739,8 @@ app.put('/api/groups/:id', (req: Request, res: Response) => {
   res.json(dbGroups[index]);
 });
 
+
+
 app.delete('/api/groups/:id', (req: Request, res: Response) => {
   const id = Number(req.params.id);
   dbGroups = dbGroups.filter((g) => g.id !== id);
@@ -1551,8 +1841,11 @@ app.post('/api/partners', (req: Request, res: Response) => {
     }
   }
 
+  const newId = Math.max(nextPartnerId, ...dbPartners.map((p) => p.id || 0), 0) + 1;
+  nextPartnerId = newId + 1;
+
   const newPartner: ResPartner = {
-    id: nextPartnerId++,
+    id: newId,
     name: body.name || 'Nouveau Partenaire',
     is_company: body.is_company ?? true,
     email: body.email || null,
@@ -1849,6 +2142,135 @@ app.post('/api/products/import-template', (req: Request, res: Response) => {
   }
 });
 
+// Batch import endpoint for CSV / Excel upload from Admin Back-Office
+app.post('/api/products/import-batch', (req: Request, res: Response) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Aucun élément valide à importer.' });
+    }
+
+    let importedCount = 0;
+    let updatedCount = 0;
+
+    items.forEach((item: any) => {
+      const name = String(item.name || item.Nom || item.nom || '').trim();
+      if (!name) return;
+
+      const code = String(item.default_code || item.code || item['Référence interne'] || item['Référence'] || `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`).trim();
+      const list_price = Number(item.list_price || item.prix_public || item.Prix || item['Prix Public'] || item['Prix public'] || 0);
+      const prix_tm = Number(item.prix_tm || item.Prix_TM || item['Prix TM'] || item['Prix tm'] || 0);
+      const prix_hp = Number(item.prix_hp || item.Prix_HP || item['Prix HP'] || item['Prix hp'] || 0);
+      const category_type = item.category_type || item.type || 'service';
+      const lab_department = item.lab_department || item.department || item.département || item['Département'] || 'Général';
+      const description = item.description || item.Description || '';
+      const lab_sample_type = item.lab_sample_type || item.echantillon || item['Échantillon'] || null;
+
+      // Check if product with same code or exact name exists
+      const existingProduct = dbProductProducts.find(p => p.default_code && p.default_code.toLowerCase() === code.toLowerCase());
+      
+      if (existingProduct) {
+        const tmpl = dbProductTemplates.find(t => t.id === existingProduct.product_tmpl_id);
+        if (tmpl) {
+          tmpl.name = name;
+          tmpl.list_price = list_price;
+          tmpl.prix_tm = prix_tm;
+          tmpl.prix_hp = prix_hp;
+          tmpl.category_type = category_type;
+          tmpl.lab_department = lab_department;
+          if (description) tmpl.description = description;
+          if (lab_sample_type) tmpl.lab_sample_type = lab_sample_type;
+          tmpl.updated_at = new Date().toISOString();
+        }
+        existingProduct.updated_at = new Date().toISOString();
+        updatedCount++;
+      } else {
+        const newTmplId = dbProductTemplates.length + 5000 + Math.floor(Math.random() * 10000);
+        const newTemplate: ProductTemplate = {
+          id: newTmplId,
+          name,
+          description,
+          list_price,
+          prix_tm,
+          prix_hp,
+          uom_id: 1,
+          currency_id: 3,
+          active: true,
+          category_type,
+          lab_department,
+          lab_sample_type,
+          lab_turnaround_time: '24h',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const newVariant: ProductProduct = {
+          id: nextProductId++,
+          product_tmpl_id: newTmplId,
+          default_code: code,
+          barcode: null,
+          active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        dbProductTemplates.push(newTemplate);
+        dbProductProducts.push(newVariant);
+        importedCount++;
+      }
+    });
+
+    saveDb();
+
+    res.json({
+      success: true,
+      message: `Importation terminée : ${importedCount} nouvelles prestations créées, ${updatedCount} mises à jour.`,
+      importedCount,
+      updatedCount,
+    });
+  } catch (error: any) {
+    console.error('Erreur lors du traitement du lot d\'importation :', error);
+    res.status(500).json({ error: `Erreur serveur lors de l'importation : ${error.message}` });
+  }
+});
+
+app.post('/api/products/seed-comprehensive', (req: Request, res: Response) => {
+  try {
+    let addedCount = 0;
+    initialProductTemplates.forEach((initT) => {
+      const exists = dbProductTemplates.some((t) => t.id === initT.id || t.name.trim().toLowerCase() === initT.name.trim().toLowerCase());
+      if (!exists) {
+        dbProductTemplates.push(initT);
+        addedCount++;
+      } else {
+        const current = dbProductTemplates.find((t) => t.id === initT.id || t.name.trim().toLowerCase() === initT.name.trim().toLowerCase());
+        if (current) {
+          if (initT.prix_tm && !current.prix_tm) current.prix_tm = initT.prix_tm;
+          if (initT.prix_hp && !current.prix_hp) current.prix_hp = initT.prix_hp;
+          if (initT.lab_tests && (!current.lab_tests || current.lab_tests.length === 0)) current.lab_tests = initT.lab_tests;
+        }
+      }
+    });
+
+    initialProductProducts.forEach((initP) => {
+      const exists = dbProductProducts.some((p) => p.id === initP.id || p.default_code === initP.default_code);
+      if (!exists) {
+        dbProductProducts.push(initP);
+      }
+    });
+
+    saveDb();
+    res.json({
+      success: true,
+      message: `Catalogue exhaustif synchronisé : ${dbProductTemplates.length} prestations au total disponibles dans la base.`,
+      totalProducts: dbProductProducts.length,
+      addedCount
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Erreur lors du rechargement du catalogue.' });
+  }
+});
+
 app.get('/api/products', (req: Request, res: Response) => {
   const products = dbProductProducts.map((p) => {
     const tmpl = dbProductTemplates.find((t) => t.id === p.product_tmpl_id);
@@ -2104,6 +2526,725 @@ app.delete('/api/users/:id', (req: Request, res: Response) => {
   dbUsers = dbUsers.filter((u) => u.id !== id);
   saveDb();
   res.json({ message: 'User deleted' });
+});
+
+// 5.4.5 Medical Consultations & DME (HIS)
+app.get('/api/consultations', (req: Request, res: Response) => {
+  const { partner_id, status } = req.query;
+  let result = [...dbConsultations];
+  if (partner_id) {
+    result = result.filter(c => c.partner_id === Number(partner_id));
+  }
+  if (status) {
+    result = result.filter(c => c.status === status);
+  }
+  result.sort((a, b) => new Date(b.consultation_date || b.created_at).getTime() - new Date(a.consultation_date || a.created_at).getTime());
+  res.json(result);
+});
+
+app.get('/api/consultations/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+  res.json(consultation);
+});
+
+app.post('/api/consultations', (req: Request, res: Response) => {
+  const body = req.body;
+  const patient = dbPartners.find(p => p.id === Number(body.partner_id));
+  
+  const nextSeqNum = nextConsultationId++;
+  const consNumber = `CONS-${new Date().getFullYear()}-${String(nextSeqNum).padStart(4, '0')}`;
+  
+  const newConsultation: MedicalConsultation = {
+    id: nextSeqNum,
+    consultation_number: consNumber,
+    partner_id: Number(body.partner_id),
+    patient_name: patient ? patient.name : (body.patient_name || 'Patient Inconnu'),
+    patient_ndm: patient?.ndm || body.patient_ndm || null,
+    patient_gender: patient?.gender || body.patient_gender || null,
+    patient_age: patient?.age || body.patient_age || null,
+    patient_phone: patient?.phone || body.patient_phone || null,
+    insurance_name: patient?.insurance_name || body.insurance_name || null,
+    insurance_coverage_rate: patient?.insurance_coverage_rate ?? body.insurance_coverage_rate ?? null,
+    doctor_id: body.doctor_id ? Number(body.doctor_id) : null,
+    doctor_name: body.doctor_name || 'Dr. Consultant',
+    specialty: body.specialty || 'Médecine Générale',
+    consultation_date: body.consultation_date || new Date().toISOString(),
+    status: body.status || 'completed',
+    chief_complaint: body.chief_complaint || '',
+    history_of_present_illness: body.history_of_present_illness || '',
+    medical_history: body.medical_history || '',
+    allergies: body.allergies || '',
+    physical_examination: body.physical_examination || '',
+    diagnosis: body.diagnosis || '',
+    diagnosis_code: body.diagnosis_code || null,
+    vitals: body.vitals || {},
+    prescribed_items: body.prescribed_items || [],
+    medical_notes: body.medical_notes || '',
+    next_appointment_date: body.next_appointment_date || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Workflow integration: "Tout découle de la consultation !"
+  // 1. Auto-generate Lab Orders for prescribed lab exams
+  const labItems = (newConsultation.prescribed_items || []).filter(i => i.type === 'lab_exam');
+  if (labItems.length > 0) {
+    const labExamNames = labItems.map(i => i.name);
+    const newLabOrderId = nextLabOrderId++;
+    const labOrderNo = `LAB-${new Date().getFullYear()}-${String(newLabOrderId).padStart(4, '0')}`;
+    
+    const { paramsList, expandedExams } = populateParametersForExams(labExamNames, newLabOrderId);
+    
+    const newLabOrder: LabExamOrder = {
+      id: newLabOrderId,
+      order_number: labOrderNo,
+      partner_id: newConsultation.partner_id,
+      partner_name: newConsultation.patient_name,
+      patient_gender: newConsultation.patient_gender || 'M',
+      patient_age: newConsultation.patient_age || undefined,
+      prescribing_doctor: newConsultation.doctor_name,
+      sampling_date: new Date().toISOString(),
+      status: 'pending_sampling',
+      department: 'Biologie & Consultation',
+      exam_names: expandedExams,
+      parameters: paramsList,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      statut_workflow: 'paye',
+    };
+    dbLabOrders.unshift(newLabOrder);
+    newConsultation.lab_order_ids = [newLabOrderId];
+  }
+
+  // 2. Auto-generate Draft/Posted Invoice for Billing / Caisse if billable items exist
+  const billableItems = (newConsultation.prescribed_items || []);
+  if (billableItems.length > 0 && body.auto_generate_invoice !== false) {
+    const moveId = nextMoveId++;
+    const invSeq = nextInvoiceSeq++;
+    const invName = `FAC/${new Date().getFullYear()}/${String(invSeq).padStart(4, '0')}`;
+    
+    const moveLines: AccountMoveLine[] = billableItems.map((item, idx) => {
+      const lineId = nextMoveLineId++;
+      return {
+        id: lineId,
+        move_id: moveId,
+        partner_id: newConsultation.partner_id,
+        product_id: item.product_id || null,
+        account_id: 1,
+        tax_ids: [],
+        tax_rate: 0,
+        name: `${item.name} ${item.instructions ? '(' + item.instructions + ')' : ''}`,
+        quantity: item.quantity || 1,
+        price_unit: item.price_unit || 0,
+        price_subtotal: (item.price_unit || 0) * (item.quantity || 1),
+        price_total: (item.price_unit || 0) * (item.quantity || 1),
+        discount: 0,
+        debit: (item.price_unit || 0) * (item.quantity || 1),
+        credit: 0,
+        balance: (item.price_unit || 0) * (item.quantity || 1),
+        sequence: idx + 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        product_name: item.name,
+      };
+    });
+
+    const totalAmount = moveLines.reduce((acc, l) => acc + l.price_total, 0);
+    const covRate = newConsultation.insurance_coverage_rate || 0;
+    const insuranceAmt = covRate > 0 ? (totalAmount * covRate) / 100 : 0;
+    const clientAmt = totalAmount - insuranceAmt;
+
+    const newInvoice: AccountMove = {
+      id: moveId,
+      name: invName,
+      ref: `CONS: ${consNumber}`,
+      move_type: 'out_invoice',
+      state: 'posted', // Transmitted to caisse
+      partner_id: newConsultation.partner_id,
+      invoice_date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
+      invoice_date_due: new Date().toISOString().split('T')[0],
+      currency_id: 3,
+      amount_untaxed: totalAmount,
+      amount_tax: 0,
+      amount_total: totalAmount,
+      amount_residual: totalAmount,
+      payment_state: 'not_paid',
+      fiscal_position_id: null,
+      invoice_user_id: 1,
+      company_id: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by_name: newConsultation.doctor_name,
+      invoice_user_name: newConsultation.doctor_name,
+      ndm: newConsultation.patient_ndm,
+      patient_name: newConsultation.patient_name,
+      patient_phone: newConsultation.patient_phone,
+      insurance_enabled: covRate > 0,
+      insurance_name: newConsultation.insurance_name || undefined,
+      insurance_coverage_rate: covRate,
+      insurance_amount: insuranceAmt,
+      client_share_amount: clientAmt,
+      lines: moveLines,
+      partner: patient,
+    };
+    dbMoves.unshift(newInvoice);
+    newConsultation.invoice_id = moveId;
+  }
+
+  dbConsultations.unshift(newConsultation);
+  saveDb();
+  res.status(201).json(newConsultation);
+});
+
+app.put('/api/consultations/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const index = dbConsultations.findIndex(c => c.id === id);
+  if (index === -1) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  dbConsultations[index] = {
+    ...dbConsultations[index],
+    ...req.body,
+    updated_at: new Date().toISOString(),
+  };
+  saveDb();
+  res.json(dbConsultations[index]);
+});
+
+app.post('/api/consultations/:id/confirm-prescriptions', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  const {
+    confirmedItems = [],
+    cancelledItems = [],
+    postponedItems = [],
+    patient_agreed = true,
+    prescription_notes = '',
+    circuit_mode = 'internal', // 'internal' or 'external'
+  } = req.body;
+
+  // Set individual item statuses
+  const updatedPrescriptions = (consultation.prescribed_items || []).map(item => {
+    if (confirmedItems.some((ci: any) => ci.id === item.id || ci.name === item.name)) {
+      return {
+        ...item,
+        workflow_status: patient_agreed ? ('confirmed' as const) : ('cancelled' as const),
+        circuit: patient_agreed ? 'internal' : 'external',
+      };
+    }
+    if (cancelledItems.some((ci: any) => ci.id === item.id || ci.name === item.name)) {
+      return { ...item, workflow_status: 'cancelled' as const };
+    }
+    if (postponedItems.some((ci: any) => ci.id === item.id || ci.name === item.name)) {
+      return { ...item, workflow_status: 'postponed' as const };
+    }
+    return item;
+  });
+
+  consultation.prescribed_items = updatedPrescriptions;
+  consultation.status = 'completed'; // Consultation finished, removed from waiting list
+  consultation.patient_choice = patient_agreed ? 'internal' : 'external';
+  consultation.updated_at = new Date().toISOString();
+
+  // If patient AGREES to do services in-house (Circuit Interne)
+  if (patient_agreed && confirmedItems.length > 0) {
+    const billableItems = confirmedItems;
+    const moveId = nextMoveId++;
+    const invSeq = nextInvoiceSeq++;
+    const invName = `FAC/${new Date().getFullYear()}/${String(invSeq).padStart(4, '0')}`;
+    
+    const moveLines: AccountMoveLine[] = billableItems.map((item: any, idx: number) => {
+      const lineId = nextMoveLineId++;
+      return {
+        id: lineId,
+        move_id: moveId,
+        partner_id: consultation.partner_id,
+        product_id: item.product_id || null,
+        account_id: 1,
+        tax_ids: [],
+        tax_rate: 0,
+        name: `${item.name} ${item.instructions ? '(' + item.instructions + ')' : ''}`,
+        quantity: item.quantity || 1,
+        price_unit: item.price_unit || 0,
+        price_subtotal: (item.price_unit || 0) * (item.quantity || 1),
+        price_total: (item.price_unit || 0) * (item.quantity || 1),
+        discount: 0,
+        debit: (item.price_unit || 0) * (item.quantity || 1),
+        credit: 0,
+        balance: (item.price_unit || 0) * (item.quantity || 1),
+        sequence: idx + 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        product_name: item.name,
+      };
+    });
+
+    const totalAmount = moveLines.reduce((acc, l) => acc + l.price_total, 0);
+    const covRate = consultation.insurance_coverage_rate || 0;
+    const insuranceAmt = covRate > 0 ? (totalAmount * covRate) / 100 : 0;
+    const clientAmt = totalAmount - insuranceAmt;
+
+    const patient = dbPartners.find(p => p.id === consultation.partner_id);
+
+    const newInvoice: AccountMove = {
+      id: moveId,
+      name: invName,
+      ref: `PRESCR: ${consultation.consultation_number}`,
+      move_type: 'out_invoice',
+      state: 'posted', // Transmitted directly to Caisse / Facturation
+      partner_id: consultation.partner_id,
+      invoice_date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
+      invoice_date_due: new Date().toISOString().split('T')[0],
+      currency_id: 3,
+      amount_untaxed: totalAmount,
+      amount_tax: 0,
+      amount_total: totalAmount,
+      amount_residual: totalAmount,
+      payment_state: 'not_paid',
+      fiscal_position_id: null,
+      invoice_user_id: 1,
+      company_id: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by_name: consultation.doctor_name,
+      invoice_user_name: consultation.doctor_name,
+      ndm: consultation.patient_ndm,
+      patient_name: consultation.patient_name,
+      patient_phone: consultation.patient_phone,
+      insurance_enabled: covRate > 0,
+      insurance_name: consultation.insurance_name || undefined,
+      insurance_coverage_rate: covRate,
+      insurance_amount: insuranceAmt,
+      client_share_amount: clientAmt,
+      prescribing_doctor: consultation.doctor_name,
+      is_prescription_invoice: true,
+      consultation_id: consultation.id,
+      lines: moveLines,
+      partner: patient,
+    };
+    dbMoves.unshift(newInvoice);
+    consultation.exam_invoice_id = moveId;
+    (consultation as any).prescriptions_billing_status = 'invoiced';
+
+    // Separate Lab Exams and Imaging Orders to dispatch them to their respective departments
+    const labItems = confirmedItems.filter((i: any) => i.item_type === 'lab_exam' || i.item_type === 'lab_test' || i.type === 'lab_exam');
+    if (labItems.length > 0) {
+      const orderId = nextLabOrderId++;
+      const orderNumber = `LAB/${new Date().getFullYear()}/${String(orderId).padStart(4, '0')}`;
+      const examNames = labItems.map((i: any) => i.name);
+      const generatedParams: any = populateParametersForExams(examNames, orderId);
+
+      const newLabOrder: LabExamOrder = {
+        id: orderId,
+        order_number: orderNumber,
+        invoice_id: moveId,
+        partner_id: consultation.partner_id,
+        partner_name: consultation.patient_name,
+        prescribing_doctor: consultation.doctor_name,
+        exam_names: examNames,
+        status: 'pending_sampling',
+        statut_workflow: 'paye',
+        sampling_date: new Date().toISOString(),
+        total_amount: labItems.reduce((acc: number, cur: any) => acc + (cur.price_unit || 0) * (cur.quantity || 1), 0),
+        department: 'Biologie Médicale',
+        parameters: (generatedParams && generatedParams.paramsList) ? generatedParams.paramsList : [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        company_id: 1,
+      };
+      dbLabOrders.unshift(newLabOrder);
+    }
+  } else {
+    // Patient refused in-house services: no invoice generated, mark as external prescription
+    (consultation as any).external_prescription = {
+      issued_at: new Date().toISOString(),
+      doctor_name: consultation.doctor_name,
+      doctor_title: (consultation as any).doctor_type === 'specialiste' ? `Dr. ${consultation.doctor_name} (Spécialiste)` : `Dr. ${consultation.doctor_name}`,
+      items: confirmedItems,
+      patient_name: consultation.patient_name,
+      patient_ndm: consultation.patient_ndm,
+      patient_age: consultation.patient_age,
+      patient_gender: consultation.patient_gender,
+      notes: prescription_notes || 'Prescription pour réalisation en externe à la demande du patient.',
+    };
+  }
+
+  saveDb();
+  res.json({
+    consultation,
+    patient_agreed,
+    generated_invoice_id: consultation.exam_invoice_id,
+  });
+});
+
+// 5.4.7 Patient Referral Workflow (Infirmier -> Medecin -> Specialiste)
+app.post('/api/consultations/:id/referral', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  const {
+    target_level, // 'medecin' | 'specialiste'
+    target_specialty, // e.g. 'Cardiologie', 'Pédiatrie', 'Gynécologie', 'Chirurgie', 'Pneumologie', 'Neurologie'
+    target_doctor_name,
+    target_doctor_id,
+    referral_reason, // Reason for transfer
+    referral_notes, // Clinical transfer notes
+    priority = 'urgent', // 'normal' | 'urgent' | 'critical'
+    referred_by_role = 'infirmier', // 'infirmier' | 'medecin'
+    referred_by_name = 'Soignant Référent',
+  } = req.body;
+
+  const referralEntry = {
+    id: `ref-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    from_role: referred_by_role,
+    from_name: referred_by_name,
+    target_level,
+    target_specialty: target_specialty || (target_level === 'specialiste' ? 'Médecine Spécialisée' : 'Médecine Générale'),
+    target_doctor_name: target_doctor_name || null,
+    target_doctor_id: target_doctor_id || null,
+    reason: referral_reason || 'Cas dépassant les compétences du soignant initial',
+    clinical_summary: referral_notes || '',
+    priority,
+  };
+
+  if (!consultation.referral_history) {
+    consultation.referral_history = [];
+  }
+  consultation.referral_history.push(referralEntry);
+
+  // Calculate consultation fee differential (Reliquat de consultation)
+  const baseFee = referred_by_role === 'infirmier' ? 5000 : 10000;
+  const targetFee = target_level === 'specialiste' ? 15000 : 10000;
+  const reliquat = Math.max(0, targetFee - baseFee);
+
+  let generatedInvoiceId: number | null = null;
+  let generatedInvoiceName: string | null = null;
+
+  if (reliquat > 0) {
+    const moveId = nextMoveId++;
+    const invSeq = nextInvoiceSeq++;
+    const invName = `FAC/${new Date().getFullYear()}/${String(invSeq).padStart(4, '0')}`;
+    const lineId = nextMoveLineId++;
+    const specialtyLabel = target_specialty || (target_level === 'specialiste' ? 'Médecine Spécialisée' : 'Médecine Générale');
+
+    const moveLine: AccountMoveLine = {
+      id: lineId,
+      move_id: moveId,
+      partner_id: consultation.partner_id,
+      product_id: null,
+      account_id: 1,
+      tax_ids: [],
+      tax_rate: 0,
+      name: `Reliquat Consultation Référée (${referred_by_role.toUpperCase()} ➔ ${target_level.toUpperCase()} - ${specialtyLabel}) - Motif : ${referral_reason || 'Dépassement de compétences'}`,
+      quantity: 1,
+      price_unit: reliquat,
+      price_subtotal: reliquat,
+      price_total: reliquat,
+      discount: 0,
+      debit: reliquat,
+      credit: 0,
+      balance: reliquat,
+      sequence: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      product_name: `Reliquat Consultation (${target_level})`,
+    };
+
+    const patient = dbPartners.find(p => p.id === consultation.partner_id);
+
+    const reliquatInvoice: AccountMove = {
+      id: moveId,
+      name: invName,
+      ref: `RELIQUAT: ${consultation.consultation_number}`,
+      move_type: 'out_invoice',
+      state: 'posted', // Directement mis dans la caisse en attente de paiement
+      partner_id: consultation.partner_id,
+      invoice_date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
+      invoice_date_due: new Date().toISOString().split('T')[0],
+      currency_id: 3,
+      amount_untaxed: reliquat,
+      amount_tax: 0,
+      amount_total: reliquat,
+      amount_residual: reliquat,
+      payment_state: 'not_paid',
+      fiscal_position_id: null,
+      invoice_user_id: 1,
+      company_id: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by_name: referred_by_name,
+      invoice_user_name: target_doctor_name || (target_level === 'specialiste' ? 'Médecin Spécialiste' : 'Médecin Généraliste'),
+      ndm: consultation.patient_ndm,
+      patient_name: consultation.patient_name,
+      patient_phone: consultation.patient_phone,
+      insurance_enabled: false,
+      client_share_amount: reliquat,
+      lines: [moveLine],
+      partner: patient,
+    };
+    dbMoves.unshift(reliquatInvoice);
+
+    generatedInvoiceId = moveId;
+    generatedInvoiceName = invName;
+
+    // Set consultation to pending payment for balance
+    consultation.status = 'pending_payment';
+    (consultation as any).has_pending_balance = true;
+    (consultation as any).reliquat_amount = reliquat;
+    (consultation as any).reliquat_invoice_id = moveId;
+    (consultation as any).reliquat_invoice_name = invName;
+    (consultation as any).reliquat_paid = false;
+    (consultation as any).reliquat_reason = referral_reason || 'Orientation vers praticien supérieur';
+  } else {
+    // No fee difference - immediately transferred to receiving practitioner/specialist waiting queue
+    consultation.status = 'waiting';
+    (consultation as any).has_pending_balance = false;
+    (consultation as any).reliquat_amount = 0;
+    (consultation as any).reliquat_paid = true;
+  }
+
+  // Mark as referred so nurse/triage queue knows it has been transferred to doctor
+  (consultation as any).referred_out = false;
+  (consultation as any).referred_out_by = referred_by_name;
+
+  // Update consultation status and metadata
+  (consultation as any).referred_to_doctor = true;
+  (consultation as any).target_level = target_level;
+  (consultation as any).target_specialty = target_specialty;
+  if (target_doctor_name) {
+    consultation.doctor_name = target_doctor_name;
+    (consultation as any).target_doctor_name = target_doctor_name;
+  } else {
+    consultation.doctor_name = target_level === 'specialiste' ? `Médecin Spécialiste (${target_specialty || 'Spécialité'})` : 'Médecin Généraliste';
+  }
+  if (target_doctor_id) {
+    (consultation as any).target_doctor_id = target_doctor_id;
+  }
+  consultation.priority = priority;
+  consultation.doctor_type = target_level === 'specialiste' ? 'specialiste' : 'generaliste';
+  consultation.specialty = target_specialty || (target_level === 'specialiste' ? 'Cardiologie' : 'Médecine Générale');
+  consultation.referral_reason = referral_reason;
+  consultation.referred_from = `${referred_by_role.toUpperCase()}: ${referred_by_name}`;
+  consultation.updated_at = new Date().toISOString();
+
+  saveDb();
+  res.json({
+    message: reliquat > 0
+      ? `Patient référé avec succès. Reliquat de ${reliquat.toLocaleString('fr-FR')} FCFA généré et mis en caisse pour attente de paiement.`
+      : 'Patient référé avec succès au praticien cible.',
+    consultation,
+    referral: referralEntry,
+    reliquat_amount: reliquat,
+    reliquat_invoice_id: generatedInvoiceId,
+    reliquat_invoice_name: generatedInvoiceName,
+  });
+});
+
+// Pay Reliquat / Balance for Referral at Caisse
+app.post('/api/consultations/:id/pay-balance', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  const invoiceId = (consultation as any).reliquat_invoice_id;
+  const move = dbMoves.find(m => m.id === invoiceId);
+  const receiptNum = `REC-REL-${Date.now().toString().slice(-6)}`;
+
+  if (move) {
+    const payAmt = move.amount_residual || (consultation as any).reliquat_amount || 5000;
+    const paymentId = nextPaymentId++;
+    const newPayment: AccountPayment = {
+      id: paymentId,
+      user_id: 1,
+      move_id: move.id,
+      partner_id: move.partner_id,
+      journal_id: 2, // Caisse
+      payment_method_id: 1, // Espèces
+      amount: payAmt,
+      payment_date: new Date().toISOString(),
+      state: 'posted',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      partner_name: move.patient_name || undefined,
+      move_name: move.name || undefined,
+    };
+    dbPayments.push(newPayment);
+
+    move.payment_state = 'paid';
+    move.amount_residual = 0;
+    move.state = 'posted';
+    move.updated_at = new Date().toISOString();
+  }
+
+  (consultation as any).has_pending_balance = false;
+  (consultation as any).reliquat_paid = true;
+  (consultation as any).reliquat_receipt_number = receiptNum;
+  consultation.status = 'waiting'; // Patient is now ready for doctor consultation!
+  consultation.updated_at = new Date().toISOString();
+  saveDb();
+  res.json({
+    message: 'Reliquat acquitté avec succès à la Caisse. Le patient est désormais prêt pour la consultation médicale.',
+    consultation,
+    receipt_number: receiptNum,
+  });
+});
+
+app.delete('/api/consultations/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  dbConsultations = dbConsultations.filter(c => c.id !== id);
+  saveDb();
+  res.json({ message: 'Consultation supprimée avec succès' });
+});
+
+// 5.4.6 Vitals Recording & Triage Management
+app.post('/api/consultations/:id/vitals', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  const {
+    bp_systolic,
+    bp_diastolic,
+    heart_rate,
+    spo2,
+    temperature,
+    weight,
+    height,
+    blood_sugar,
+    pain_level,
+    triage_level,
+    vitals_notes,
+    box_assigned,
+    priority,
+    taken_by_name,
+    orient_to_doctor,
+  } = req.body;
+
+  const w = weight !== undefined && weight !== '' ? Number(weight) : consultation.vitals?.weight;
+  const h = height !== undefined && height !== '' ? Number(height) : consultation.vitals?.height;
+  const bmi = w && h ? Number((w / ((h / 100) * (h / 100))).toFixed(1)) : (consultation.vitals?.bmi || null);
+
+  consultation.vitals = {
+    ...consultation.vitals,
+    bp_systolic: bp_systolic !== undefined && bp_systolic !== '' ? Number(bp_systolic) : (consultation.vitals?.bp_systolic ?? null),
+    bp_diastolic: bp_diastolic !== undefined && bp_diastolic !== '' ? Number(bp_diastolic) : (consultation.vitals?.bp_diastolic ?? null),
+    heart_rate: heart_rate !== undefined && heart_rate !== '' ? Number(heart_rate) : (consultation.vitals?.heart_rate ?? null),
+    spo2: spo2 !== undefined && spo2 !== '' ? Number(spo2) : (consultation.vitals?.spo2 ?? null),
+    temperature: temperature !== undefined && temperature !== '' ? Number(temperature) : (consultation.vitals?.temperature ?? null),
+    weight: w ?? null,
+    height: h ?? null,
+    bmi,
+    blood_sugar: blood_sugar !== undefined && blood_sugar !== '' ? Number(blood_sugar) : (consultation.vitals?.blood_sugar ?? null),
+    pain_level: pain_level !== undefined && pain_level !== '' ? Number(pain_level) : (consultation.vitals?.pain_level ?? null),
+    triage_level: triage_level || consultation.vitals?.triage_level || 'normal',
+    vitals_notes: vitals_notes !== undefined ? vitals_notes : (consultation.vitals?.vitals_notes ?? null),
+    taken_by_name: taken_by_name || 'Infirmière Major',
+    taken_at: new Date().toISOString(),
+  };
+
+  if (box_assigned) consultation.box_assigned = box_assigned;
+  if (priority) consultation.priority = priority;
+
+  // Advance workflow: once vitals are recorded, orient to doctor waiting room
+  if (orient_to_doctor !== false && (consultation.status === 'triage' || consultation.status === 'pending_payment')) {
+    consultation.status = 'waiting';
+  }
+
+  consultation.updated_at = new Date().toISOString();
+  saveDb();
+  res.json(consultation);
+});
+
+app.post('/api/consultations/:id/triage', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  const { triage_level, priority, box_assigned, chief_complaint, orient_to_doctor, vitals_notes } = req.body;
+
+  if (!consultation.vitals) consultation.vitals = {};
+  if (triage_level) consultation.vitals.triage_level = triage_level;
+  if (vitals_notes !== undefined) consultation.vitals.vitals_notes = vitals_notes;
+  if (box_assigned) consultation.box_assigned = box_assigned;
+  if (priority) consultation.priority = priority;
+  if (chief_complaint) consultation.chief_complaint = chief_complaint;
+
+  if (orient_to_doctor) {
+    consultation.status = 'waiting';
+  }
+
+  consultation.updated_at = new Date().toISOString();
+  saveDb();
+  res.json(consultation);
+});
+
+app.post('/api/consultations/:id/start', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  consultation.status = 'in_consultation';
+  consultation.updated_at = new Date().toISOString();
+  saveDb();
+  res.json(consultation);
+});
+
+app.post('/api/consultations/:id/complete', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  consultation.status = 'completed';
+  consultation.updated_at = new Date().toISOString();
+  saveDb();
+  res.json(consultation);
+});
+
+// Quick Cash Payment for Consultation at queue
+app.post('/api/consultations/:id/pay-cash', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const consultation = dbConsultations.find(c => c.id === id);
+  if (!consultation) return res.status(404).json({ error: 'Consultation non trouvée' });
+
+  const move = dbMoves.find(m => m.id === consultation.invoice_id);
+  if (move) {
+    const payAmt = move.amount_residual || move.client_share_amount || move.amount_total || 5000;
+    const paymentId = nextPaymentId++;
+    const newPayment: AccountPayment = {
+      id: paymentId,
+      user_id: 1,
+      move_id: move.id,
+      partner_id: move.partner_id,
+      journal_id: 2, // Caisse
+      payment_method_id: 1, // Espèces
+      amount: payAmt,
+      payment_date: new Date().toISOString(),
+      state: 'posted',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      partner_name: move.patient_name || undefined,
+      move_name: move.name || undefined,
+    };
+    dbPayments.push(newPayment);
+
+    move.payment_state = 'paid';
+    move.amount_residual = 0;
+    move.state = 'posted';
+    move.updated_at = new Date().toISOString();
+  }
+
+  consultation.status = 'triage';
+  consultation.updated_at = new Date().toISOString();
+  saveDb();
+  res.json({ consultation, move });
 });
 
 // 5.5 Lab Exam Orders & Results (lab_exam_order)
@@ -2891,7 +4032,7 @@ app.post('/api/lab-orders/:id/send-patient', (req: Request, res: Response) => {
 });
 
 // 6. Account Moves & Lines (account_move, account_move_line)
-app.get('/api/moves', (req: Request, res: Response) => {
+const handleGetMoves = (req: Request, res: Response) => {
   const { move_type, state, partner_id, payment_state } = req.query;
   let result = [...dbMoves];
 
@@ -2910,7 +4051,10 @@ app.get('/api/moves', (req: Request, res: Response) => {
 
   const expanded = result.map(expandMove);
   res.json(expanded);
-});
+};
+
+app.get('/api/moves', handleGetMoves);
+app.get('/api/account-moves', handleGetMoves);
 
 app.get('/api/moves/:id', (req: Request, res: Response) => {
   const id = Number(req.params.id);
@@ -2955,7 +4099,8 @@ app.post('/api/moves', (req: Request, res: Response) => {
   let amountUntaxed = 0;
   let amountTax = 0;
 
-  const moveId = nextMoveId++;
+  const moveId = Math.max(nextMoveId, ...dbMoves.map((m) => m.id || 0), 0) + 1;
+  nextMoveId = moveId + 1;
   const createdLines: AccountMoveLine[] = [];
 
   if (Array.isArray(lines)) {
@@ -2982,8 +4127,11 @@ app.post('/api/moves', (req: Request, res: Response) => {
 
       const isOut = (move_type || 'out_invoice').startsWith('out');
 
+      const newLineId = Math.max(nextMoveLineId, ...dbMoveLines.map((l) => l.id || 0), 0) + 1;
+      nextMoveLineId = newLineId + 1;
+
       const newLine: AccountMoveLine = {
-        id: nextMoveLineId++,
+        id: newLineId,
         move_id: moveId,
         partner_id: partnerId,
         product_id: line.product_id ? Number(line.product_id) : null,
@@ -3068,8 +4216,11 @@ app.put('/api/moves/:id', (req: Request, res: Response) => {
   if (moveIndex === -1) return res.status(404).json({ error: 'Invoice not found' });
 
   const existingMove = dbMoves[moveIndex];
-  if (existingMove.state !== 'draft') {
-    return res.status(400).json({ error: 'Seules les factures en brouillon peuvent être modifiées.' });
+  if (existingMove.payment_state === 'paid') {
+    return res.status(400).json({ error: 'Les factures déjà intégralement payées ne peuvent plus être modifiées.' });
+  }
+  if (existingMove.state === 'cancel') {
+    return res.status(400).json({ error: 'Les factures annulées ne peuvent plus être modifiées.' });
   }
 
   const {
@@ -3181,7 +4332,22 @@ app.put('/api/moves/:id', (req: Request, res: Response) => {
       ? (existingMove.client_share_amount !== undefined ? Number(existingMove.client_share_amount) : Math.max(0, amountTotal - insAmount))
       : amountTotal;
 
-    existingMove.amount_residual = Number((existingMove.insurance_enabled ? clientShare : amountTotal).toFixed(2));
+    // Calculate sum of payments already made
+    const existingPaidSum = dbPayments
+      .filter((p) => p.move_id === id && (p.state as string) !== 'cancel')
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const targetClientShare = existingMove.insurance_enabled ? clientShare : amountTotal;
+    const residual = Math.max(0, targetClientShare - existingPaidSum);
+
+    existingMove.amount_residual = Number(residual.toFixed(2));
+    if (existingMove.amount_residual <= 0 && targetClientShare > 0) {
+      existingMove.payment_state = 'paid';
+    } else if (existingPaidSum > 0) {
+      existingMove.payment_state = 'partial';
+    } else {
+      existingMove.payment_state = 'not_paid';
+    }
   }
 
   if (partner_id) existingMove.partner_id = Number(partner_id);
@@ -3342,6 +4508,21 @@ app.post('/api/payments', (req: Request, res: Response) => {
 
   dbPayments.push(newPayment);
 
+  // Auto-post move if draft
+  if (move.state === 'draft') {
+    move.state = 'posted';
+    if (!move.name) {
+      const year = new Date().getFullYear();
+      if (move.move_type === 'out_invoice') {
+        const seqStr = String(nextInvoiceSeq++).padStart(4, '0');
+        move.name = `FAC/${year}/${seqStr}`;
+      } else {
+        const seqStr = String(nextVendorSeq++).padStart(4, '0');
+        move.name = `FF/${year}/${seqStr}`;
+      }
+    }
+  }
+
   // Recalculate move residual amount & payment_state
   const currentResidual = move.amount_residual - paymentAmount;
   move.amount_residual = Math.max(0, Number(currentResidual.toFixed(2)));
@@ -3430,6 +4611,84 @@ app.post('/api/payments', (req: Request, res: Response) => {
 
   // --- TRIGGER: AUTOMATED LAB ORDER CREATION FOR PAID INVOICES ---
   if (move.payment_state === 'paid') {
+    // Transition associated consultation from 'pending_payment' to 'triage'
+    const relatedConsultation = dbConsultations.find(
+      (c) => c.invoice_id === move.id || (c.consultation_number && move.ref && move.ref.includes(c.consultation_number))
+    );
+    if (relatedConsultation && relatedConsultation.status === 'pending_payment') {
+      relatedConsultation.status = 'triage';
+      relatedConsultation.updated_at = new Date().toISOString();
+    }
+
+    // New: If invoice is a paid consultation invoice and no consultation exists, create a new MedicalConsultation
+    const invoiceLinesForCheck = dbMoveLines.filter(l => l.move_id === move.id);
+    const hasConsultationLine = invoiceLinesForCheck.some(l => 
+      l.product_id === 12 || 
+      l.product_id === 991 || 
+      l.product_id === 992 || 
+      l.product_id === 993 || 
+      (l.name && l.name.toLowerCase().includes('consultation'))
+    );
+
+    if (hasConsultationLine && !relatedConsultation) {
+      const consultLine = invoiceLinesForCheck.find(l => 
+        l.product_id === 12 || 
+        l.product_id === 991 || 
+        l.product_id === 992 || 
+        l.product_id === 993 || 
+        (l.name && l.name.toLowerCase().includes('consultation'))
+      );
+      
+      let docId = 16;
+      let docName = 'Dr. Aboubacar Toure';
+      let specialty = 'Médecine Générale';
+      
+      if (consultLine) {
+        if (consultLine.product_id === 991 || (consultLine.name && consultLine.name.toLowerCase().includes('infirmier'))) {
+          docId = 15;
+          docName = 'Awa Diabate (Infirmier)';
+          specialty = 'Triage & Soins';
+        } else if (consultLine.product_id === 993 || (consultLine.name && consultLine.name.toLowerCase().includes('spécialiste'))) {
+          docId = 17;
+          docName = 'Dr. Mamadou Cisse';
+          specialty = 'Médecine Spécialisée';
+        }
+      }
+      
+      const nextSeqNum = nextConsultationId++;
+      const consNumber = `CONS-${new Date().getFullYear()}-${String(nextSeqNum).padStart(4, '0')}`;
+      
+      const newConsultation: MedicalConsultation = {
+        id: nextSeqNum,
+        consultation_number: consNumber,
+        partner_id: move.partner_id,
+        patient_name: move.patient_name || (partner ? partner.name : 'Patient Inconnu'),
+        patient_ndm: move.ndm || partner?.ndm || null,
+        patient_gender: partner?.gender || 'M',
+        patient_age: move.patient_age_y || partner?.age || 30,
+        patient_phone: move.patient_phone || partner?.phone || null,
+        insurance_name: move.insurance_name || partner?.insurance_name || null,
+        insurance_coverage_rate: move.insurance_coverage_rate ?? partner?.insurance_coverage_rate ?? null,
+        doctor_id: docId,
+        doctor_name: docName,
+        specialty: specialty,
+        consultation_date: new Date().toISOString(),
+        status: 'triage',
+        chief_complaint: 'Avis médical direct',
+        diagnosis: 'Sujet pour consultation',
+        vitals: {
+          taken_by_name: 'Système',
+          taken_at: new Date().toISOString(),
+        },
+        prescribed_items: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        invoice_id: move.id,
+      };
+      
+      dbConsultations.push(newConsultation);
+    }
+
     // Check if lab orders already exist for this invoice to prevent duplicates
     const alreadyExists = dbLabOrders.some(o => o.invoice_id === move.id);
     if (!alreadyExists) {
@@ -3791,6 +5050,31 @@ app.post('/api/notifications/send-reminder', (req: Request, res: Response) => {
     notification: newNotif,
   });
 });
+
+// Register Hospital Scenarios & Full Medical Journey Engine (S01 - S50, R01 - R10, Journal, Patient 360)
+const dbContext = {
+  dbCompany,
+  dbPartners,
+  dbMoves,
+  dbMoveLines,
+  dbPayments,
+  dbConsultations,
+  dbLabOrders,
+  dbTillSessions,
+  dbUsers,
+  dbJournal,
+  logToJournal,
+  saveDb,
+  getNextPartnerId: () => nextPartnerId++,
+  getNextMoveId: () => nextMoveId++,
+  getNextMoveLineId: () => nextMoveLineId++,
+  getNextPaymentId: () => nextPaymentId++,
+  getNextConsultationId: () => nextConsultationId++,
+  getNextLabOrderId: () => nextLabOrderId++,
+};
+
+registerHospitalScenariosRoutes(app, dbContext);
+registerFhirRoutes(app, dbContext);
 
 // Server Initialization
 async function startServer() {

@@ -1,0 +1,823 @@
+openapi: 3.0.0
+info:
+  title: Plateforme Hospitaliere SIH & FHIR R4 API
+  description: Spécification officielle des endpoints de l'API REST conforme HL7 FHIR R4 pour la gestion d'identité patient, la clinique, les examens et la facturation centralisée.
+  version: 2.0.0
+servers:
+  - url: /api
+    description: Serveur de Développement Local / Conteneur Cloud Run
+paths:
+  /auth/login:
+    post:
+      summary: Connexion utilisateur (RBAC)
+      description: Permet d'authentifier un praticien et d'obtenir un jeton JWT avec les privilèges associés.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: OBJECT
+              properties:
+                login:
+                  type: string
+                password:
+                  type: string
+              required:
+                - login
+                - password
+      responses:
+        '200':
+          description: Connexion réussie, jeton JWT délivré.
+        '401':
+          description: Identifiants invalides.
+
+  /auth/refresh:
+    post:
+      summary: Rafraîchir le jeton JWT
+      responses:
+        '200':
+          description: Nouveau jeton JWT généré.
+
+  /auth/logout:
+    post:
+      summary: Déconnexion utilisateur
+      responses:
+        '200':
+          description: Session révoquée avec succès.
+
+  /Patient:
+    get:
+      summary: Rechercher des patients (FHIR Patient search)
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: birthdate
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: identifier
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: telecom
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste de ressources Patient FHIR.
+    post:
+      summary: Créer une fiche Patient (POST Patient)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Patient'
+      responses:
+        '201':
+          description: Patient créé avec succès.
+
+  /Patient/{id}:
+    get:
+      summary: Obtenir la fiche d'un patient par identifiant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ressource Patient FHIR correspondante.
+    put:
+      summary: Mettre à jour entièrement la fiche d'un patient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Patient'
+      responses:
+        '200':
+          description: Patient mis à jour.
+    patch:
+      summary: Mettre à jour partiellement la fiche d'un patient
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Patient modifié.
+
+  /Patient/{target}/$merge:
+    post:
+      summary: Fusionner deux dossiers patients (R01, M2.6)
+      parameters:
+        - name: target
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: OBJECT
+              properties:
+                sourcePatientId:
+                  type: string
+                reason:
+                  type: string
+              required:
+                - sourcePatientId
+                - reason
+      responses:
+        '200':
+          description: Dossiers fusionnés avec succès.
+
+  /Coverage:
+    get:
+      summary: Rechercher les assurances d'un patient
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste d'assurances Coverage FHIR.
+    post:
+      summary: Enregistrer une assurance (POST Coverage)
+      responses:
+        '201':
+          description: Coverage enregistré.
+
+  /Coverage/{id}:
+    patch:
+      summary: Modifier une assurance existante
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assurance mise à jour.
+
+  /Consent:
+    get:
+      summary: Récupérer les consentements d'un patient (R12)
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste de consentements Consent FHIR.
+    post:
+      summary: Enregistrer un nouveau consentement patient
+      responses:
+        '201':
+          description: Consentement stocké.
+
+  /Encounter:
+    get:
+      summary: Rechercher des séjours / admissions (Encounters)
+      parameters:
+        - name: patient
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste de séjours hospitaliers.
+    post:
+      summary: Enregistrer une admission (Encounter)
+      responses:
+        '201':
+          description: Admission créée.
+
+  /Encounter/{id}:
+    get:
+      summary: Récupérer un séjour par son ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Détails du séjour Encounter FHIR.
+    patch:
+      summary: Modifier le statut d'un séjour (e.g. arrived -> finished)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Statut du séjour mis à jour.
+
+  /Observation:
+    get:
+      summary: Récupérer les observations cliniques d'un séjour
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: encounter
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Constantes vitales et observations FHIR.
+    post:
+      summary: Enregistrer une constante vitale (R03)
+      responses:
+        '201':
+          description: Constante enregistrée.
+
+  /Condition:
+    get:
+      summary: Récupérer les diagnostics médicaux (CIM-10)
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pathologies actives.
+    post:
+      summary: Poser un diagnostic CIM-10
+      responses:
+        '201':
+          description: Diagnostic enregistré.
+
+  /ServiceRequest:
+    get:
+      summary: Rechercher les prescriptions d'actes (biologie, imagerie, soins)
+      parameters:
+        - name: patient
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste de prescriptions d'actes.
+    post:
+      summary: Émettre une demande d'actes (ServiceRequest)
+      responses:
+        '201':
+          description: Prescription enregistrée.
+
+  /ServiceRequest/{id}:
+    patch:
+      summary: Modifier le statut ou reporter une ligne d'actes (M4.3 Arbitrage)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Prescription arbitrée.
+
+  /MedicationRequest:
+    get:
+      summary: Obtenir les prescriptions de médicaments d'un patient
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ordonnances médicamenteuses.
+    post:
+      summary: Émettre une ordonnance de médicaments
+      responses:
+        '201':
+          description: Prescription enregistrée.
+
+  /MedicationRequest/{id}:
+    patch:
+      summary: Annuler ou suspendre une ligne d'ordonnance (R06)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ordonnance mise à jour.
+
+  /Specimen:
+    get:
+      summary: Rechercher les prélèvements de laboratoire
+      parameters:
+        - name: serviceRequest
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ressources Specimen FHIR.
+    post:
+      summary: Enregistrer un prélèvement biologique avec code-barres unique
+      responses:
+        '201':
+          description: Échantillon enregistré.
+
+  /DiagnosticReport:
+    get:
+      summary: Récupérer les rapports de résultats validés (R06)
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comptes-rendus d'analyses ou d'imagerie.
+    post:
+      summary: Publier un rapport de biologie / imagerie médicale
+      responses:
+        '201':
+          description: DiagnosticReport créé.
+
+  /ImagingStudy:
+    get:
+      summary: Rechercher les clichés d'imagerie associés à un patient
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Séries d'images DICOM référencées.
+    post:
+      summary: Enregistrer une étude d'imagerie acquise (PACS)
+      responses:
+        '201':
+          description: ImagingStudy enregistré.
+
+  /MedicationDispense:
+    get:
+      summary: Récupérer l'historique des délivrances de médicaments
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste de délivrances terminées.
+    post:
+      summary: Enregistrer la délivrance de médicaments (Pharmacie, 5R)
+      responses:
+        '201':
+          description: Délivrance effectuée et décomptée des stocks.
+
+  /Invoice:
+    get:
+      summary: Récupérer les quittances et factures émises (M3.1, M3.5)
+      parameters:
+        - name: patient
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste d'Invoice FHIR correspondantes.
+    post:
+      summary: Générer une quittance de soins détaillée (Ticket modérateur)
+      responses:
+        '201':
+          description: Quittance créée à l'état de brouillon ou émise.
+
+  /Invoice/{id}:
+    patch:
+      summary: Modifier ou valider une quittance de soins
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invoice mise à jour.
+
+  /Invoice/{id}/$cancel:
+    post:
+      summary: Annuler ou contre-passer une facture avec motif (R02, R04, M3.4)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: OBJECT
+              properties:
+                reason:
+                  type: string
+                supervisorAuth:
+                  type: string
+              required:
+                - reason
+                - supervisorAuth
+      responses:
+        '200':
+          description: Facture annulée et contre-passée comptablement.
+
+  /PaymentReconciliation:
+    get:
+      summary: Récupérer les règlements associés à une facture
+      parameters:
+        - name: invoice
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reçus de règlements.
+    post:
+      summary: Enregistrer un encaissement physique ou électronique (M3.2)
+      responses:
+        '201':
+          description: Encaissement enregistré et facture mise à balanced.
+
+  /Claim:
+    get:
+      summary: Récupérer les créances assureurs émises (M3.3)
+      parameters:
+        - name: insurer
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Créances tiers-payant Claim FHIR.
+    post:
+      summary: Envoyer une créance d'assurance tiers-payant
+      responses:
+        '201':
+          description: Claim créé.
+
+  /ClaimResponse:
+    get:
+      summary: Obtenir les retours de règlements d'assureurs
+      parameters:
+        - name: claim
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Réponses d'assurances.
+    post:
+      summary: Enregistrer le retour de prise en charge de l'assureur
+      responses:
+        '201':
+          description: Retour de règlement d'assurance traité.
+
+  /AuditEvent:
+    get:
+      summary: Consulter le journal d'audit de sécurité (R02, M9.1)
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: user
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Événements d'audit de sécurité extraits.
+    post:
+      summary: Consigner un événement d'audit de sécurité
+      responses:
+        '201':
+          description: Événement enregistré de manière immuable.
+
+  /Provenance:
+    get:
+      summary: Récupérer l'origine et l'auteur d'une ressource (R02, M9.2)
+      parameters:
+        - name: target
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Traces de provenance.
+
+  /Communication:
+    get:
+      summary: Liste des rappels ou alertes envoyées aux patients (M3.6)
+      parameters:
+        - name: patient
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Historique de communications.
+    post:
+      summary: Envoyer un SMS / Email / Notification d'impayé ou de soin
+      responses:
+        '201':
+          description: Communication consignée.
+
+  /InventoryItem:
+    get:
+      summary: Consulter l'état des stocks de la pharmacie (M6.2)
+      parameters:
+        - name: medication
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Quantités et lots disponibles en pharmacie.
+    post:
+      summary: Saisie d'une entrée en stock de médicament
+      responses:
+        '201':
+          description: Lot ajouté.
+    patch:
+      summary: Ajustement manuel de stock
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stock ajusté.
+
+  /MeasureReport:
+    get:
+      summary: Consulter un rapport de performance ou d'activité (M7.4)
+      parameters:
+        - name: measure
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Rapport de performance compilé.
+    post:
+      summary: Générer un rapport de performance pour une période
+      responses:
+        '201':
+          description: Rapport d'activité compilé.
+
+  /ActivityDefinition:
+    get:
+      summary: Récupérer le catalogue d'actes configurés (M8.2)
+      responses:
+        '200':
+          description: Liste d'actes référencés.
+    post:
+      summary: Ajouter un nouvel acte au référentiel hospitalier
+      responses:
+        '201':
+          description: Acte configuré.
+
+  /ChargeItemDefinition:
+    get:
+      summary: Liste des tarifs d'actes associés
+      responses:
+        '200':
+          description: Tarification en FCFA.
+    post:
+      summary: Configurer le tarif d'un acte
+      responses:
+        '201':
+          description: Tarif configuré.
+
+  /Practitioner:
+    get:
+      summary: Récupérer l'annuaire des professionnels (M8.1)
+      responses:
+        '200':
+          description: Liste de praticiens.
+    post:
+      summary: Enregistrer un nouveau praticien
+      responses:
+        '201':
+          description: Praticien configuré.
+
+  /PractitionerRole:
+    get:
+      summary: Liste des profils et habilitations d'accès
+      responses:
+        '200':
+          description: Rôles d'accès.
+    post:
+      summary: Assigner un rôle d'accès
+      responses:
+        '201':
+          description: Profil assigné.
+
+  /Organization:
+    get:
+      summary: Récupérer la liste des compagnies d'assurance ou pôles
+      responses:
+        '200':
+          description: Liste d'organisations.
+    post:
+      summary: Ajouter un assureur ou pôle hospitalier
+      responses:
+        '201':
+          description: Organisation configurée.
+
+  /Location:
+    get:
+      summary: Récupérer la cartographie des chambres, lits ou salles
+      responses:
+        '200':
+          description: Lieux hospitaliers.
+    post:
+      summary: Configurer une salle, un lit ou un guichet caisse
+      responses:
+        '201':
+          description: Lieu configuré.
+
+  /Device:
+    get:
+      summary: Consulter le registre des équipements biomédicaux (M5.3)
+      responses:
+        '200':
+          description: Liste de dispositifs médicaux actifs.
+    post:
+      summary: Enregistrer un nouvel automate de biologie ou d'imagerie
+      responses:
+        '201':
+          description: Dispositif configuré.
+
+  /DeviceMetric:
+    post:
+      summary: Enregistrer un relevé de maintenance ou contrôle qualité d'appareil
+      responses:
+        '201':
+          description: Relevé enregistré.
+
+components:
+  schemas:
+    Patient:
+      type: object
+      properties:
+        resourceType:
+          type: string
+          example: Patient
+        id:
+          type: string
+          example: PAT-00123
+        identifier:
+          type: array
+          items:
+            type: object
+            properties:
+              system:
+                type: string
+              value:
+                type: string
+                example: NDM-0048
+        name:
+          type: array
+          items:
+            type: object
+            properties:
+              family:
+                type: string
+                example: Diallo
+              given:
+                type: array
+                items:
+                  type: string
+                example: ["Awa"]
+        gender:
+          type: string
+          enum: [male, female, other]
+          example: female
+        birthDate:
+          type: string
+          format: date
+          example: "1994-04-12"
+        telecom:
+          type: array
+          items:
+            type: object
+            properties:
+              system:
+                type: string
+                example: phone
+              value:
+                type: string
+                example: "+2250700000000"
+              use:
+                type: string
+                example: mobile
+        active:
+          type: boolean
+          example: true

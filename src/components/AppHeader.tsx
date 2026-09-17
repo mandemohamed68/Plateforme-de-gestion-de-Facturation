@@ -211,9 +211,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       Changer de compte
                     </div>
-                    {users.map((u) => (
+                    {users.map((u, uIdx) => (
                       <button
-                        key={u.id}
+                        key={`header-user-${u.id}-${u.login || uIdx}`}
                         onClick={() => {
                           onSelectUser(u);
                           setShowUserMenu(false);

@@ -49,47 +49,106 @@ export const EXHAUSTIVE_PERMISSIONS = [
 ];
 
 export const ALL_NAVIGATION_MENUS = [
-  { id: 'dashboard', label: 'Tableau de Bord & Analyses', category: 'PILOTAGE & STRATÉGIE' },
-  { id: 'caisse_sessions', label: 'Sessions Caisse & Guichets', category: 'FACTURATION & CAISSE' },
-  { id: 'invoices', label: 'Factures & Actes', category: 'FACTURATION & CAISSE' },
-  { id: 'payments', label: 'Règlements & Encaissements', category: 'FACTURATION & CAISSE' },
-  { id: 'partners', label: 'Patients & Prescripteurs', category: 'PATIENTS & PLATEAU TECHNIQUE' },
-  { id: 'lab_results', label: 'Examens & Résultats', category: 'PATIENTS & PLATEAU TECHNIQUE' },
-  { id: 'products', label: 'Catalogue des Analyses', category: 'PATIENTS & PLATEAU TECHNIQUE' },
-  { id: 'users', label: 'Utilisateurs & Droits', category: 'ADMINISTRATION & SÉCURITÉ' },
-  { id: 'company', label: 'Branding & Filigrane', category: 'ADMINISTRATION & SÉCURITÉ' },
-  { id: 'flash_announcements', label: 'Annonces & Flash Info', category: 'ADMINISTRATION & SÉCURITÉ' },
-  { id: 'notifications', label: 'Relances & Alertes', category: 'AUDIT & TRAÇABILITÉ' },
-  { id: 'schema', label: 'Schéma & Architecture BD', category: 'ADMINISTRATION & SÉCURITÉ' },
+  // 1. ACCUEIL
+  { id: 'dashboard', label: 'Tableau de bord général', category: 'ACCUEIL' },
+
+  // 2. FACTURATION
+  { id: 'superviseur_group', label: 'Superviseur (Module)', category: 'FACTURATION' },
+  { id: 'caisse_group', label: 'Caisse (Module)', category: 'FACTURATION' },
+  { id: 'factures_group', label: 'Factures (Module)', category: 'FACTURATION' },
+  { id: 'caisse_facture_group', label: 'Caisse & Facture (Module)', category: 'FACTURATION' },
+  { id: 'caisse_sessions', label: 'Suivi des caisses', category: 'FACTURATION' },
+  { id: 'payments', label: 'Contrôle des encaissements', category: 'FACTURATION' },
+  { id: 'invoices', label: 'Gestion des factures', category: 'FACTURATION' },
+  { id: 'insurance_claims', label: 'Dus Assurances', category: 'FACTURATION' },
+
+  // 3. MÉDICAL
+  { id: 'infirmier_group', label: 'Infirmier (Module)', category: 'MÉDICAL' },
+  { id: 'medecin_group', label: 'Médecin (Module)', category: 'MÉDICAL' },
+  { id: 'specialiste_group', label: 'Spécialiste (Module)', category: 'MÉDICAL' },
+  { id: 'consultations', label: 'Consultations & Triage', category: 'MÉDICAL' },
+  { id: 'care_plans', label: 'Soins & Suivi', category: 'MÉDICAL' },
+  { id: 'transmissions', label: 'Transmissions', category: 'MÉDICAL' },
+  { id: 'nurse_schedule', label: 'Planning Soins', category: 'MÉDICAL' },
+  { id: 'patient_dossiers', label: 'Dossiers médicaux (DME)', category: 'MÉDICAL' },
+  { id: 'surgery_theater', label: 'Bloc Opératoire', category: 'MÉDICAL' },
+  { id: 'letters_referrals', label: 'Courriers & Certificats', category: 'MÉDICAL' },
+  { id: 'partners', label: 'Registre des Patients', category: 'MÉDICAL' },
+
+  // 4. EXAMENS
+  { id: 'labo_group', label: 'Laboratoire (Module)', category: 'EXAMENS' },
+  { id: 'imagerie_group', label: 'Imagerie (Module)', category: 'EXAMENS' },
+  { id: 'lab_sampling', label: 'Prélèvements Laboratoire', category: 'EXAMENS' },
+  { id: 'lab_results', label: 'Résultats Analyses', category: 'EXAMENS' },
+  { id: 'lab_grouped_results', label: 'Saisie Groupée', category: 'EXAMENS' },
+  { id: 'products', label: 'Catalogue & Tarifs', category: 'EXAMENS' },
+  { id: 'imaging_pacs', label: 'Imagerie Médicale', category: 'EXAMENS' },
+  { id: 'pharmacy_dispensing', label: 'Pharmacie', category: 'EXAMENS' },
+  { id: 'sterilization_log', label: 'Stérilisation', category: 'EXAMENS' },
+
+  // 5. HOSPITALISATION
+  { id: 'appointments', label: 'Rendez-vous', category: 'HOSPITALISATION' },
+  { id: 'bed_management', label: 'Gestion des Lits', category: 'HOSPITALISATION' },
+
+  // 6. ADMINISTRATION
+  { id: 'users', label: 'Utilisateurs & Rôles', category: 'ADMINISTRATION' },
+  { id: 'company', label: 'Établissement & Paramètres', category: 'ADMINISTRATION' },
+  { id: 'flash_announcements', label: 'Annonces Flash', category: 'ADMINISTRATION' },
+  { id: 'notifications', label: 'Alertes & Relances', category: 'ADMINISTRATION' },
+  { id: 'logs_audit', label: 'Journal & Audit', category: 'ADMINISTRATION' },
+  { id: 'schema', label: 'Architecture SQL', category: 'ADMINISTRATION' },
+  { id: 'quality_vigilance', label: 'Qualité & Vigilance', category: 'ADMINISTRATION' },
+  { id: 'hr_management', label: 'Ressources Humaines', category: 'ADMINISTRATION' },
 ];
 
 export function getDefaultViewsForRole(roleName?: string | null): string[] {
   const r = (roleName || '').toLowerCase();
-  if (r.includes('directeur') || r.includes('admin') || r === 'directeur général') {
+  if (r.includes('super admin') || r.includes('directeur') || r.includes('admin') || r === 'directeur général' || r.includes('universel') || r.includes('his') || r.includes('dme')) {
     return ALL_NAVIGATION_MENUS.map(m => m.id);
   }
   if (r.includes('superviseur')) {
-    return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners', 'flash_announcements'];
+    return [
+      'dashboard',
+      'superviseur_group',
+      'caisse_sessions',
+      'invoices',
+      'payments'
+    ];
+  }
+  if (r.includes('facture / caisse') || r.includes('caisse & facture') || r.includes('polyvalent')) {
+    return ['dashboard', 'caisse_facture_group', 'caisse_sessions', 'invoices', 'payments'];
   }
   if (r.includes('facturier') || r.includes('facture')) {
-    return ['caisse_sessions', 'invoices', 'partners'];
+    return ['dashboard', 'factures_group', 'invoices'];
   }
   if (r.includes('caissier') || r.includes('caisse')) {
-    return ['caisse_sessions', 'invoices', 'payments'];
+    return ['dashboard', 'caisse_group', 'caisse_sessions', 'payments'];
   }
-  if (r.includes('facture / caisse')) {
-    return ['caisse_sessions', 'invoices', 'payments', 'partners'];
+  if (r.includes('infirmier') || r.includes('triage') || r.includes('nurse') || r.includes('soins')) {
+    return ['dashboard', 'infirmier_group', 'consultations', 'care_plans'];
   }
-  if (r === 'biologiste' || r.includes('biolog')) {
-    return ['lab_results', 'products', 'partners', 'dashboard'];
+  if (r.includes('spécialiste') || r.includes('specialiste')) {
+    return ['dashboard', 'specialiste_group', 'consultations', 'partners', 'patient_dossiers'];
   }
-  if (r.includes('technicien')) {
-    return ['lab_results', 'products', 'partners'];
+  if (r.includes('médecin') || r.includes('medecin') || r.includes('docteur') || r.includes('dr.')) {
+    return ['dashboard', 'medecin_group', 'consultations', 'patient_dossiers'];
+  }
+  if (r === 'biologiste' || r.includes('biolog') || r.includes('labo') || r.includes('technicien')) {
+    return ['dashboard', 'labo_group', 'lab_sampling', 'lab_results', 'lab_grouped_results', 'products'];
+  }
+  if (r.includes('imagerie') || r.includes('radio') || r.includes('radiologue')) {
+    return ['dashboard', 'imagerie_group', 'imaging_pacs'];
+  }
+  if (r.includes('hospit')) {
+    return ['hospitalisation_module', 'dashboard', 'bed_management', 'partners'];
+  }
+  if (r.includes('pharmacie') || r.includes('pharma')) {
+    return ['pharmacy_dispensing'];
   }
   if (r.includes('comptable')) {
-    return ['dashboard', 'invoices', 'payments', 'partners'];
+    return ['dashboard', 'invoices', 'payments', 'insurance_claims'];
   }
-  return ['dashboard', 'caisse_sessions', 'invoices', 'payments', 'partners'];
+  return ['caisse_sessions', 'invoices', 'payments'];
 }
 
 export const UsersView: React.FC<UsersViewProps> = ({
@@ -202,9 +261,56 @@ export const UsersView: React.FC<UsersViewProps> = ({
     setRole(safeRole);
     setSelectedAllowedViews(getDefaultViewsForRole(safeRole));
 
-    if (safeRole.includes("Superviseur") || safeRole === "Directeur Général") {
+    if (safeRole.includes("Superviseur")) {
       setSelectedGroupIds([1]);
-      setDepartment("Direction / Supervision");
+      setDepartment("Supervision");
+      setSelectedUserPermissions([
+        'can_manage_invoices',
+        'can_validate_invoices',
+        'can_delete_invoices',
+        'can_register_payments',
+        'can_manage_partners',
+        'can_view_financials',
+      ]);
+    } else if (safeRole.includes("Facturier") || safeRole === "Factures") {
+      setSelectedGroupIds([2]);
+      setDepartment("Facturation");
+      setSelectedUserPermissions(['can_manage_invoices', 'can_manage_partners']);
+    } else if (safeRole.includes("Caissier") || safeRole === "Caisse") {
+      setSelectedGroupIds([3]);
+      setDepartment("Caisse");
+      setSelectedUserPermissions(['can_register_payments', 'can_manage_partners']);
+    } else if (safeRole.includes("Facture / Caisse") || safeRole.includes("Caisse & Facture")) {
+      setSelectedGroupIds([4]);
+      setDepartment("Facturation & Caisse");
+      setSelectedUserPermissions(['can_manage_invoices', 'can_register_payments', 'can_manage_partners']);
+    } else if (safeRole.includes("Infirmier")) {
+      setSelectedGroupIds([8]);
+      setDepartment("Soins & Triage");
+      setSelectedUserPermissions(['can_manage_partners', 'can_enter_results']);
+    } else if (safeRole === "Médecin Généraliste" || safeRole === "Médecin") {
+      setSelectedGroupIds([9]);
+      setDepartment("Consultations");
+      setSelectedUserPermissions(['can_manage_partners', 'can_enter_results', 'can_validate_medical']);
+    } else if (safeRole.includes("Spécialiste") || safeRole.includes("specialiste")) {
+      setSelectedGroupIds([10]);
+      setDepartment("Spécialités");
+      setSelectedUserPermissions(['can_manage_partners', 'can_enter_results', 'can_validate_medical']);
+    } else if (safeRole.includes("Laboratoire") || safeRole.includes("Biologiste")) {
+      setSelectedGroupIds([5]);
+      setDepartment("Laboratoire Médical");
+      setSelectedUserPermissions(['can_manage_invoices', 'can_validate_medical', 'can_enter_results', 'can_manage_lab_catalog']);
+    } else if (safeRole.includes("Imagerie") || safeRole.includes("Radiologue")) {
+      setSelectedGroupIds([11]);
+      setDepartment("Imagerie Médicale");
+      setSelectedUserPermissions(['can_enter_results']);
+    } else if (safeRole.includes("Hospitalisation")) {
+      setSelectedGroupIds([6]);
+      setDepartment("Hospitalisation");
+      setSelectedUserPermissions(['can_manage_partners']);
+    } else if (safeRole.includes("Super Admin") || safeRole.includes("Directeur") || safeRole.includes("Administrateur")) {
+      setSelectedGroupIds([1]);
+      setDepartment("Direction Générale");
       setSelectedUserPermissions([
         'can_manage_invoices',
         'can_validate_invoices',
@@ -218,30 +324,6 @@ export const UsersView: React.FC<UsersViewProps> = ({
         'can_manage_settings',
         'can_manage_users',
       ]);
-    } else if (safeRole.includes("Facturier") || safeRole === "Facture") {
-      setSelectedGroupIds([2]);
-      setDepartment("Facturation");
-      setSelectedUserPermissions(['can_manage_invoices', 'can_manage_partners']);
-    } else if (safeRole.includes("Caissier") || safeRole === "Caisse") {
-      setSelectedGroupIds([3]);
-      setDepartment("Caisse");
-      setSelectedUserPermissions(['can_register_payments', 'can_manage_partners']);
-    } else if (safeRole.includes("Facture / Caisse")) {
-      setSelectedGroupIds([4]);
-      setDepartment("Facturation & Caisse");
-      setSelectedUserPermissions(['can_manage_invoices', 'can_register_payments', 'can_manage_partners']);
-    } else if (safeRole === "Biologiste") {
-      setSelectedGroupIds([5]);
-      setDepartment("Laboratoire Médical");
-      setSelectedUserPermissions(['can_manage_invoices', 'can_validate_medical', 'can_enter_results', 'can_manage_lab_catalog']);
-    } else if (safeRole === "Technicien Supérieur Analyses Médicales") {
-      setSelectedGroupIds([6]);
-      setDepartment("Laboratoire Médical");
-      setSelectedUserPermissions(['can_enter_results']);
-    } else if (safeRole === "Comptable & Tiers-Payeur") {
-      setSelectedGroupIds([7]);
-      setDepartment("Comptabilité");
-      setSelectedUserPermissions(['can_validate_invoices', 'can_register_payments', 'can_view_financials']);
     }
   };
 
@@ -431,7 +513,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
                 }).map((u) => {
                   const userGroups = groups.filter((g) => (u.group_ids || []).includes(g.id));
                   return (
-                    <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={`user-${u.id}`} className="hover:bg-slate-50/80 transition-colors">
                       {/* Name & Avatar */}
                       <td className="py-3 px-3 truncate">
                         <div className="flex items-center space-x-2.5 truncate">
@@ -465,9 +547,9 @@ export const UsersView: React.FC<UsersViewProps> = ({
                       {/* Groups */}
                       <td className="py-3 px-2 hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
-                          {userGroups.map((g) => (
+                          {userGroups.map((g, gIdx) => (
                             <span
-                              key={g.id}
+                              key={`user-grp-${u.id}-${g.id}-${gIdx}`}
                               className="bg-indigo-50 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200 truncate"
                             >
                               {g.name}
@@ -536,7 +618,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {groups.map((g) => (
-                  <tr key={g.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={`group-${g.id}`} className="hover:bg-slate-50/80 transition-colors">
                     {/* Role Name */}
                     <td className="py-3 px-4">
                       <div className="flex items-center space-x-2.5">
@@ -618,8 +700,8 @@ export const UsersView: React.FC<UsersViewProps> = ({
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
                   <th className="py-3 px-3 w-[40%]">Fonctionnalité &amp; Droit</th>
-                  {groups.map((g) => (
-                    <th key={g.id} className="py-3 px-2 text-center text-[11px] truncate">
+                  {groups.map((g, gIdx) => (
+                    <th key={`matrix-hdr-${g.id}-${gIdx}`} className="py-3 px-2 text-center text-[11px] truncate">
                       {g.name}
                     </th>
                   ))}
@@ -627,15 +709,15 @@ export const UsersView: React.FC<UsersViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {EXHAUSTIVE_PERMISSIONS.map((perm) => (
-                  <tr key={perm.key} className="hover:bg-slate-50/50">
+                  <tr key={`matrix-perm-row-${perm.key}`} className="hover:bg-slate-50/50">
                     <td className="py-2.5 px-3">
                       <div className="font-bold text-slate-900 truncate">{perm.label}</div>
                       <div className="text-[11px] text-slate-400 line-clamp-1">{perm.description}</div>
                     </td>
-                    {groups.map((g) => {
+                    {groups.map((g, gIdx) => {
                       const hasPerm = (g.permissions || []).includes(perm.key);
                       return (
-                        <td key={g.id} className="py-2.5 px-2 text-center">
+                        <td key={`matrix-cell-${perm.key}-${g.id}-${gIdx}`} className="py-2.5 px-2 text-center">
                           {hasPerm ? (
                             <span className="inline-flex p-1 bg-emerald-100 text-emerald-700 rounded-full">
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -757,37 +839,41 @@ export const UsersView: React.FC<UsersViewProps> = ({
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 shadow-sm"
                   >
                     <option value="">-- Sélectionner un profil --</option>
-                    <optgroup label="Profils Facturation &amp; Caisse (Règles strictes de workflow)">
-                      <option value="Facturier (Établissement Factures Seul)">
-                        Profil Facture (Établissement factures seul, aucun encaissement)
-                      </option>
-                      <option value="Caissier (Encaissement Paiements Seul)">
-                        Profil Caisse (Encaissement paiements seul, pas de création)
-                      </option>
-                      <option value="Facture / Caisse">
-                        Profil Facture / Caisse (Polyvalent : Factures + Encaissements)
-                      </option>
-                      <option value="Superviseur Caisse / Facture">
-                        Profil Superviseur Caisse / Facture (Supérieur hiérarchique, contrôle total)
-                      </option>
+                    <optgroup label="FACTURATION">
+                      <option value="Superviseur Caisse / Facture">Superviseur Caisse / Facture</option>
+                      <option value="Caissier">Caisse (Caissier)</option>
+                      <option value="Facturier">Factures (Facturier)</option>
+                      <option value="Facture / Caisse">Caisse &amp; Facture (Polyvalent)</option>
                     </optgroup>
-                    <optgroup label="Profils Médicaux &amp; Laboratoire">
-                      <option value="Biologiste">Biologiste Médical / Chef Labo</option>
-                      <option value="Technicien Supérieur Analyses Médicales">Technicien Supérieur Analyses Médicales</option>
-                      <option value="Directeur Général">Directeur Général / Administrateur</option>
-                      <option value="Comptable & Tiers-Payeur">Comptable &amp; Tiers-Payeur</option>
-                      <option value="Opérateur">Opérateur Standard</option>
+                    <optgroup label="MÉDICAL">
+                      <option value="Infirmier (Triage & Constantes)">Infirmier (Triage &amp; Constantes)</option>
+                      <option value="Médecin Généraliste">Médecin Généraliste</option>
+                      <option value="Médecin Spécialiste">Médecin Spécialiste</option>
+                    </optgroup>
+                    <optgroup label="EXAMENS">
+                      <option value="Biologiste / Laboratoire">Laboratoire (Biologiste / Technicien)</option>
+                      <option value="Imagerie Médicale">Imagerie Médicale (Radiologue)</option>
+                    </optgroup>
+                    <optgroup label="HOSPITALISATION">
+                      <option value="Gestionnaire Hospitalisation">Gestionnaire Hospitalisation</option>
+                    </optgroup>
+                    <optgroup label="ADMINISTRATION">
+                      <option value="Super Admin">Super Admin (Administrateur Universel)</option>
+                      <option value="Directeur Général">Directeur Général</option>
                     </optgroup>
                     {role && ![
                       "Superviseur Caisse / Facture",
-                      "Facturier (Établissement Factures Seul)",
-                      "Caissier (Encaissement Paiements Seul)",
+                      "Caissier",
+                      "Facturier",
                       "Facture / Caisse",
-                      "Biologiste",
-                      "Technicien Supérieur Analyses Médicales",
-                      "Directeur Général",
-                      "Comptable & Tiers-Payeur",
-                      "Opérateur"
+                      "Infirmier (Triage & Constantes)",
+                      "Médecin Généraliste",
+                      "Médecin Spécialiste",
+                      "Biologiste / Laboratoire",
+                      "Imagerie Médicale",
+                      "Gestionnaire Hospitalisation",
+                      "Super Admin",
+                      "Directeur Général"
                     ].includes(role) && (
                       <option value={role}>{role}</option>
                     )}
@@ -893,11 +979,11 @@ export const UsersView: React.FC<UsersViewProps> = ({
                   Groupes d'Accès &amp; Profils Métier
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {groups.map((g) => {
+                  {groups.map((g, gIdx) => {
                     const isSelected = (selectedGroupIds || []).includes(g.id);
                     return (
                       <div
-                        key={g.id}
+                        key={`modal-group-${g.id}-${gIdx}`}
                         onClick={() => toggleGroup(g.id)}
                         className={`p-3 rounded-md border cursor-pointer transition flex items-start space-x-2.5 ${
                           isSelected
@@ -952,11 +1038,11 @@ export const UsersView: React.FC<UsersViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                  {ALL_NAVIGATION_MENUS.map((menu) => {
+                  {ALL_NAVIGATION_MENUS.map((menu, mIdx) => {
                     const isChecked = (selectedAllowedViews || []).includes(menu.id);
                     return (
                       <div
-                        key={menu.id}
+                        key={`modal-nav-menu-${menu.id}-${mIdx}`}
                         onClick={() => toggleAllowedView(menu.id)}
                         className={`p-2.5 rounded-lg border cursor-pointer transition flex items-center justify-between ${
                           isChecked

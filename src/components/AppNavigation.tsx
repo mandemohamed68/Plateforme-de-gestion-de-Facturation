@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Users,
@@ -22,12 +22,24 @@ import {
   FolderOpen,
   Download,
   Megaphone,
+  Stethoscope,
+  Activity,
+  Calendar,
+  Bed,
+  Heart,
+  Clock,
+  Pill,
+  Shield,
+  ArrowLeftRight,
+  Search,
 } from 'lucide-react';
-import { ResUser, CompanySettings, ResGroup, AppView } from '../types';
+import { ResUser, CompanySettings, ResGroup, AppView, ResPartner, AccountMove } from '../types';
 import { getAppTheme } from '../lib/theme';
-import { getUserBillingProfile } from '../lib/formatters';
+import { getUserBillingProfile, getUserMissionDescription } from '../lib/formatters';
 import { decodeScannerInput } from '../lib/scannerDecoder';
 import { getAllowedViews } from '../utils/navigation';
+import { FlashInfoTicker } from './FlashInfoTicker';
+import { OmniboxModal } from './OmniboxModal';
 
 export type { AppView };
 export { getAllowedViews };
@@ -36,16 +48,24 @@ interface NavItemConfig {
   id: AppView | string;
   label: string;
   shortLabel?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon?: React.ComponentType<{ className?: string }>;
   badge?: number;
-  description: string;
+  description?: string;
   isAction?: boolean;
   onClick?: () => void;
+  children?: {
+    id: AppView | string;
+    label: string;
+    badge?: number;
+    onClick?: () => void;
+  }[];
 }
 
 interface NavCategoryConfig {
   title: string;
+  icon: React.ComponentType<{ className?: string }>;
   items: NavItemConfig[];
+  requiredModule?: AppView;
 }
 
 interface AppNavigationProps {
@@ -66,6 +86,14 @@ interface AppNavigationProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   onSearchNDM?: (ndm: string) => void;
+  onSetInvoiceFilters?: (state: string, payment: string) => void;
+  onSetPaymentFilters?: (state: string) => void;
+  pendingPaymentsCount?: number;
+  partners?: ResPartner[];
+  moves?: AccountMove[];
+  onSelectPatient?: (patient: ResPartner) => void;
+  onSelectMove?: (move: AccountMove) => void;
+  showToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export const AppNavigation: React.FC<AppNavigationProps> = ({
@@ -85,221 +113,320 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
   sidebarOpen,
   setSidebarOpen,
   onSearchNDM,
+  onSetInvoiceFilters,
+  onSetPaymentFilters,
+  pendingPaymentsCount = 0,
+  partners = [],
+  moves = [],
+  onSelectPatient,
+  onSelectMove,
+  showToast,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showQuickActionMenu, setShowQuickActionMenu] = useState(false);
+  const [isOmniboxOpen, setIsOmniboxOpen] = useState(false);
+
+  // Global Ctrl+K / Cmd+K listener for universal Omnibox search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsOmniboxOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
+    'ACCUEIL': true,
+    'FACTURATION': true,
+    'MÉDICAL': true,
+    'EXAMENS': true,
+    'HOSPITALISATION': true,
+    'ADMINISTRATION': true,
+    'superviseur_group': true,
+    'caisse_group': true,
+    'factures_group': true,
+    'caisse_facture_group': true,
+    'infirmier_group': true,
+    'medecin_group': true,
+    'specialiste_group': true,
+    'labo_group': true,
+    'imagerie_group': true,
+  });
+
+  const toggleMenu = (title: string) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }));
+  };
 
   const allowedViews = getAllowedViews(currentUser);
   const theme = getAppTheme(company.primary_color, company.sidebar_color);
   const profile = getUserBillingProfile(currentUser);
   const roleLower = (currentUser?.role || '').toLowerCase();
   const loginLower = (currentUser?.login || '').toLowerCase();
-  const emailLower = (currentUser?.email || '').toLowerCase();
 
-  const isSupervisorOrAdmin =
-    profile === 'superviseur' ||
-    roleLower.includes('supervis') ||
-    roleLower.includes('admin') ||
-    roleLower.includes('directeur') ||
-    roleLower.includes('biolog') ||
-    roleLower.includes('technic') ||
-    loginLower === 'admin' ||
-    loginLower === 'superviseur' ||
-    (currentUser?.group_ids || []).includes(1) ||
-    (currentUser?.group_ids || []).includes(5);
-
+  // Seuls les profils caisse et caisse & facture doivent ouvrir et fermer une session
   const isSessionRequiredProfile =
-    !isSupervisorOrAdmin &&
-    (profile === 'facture' || profile === 'caisse' || profile === 'facture_caisse');
+    loginLower === 'caissier' ||
+    loginLower === 'caisse_facture' ||
+    (roleLower.includes('caiss') && !roleLower.includes('supervis'));
 
   const isLockedOutWithoutSession = isSessionRequiredProfile && !hasActiveSession;
 
   const handleGoHome = () => {
-    const roleLower = (currentUser?.role || '').toLowerCase();
     if (isSessionRequiredProfile) {
       setCurrentView('caisse_sessions');
-    } else if (roleLower.includes('biolog') || roleLower.includes('technicien')) {
-      setCurrentView('lab_results');
     } else {
       setCurrentView('dashboard');
     }
     setSidebarOpen(false);
   };
 
-  // Categories definition according to exact user menu order:
-  // 1. Tableau de bord & Pilotage -> 2. Caisse & Facturation -> 3. Patients & Plateau Technique -> 4. Relances & Comptabilité -> 5. Administration
+  // 1. Categories definition according to the hierarchical structure requested
   const categories: NavCategoryConfig[] = [
     {
-      title: 'Pilotage & Stratégie',
+      title: 'ACCUEIL',
+      icon: Heart,
+      requiredModule: 'accueil_module',
       items: [
         {
           id: 'dashboard',
-          label: 'Tableau de Bord & Analyses',
-          shortLabel: 'Tableau de Bord',
+          label: 'Tableau de bord général',
           icon: BarChart3,
-          description: 'Chiffre d’affaires, encaissements, créances, KPI & statistiques',
-        },
-      ],
-    },
-    {
-      title: profile === 'caisse' 
-        ? 'Gestion de Caisse' 
-        : profile === 'facture' 
-        ? 'Facturation Clients' 
-        : 'Facturation & Caisse',
-      items: [
-        {
-          id: 'caisse_sessions',
-          label: profile === 'caisse' 
-            ? "Ma Caisse (Vacation)" 
-            : profile === 'facture' 
-            ? "Ma Session Journalière" 
-            : "Sessions Caisse & Guichets",
-          shortLabel: profile === 'caisse' ? 'Ma Caisse' : profile === 'facture' ? 'Ma Session' : 'Sessions Caisse',
-          icon: Lock,
-          description: profile === 'caisse' 
-            ? 'Gestion des fonds, arrêté de caisse & clôture' 
-            : 'Ouverture de vacation journalière & suivi des factures',
+          description: 'Vue d’ensemble de l’activité hospitalière'
         },
         {
-          id: 'invoices',
-          label: 'Factures & Actes',
-          shortLabel: 'Factures',
-          icon: FileText,
-          description: 'Historique des factures patients, tiers-payeur & actes',
+          id: 'patient_journey',
+          label: 'Suivi Optimal - Parcours 360°',
+          icon: Heart,
+          description: 'Suivi de l\'arrivée à la sortie du patient'
         },
         {
-          id: 'payments',
-          label: profile === 'facture' ? 'Suivi des Règlements' : 'Règlements & Encaissements',
-          shortLabel: 'Règlements',
-          icon: CreditCard,
-          description: profile === 'facture' 
-            ? 'Consultation des encaissements liés à mes factures' 
-            : 'Historique des reçus de paiement enregistrés',
-        },
-        {
-          id: 'insurance_claims',
-          label: 'Dus Assurances & Tiers-Payant',
-          shortLabel: 'Bordereaux Assurances',
-          icon: ShieldCheck,
-          description: 'Relevé des créances mutuelles, point des dus par période (jour, semaine, mois) & bordereaux d’impression',
-        },
-      ],
-    },
-    {
-      title: 'Patients & Plateau Technique',
-      items: [
-        {
-          id: 'partners',
-          label: 'Patients & Prescripteurs',
-          shortLabel: 'Patients',
-          icon: Users,
-          description: 'Dossiers patients, coordonnées & médecins',
-        },
-        {
-          id: 'patient_dossiers',
-          label: 'Dossiers Patients & Historique',
-          shortLabel: 'Dossiers',
-          icon: FolderOpen,
-          description: 'Historique exhaustif des prestations, factures & analyses par patient',
-        },
-        {
-          id: 'products',
-          label: 'Catalogue Analyses & Tarifs',
-          shortLabel: 'Catalogue',
-          icon: FlaskConical,
-          description: 'Fiches examens, valeurs de référence & délais',
-        },
-        {
-          id: 'lab_sampling',
-          label: 'Échantillonnage & Tubes',
-          shortLabel: 'Échantillonnage',
-          icon: Database,
-          description: 'Suivi et validation des prélèvements de tubes',
-        },
-        {
-          id: 'lab_results',
-          label: 'Examens & Résultats Labo',
-          shortLabel: 'Résultats',
-          icon: Microscope,
-          description: 'Saisie des paramètres, validation biologique & comptes-rendus',
-        },
-        {
-          id: 'lab_grouped_results',
-          label: 'Résultats Groupés',
-          shortLabel: 'Résultats groupés',
-          icon: CheckCircle2,
-          description: 'Saisie et validation rapide par discipline (Biochimie, Sérologie...)',
-        },
-      ],
-    },
-    {
-      title: 'Audit & Traçabilité',
-      items: [
-        {
-          id: 'logs_audit',
-          label: 'Logs & Registre d’Audit',
-          shortLabel: 'Logs & Audit',
+          id: 'scenarios_s01_s50',
+          label: 'Simulateur Scénarios (S01-S50)',
           icon: ScrollText,
-          description: 'Traçabilité exhaustive du workflow LIMS, automates & sécurité',
-        },
-        {
-          id: 'notifications',
-          label: 'Relances & Alertes',
-          shortLabel: 'Relances',
-          icon: Mail,
-          badge: notificationCount,
-          description: 'Suivi des impayés & alertes techniques',
-        },
-      ],
+          description: 'Exécution textuelle & validation des 50 scénarios hospitaliers'
+        }
+      ]
     },
     {
-      title: 'Administration & Système',
+      title: 'FACTURATION',
+      icon: CreditCard,
       items: [
         {
-          id: 'users',
-          label: 'Utilisateurs & Habilitations',
-          shortLabel: 'Utilisateurs',
+          id: 'superviseur_group',
+          label: 'Superviseur',
           icon: UserCheck,
-          description: 'Gestion des comptes, rôles et habilitations',
+          description: 'Gestion superviseur',
+          children: [
+            { id: 'superviseur_dashboard', label: 'Tableau de bord' },
+            { id: 'superviseur_sessions', label: 'Suivi des sessions' },
+            { id: 'superviseur_invoices', label: 'Suivi des factures' },
+            { id: 'superviseur_caisses', label: 'Suivi des caisses' },
+            { id: 'superviseur_payments', label: 'Contrôle des encaissements' },
+            { id: 'superviseur_reports', label: 'Rapports' },
+          ]
         },
         {
-          id: 'company',
-          label: 'Branding & Filigrane',
-          shortLabel: 'Branding',
-          icon: Settings,
-          description: 'Logo, filigrane de fond, couleurs de la charte & coordonnées',
+          id: 'caisse_group',
+          label: 'Caisse',
+          icon: Lock,
+          description: 'Opérations de caisse',
+          badge: pendingPaymentsCount,
+          children: [
+            { id: 'caisse_dashboard', label: 'Tableau de bord' },
+            { id: 'caisse_new_payment', label: 'Nouvelle encaissements', badge: pendingPaymentsCount },
+            { id: 'caisse_payments', label: 'Encaissements' },
+            { id: 'caisse_cloture', label: 'Clôture' },
+          ]
         },
         {
-          id: 'flash_announcements',
-          label: 'Annonces & Flash Info',
-          shortLabel: 'Annonces Flash',
-          icon: Megaphone,
-          description: 'Gestion des annonces défilantes, messages globaux et ciblés par profil',
+          id: 'factures_group',
+          label: 'Factures',
+          icon: FileText,
+          description: 'Gestion des factures',
+          children: [
+            { id: 'factures_dashboard', label: 'Tableau de bord' },
+            { id: 'factures_new_invoice', label: 'Nouvelle facture' },
+            { id: 'factures_all', label: 'Toutes les factures' },
+            { id: 'factures_draft', label: 'En attente', badge: pendingPaymentsCount },
+            { id: 'factures_paid', label: 'Encaissées' },
+            { id: 'factures_unpaid', label: 'Impayées' },
+            { id: 'factures_cancelled', label: 'Annulées' },
+          ]
         },
         {
-          id: 'schema',
-          label: 'Architecture BD (SQL)',
-          shortLabel: 'Schéma BD',
-          icon: Database,
-          description: 'Modélisation relationnelle & tables SQL',
+          id: 'caisse_facture_group',
+          label: 'Caisse & Facture',
+          icon: CreditCard,
+          description: 'Accès polyvalent caisse/facture',
+          badge: pendingPaymentsCount,
+          children: [
+            { id: 'caisse_facture_dashboard', label: 'Tableau de bord' },
+            { id: 'caisse_facture_new_payment', label: 'Nouvelle encaissements', badge: pendingPaymentsCount },
+            { id: 'caisse_facture_new_invoice', label: 'Nouvelle facture' },
+            { id: 'caisse_facture_all_invoices', label: 'Toutes les factures' },
+            { id: 'caisse_facture_all_payments', label: 'Toutes les Encaissements' },
+            { id: 'caisse_facture_draft', label: 'En attente', badge: pendingPaymentsCount },
+            { id: 'caisse_facture_paid', label: 'Encaissées' },
+            { id: 'caisse_facture_unpaid', label: 'Impayées' },
+            { id: 'caisse_facture_cancelled', label: 'Annulées' },
+            { id: 'caisse_facture_cloture', label: 'Clôture' },
+          ]
         },
-      ],
+      ]
     },
+    {
+      title: 'MÉDICAL',
+      icon: Stethoscope,
+      items: [
+        {
+          id: 'infirmier_group',
+          label: 'Infirmier',
+          icon: Activity,
+          description: 'Espace infirmier',
+          children: [
+            { id: 'infirmier_dashboard', label: 'Tableau de bord' },
+            { id: 'infirmier_queue', label: 'Patients en attente' },
+            { id: 'infirmier_vitals', label: 'Triage & Constantes' },
+            { id: 'infirmier_prescriptions', label: 'Prescriptions Infirmières' },
+            { id: 'infirmier_referred', label: 'Patients Référés / Orientés' },
+            { id: 'infirmier_care', label: 'Actes & Soins Infirmiers' },
+          ]
+        },
+        {
+          id: 'medecin_group',
+          label: 'Médecin',
+          icon: UserCheck,
+          description: 'Espace médecin',
+          children: [
+            { id: 'medecin_dashboard', label: 'Tableau de bord' },
+            { id: 'medecin_queue', label: 'Patients en attente' },
+            { id: 'medecin_consultations', label: 'Consultations' },
+            { id: 'medecin_dossiers', label: 'Dossiers médicaux' },
+            { id: 'medecin_prescriptions', label: 'Prescriptions' },
+          ]
+        },
+        {
+          id: 'specialiste_group',
+          label: 'Médecin spécialiste',
+          icon: ShieldCheck,
+          description: 'Espace spécialiste',
+          children: [
+            { id: 'specialiste_dashboard', label: 'Tableau de bord' },
+            { id: 'specialiste_referred', label: 'Patients orientés' },
+            { id: 'specialiste_consultations', label: 'Consultations' },
+            { id: 'specialiste_followup', label: 'Suivi' },
+            { id: 'specialiste_patients', label: 'Patients' },
+            { id: 'specialiste_prescriptions', label: 'Prescriptions' },
+          ]
+        },
+      ]
+    },
+    {
+      title: 'EXAMENS',
+      icon: Microscope,
+      items: [
+        {
+          id: 'labo_group',
+          label: 'Laboratoire',
+          icon: FlaskConical,
+          description: 'Analyses médicales',
+          children: [
+            { id: 'labo_dashboard', label: 'Tableau de bord' },
+            { id: 'labo_queue', label: 'Patients en attente' },
+            { id: 'labo_sampling', label: 'Prélèvements' },
+            { id: 'labo_in_progress', label: 'Examens en cours' },
+            { id: 'labo_results', label: 'Résultats' },
+            { id: 'labo_validation', label: 'Validation' },
+            { id: 'labo_catalog', label: 'Catalogue des examens' },
+          ]
+        },
+        {
+          id: 'imagerie_group',
+          label: 'Imagerie',
+          icon: Microscope,
+          description: 'Radiologie & PACS',
+          children: [
+            { id: 'imagerie_dashboard', label: 'Tableau de bord' },
+            { id: 'imagerie_queue', label: 'Patients en attente' },
+            { id: 'imagerie_scheduled', label: 'Examens programmés' },
+            { id: 'imagerie_completed', label: 'Examens réalisés' },
+            { id: 'imagerie_reports', label: 'Comptes rendus' },
+            { id: 'imagerie_validation', label: 'Validation' },
+            { id: 'imagerie_prescriptions', label: 'Prescriptions d’examens' },
+          ]
+        },
+      ]
+    },
+    {
+      title: 'HOSPITALISATION',
+      icon: Bed,
+      requiredModule: 'hospitalisation_module',
+      items: [
+        { id: 'hospit_dashboard', label: 'Tableau de bord', icon: BarChart3, description: 'Synthèse d\'hospitalisation' },
+        { id: 'hospit_admissions', label: 'Admissions', icon: Users, description: 'Entrées d\'hospitalisation' },
+        { id: 'hospit_patients', label: 'Patients hospitalisés', icon: Users, description: 'Liste des patients alités' },
+        { id: 'hospit_beds', label: 'Gestion des lits', icon: Bed, description: 'Attribution & état des lits' },
+        { id: 'hospit_transfers', label: 'Transferts de patients', icon: ArrowLeftRight, description: 'Mouvements & transferts de lits' },
+        { id: 'hospit_monitoring', label: 'Suivi des séjours', icon: Activity, description: 'Dossiers & soins d\'hospitalisation' },
+        { id: 'hospit_discharges', label: 'Sorties', icon: CheckCircle2, description: 'Sorties d\'hospitalisation' },
+      ]
+    },
+    {
+      title: 'ADMINISTRATION',
+      icon: Settings,
+      requiredModule: 'admin_module',
+      items: [
+        { id: 'admin_dashboard', label: 'Tableau de bord', icon: BarChart3, description: 'Pilotage administratif' },
+        { id: 'admin_users', label: 'Utilisateurs', icon: Users, description: 'Gestion personnel' },
+        { id: 'admin_roles', label: 'Rôles & profils', icon: ShieldCheck, description: 'Rôles & profils' },
+        { id: 'admin_permissions', label: 'Permissions', icon: Lock, description: 'Matrice des permissions' },
+        { id: 'admin_company', label: 'Établissement', icon: Settings, description: 'Infos structure' },
+        { id: 'admin_pricing', label: 'Tarifs & prestations', icon: CreditCard, description: 'Catalogue tarifs' },
+        { id: 'admin_medical_settings', label: 'Paramètres médicaux', icon: Stethoscope, description: 'Paramètres médicaux' },
+        { id: 'admin_reports', label: 'Rapports', icon: FileText, description: 'Rapports d\'activité' },
+        { id: 'admin_audit', label: 'Journal & sécurité', icon: ShieldCheck, description: 'Logs audit' },
+      ]
+    }
   ];
 
-  // Filter categories to only keep categories that have at least one allowed item
+  // Modified: check if view is allowed OR if any child is allowed
+  const isViewAllowed = (id: string) => {
+    return allowedViews.includes(id as AppView);
+  };
+
   const visibleCategories = categories
+    .filter((cat) => !cat.requiredModule || isViewAllowed(cat.requiredModule))
     .map((cat) => ({
       ...cat,
-      items: cat.items.filter((item) => allowedViews.includes(item.id as AppView)),
+      items: cat.items
+        .map((item) => {
+          if (item.children) {
+            const visibleChildren = item.children.filter((child) => isViewAllowed(child.id as string));
+            return {
+              ...item,
+              children: visibleChildren,
+            };
+          }
+          return item;
+        })
+        .filter((item) => isViewAllowed(item.id as string) || (item.children && item.children.length > 0)),
     }))
     .filter((cat) => cat.items.length > 0);
 
   const getActiveItemName = () => {
     for (const cat of categories) {
-      const match = cat.items.find((i) => i.id === currentView);
-      if (match) return match.label;
+      for (const item of cat.items) {
+        if (item.id === currentView) return item.label;
+        if (item.children) {
+          const childMatch = item.children.find(c => c.id === currentView);
+          if (childMatch) return `${item.label} > ${childMatch.label}`;
+        }
+      }
     }
     return 'Laboratoire Médical';
   };
@@ -463,108 +590,169 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
               style={{ color: theme.sidebarText }}
               className="text-[10px] font-bold leading-tight italic"
             >
-              {profile === 'caisse' 
-                ? "Gestion rigoureuse des encaissements, des sessions de caisse et de l'arrêté journalier." 
-                : profile === 'facture'
-                ? "Accueil des patients, saisie précise des actes médicaux et émission des factures."
-                : profile === 'facture_caisse'
-                ? "Gestion polyvalente du dossier patient : facturation des actes et encaissement des règlements."
-                : "Pilotage stratégique, supervision des flux financiers et administration du système."}
+              {getUserMissionDescription(currentUser)}
             </div>
           </div>
         </div>
 
         {/* Vertical Structured Navigation List (Clean Sidebar) */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
-          {visibleCategories.map((cat, idx) => (
-            <div key={idx} className="space-y-1">
-              <div 
-                style={{ color: theme.sidebarTextMuted }}
-                className="px-3 text-[10px] font-extrabold uppercase tracking-wider mb-1 opacity-80"
-              >
-                {cat.title}
-              </div>
-              <div className="space-y-0.5">
-                {cat.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentView === item.id;
-                  const isItemLockedBySession = isLockedOutWithoutSession && item.id !== 'caisse_sessions';
+          {visibleCategories.map((cat, idx) => {
+            const isCategoryExpanded = expandedMenus[cat.title];
+            const CategoryIcon = cat.icon;
 
-                  return (
-                    <button
-                      key={item.id}
-                      id={`nav-${item.id}`}
-                      onClick={() => {
-                        if (isItemLockedBySession) {
-                          alert("Accès Verrouillé : Votre profil requiert l'ouverture d'une session journalière pour accéder à ce menu. Veuillez d'abord démarrer votre vacation dans l'espace Session.");
-                          setCurrentView('caisse_sessions');
-                          setSidebarOpen(false);
-                          return;
-                        }
-                        if (item.onClick) {
-                          item.onClick();
-                        } else {
-                          setCurrentView(item.id as AppView);
-                          setSidebarOpen(false);
-                        }
-                      }}
-                      style={
-                        isActive
-                          ? { 
-                              backgroundColor: theme.activeNavBg,
-                              color: theme.activeNavText,
-                              borderColor: theme.sidebarBorder,
+            return (
+              <div key={`cat-${cat.title}-${idx}`} className="space-y-1">
+                <button
+                  onClick={() => toggleMenu(cat.title)}
+                  style={{ color: theme.sidebarText }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-colors hover:bg-black/5 group`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <CategoryIcon className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100" />
+                    <span>{cat.title}</span>
+                  </div>
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isCategoryExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isCategoryExpanded && (
+                  <div className="space-y-0.5 mt-1 ml-1 border-l border-slate-200/50 pl-1">
+                    {cat.items.map((item, itemIdx) => {
+                      const Icon = item.icon;
+                      const isActive = currentView === item.id;
+                      const isItemLockedBySession = isLockedOutWithoutSession && item.id !== 'caisse_sessions' && !item.children;
+                      const hasChildren = item.children && item.children.length > 0;
+                      const isGroupExpanded = expandedMenus[item.id as string];
+
+                      return (
+                        <div key={`${cat.title}-${item.id}-${itemIdx}`} className="space-y-0.5">
+                          <button
+                            id={`nav-${item.id}`}
+                            onClick={() => {
+                              if (hasChildren) {
+                                toggleMenu(item.id as string);
+                                return;
+                              }
+                              if (isItemLockedBySession) {
+                                if (showToast) {
+                                  showToast("Ouverture de vacation requise pour déverrouiller vos opérations de facturation.", 'warning');
+                                }
+                                setCurrentView('caisse_sessions');
+                                setSidebarOpen(false);
+                                return;
+                              }
+                              if (item.onClick) {
+                                item.onClick();
+                              } else {
+                                setCurrentView(item.id as AppView);
+                                setSidebarOpen(false);
+                              }
+                            }}
+                            style={
+                              isActive
+                                ? { 
+                                    backgroundColor: theme.activeNavBg,
+                                    color: theme.activeNavText,
+                                    borderColor: theme.sidebarBorder,
+                                  }
+                                : {
+                                    color: theme.sidebarText,
+                                  }
                             }
-                          : {
-                              color: theme.sidebarText,
-                            }
-                      }
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
-                        isActive
-                          ? 'font-bold border shadow-xs'
-                          : isItemLockedBySession
-                          ? 'opacity-40 cursor-not-allowed hover:bg-black/10'
-                          : theme.isDarkSidebar
-                          ? 'hover:bg-white/10'
-                          : 'hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 min-w-0 flex-1">
-                        {isItemLockedBySession ? (
-                          <Lock className="w-4 h-4 shrink-0 text-amber-400" />
-                        ) : (
-                          <Icon
-                            className={`w-4 h-4 shrink-0 transition-colors ${
-                              isActive ? '' : 'opacity-70 group-hover:opacity-100'
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all group ${
+                              isActive
+                                ? 'font-bold border shadow-xs'
+                                : isItemLockedBySession
+                                ? 'opacity-40 cursor-not-allowed'
+                                : theme.isDarkSidebar
+                                ? 'hover:bg-white/10'
+                                : 'hover:bg-slate-100'
                             }`}
-                          />
-                        )}
-                        <span className="text-xs font-medium leading-snug text-left min-w-0 flex-1 break-words">
-                          {item.label}
-                        </span>
-                      </div>
+                          >
+                            <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                              {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? '' : 'opacity-70 group-hover:opacity-100'}`} />}
+                              <span className="truncate">{item.label}</span>
+                            </div>
+                            {hasChildren ? (
+                              <ChevronDown className={`w-3 h-3 opacity-50 transition-transform ${isGroupExpanded ? 'rotate-180' : ''}`} />
+                            ) : item.badge !== undefined && item.badge > 0 ? (
+                              <span
+                                style={{
+                                  backgroundColor: isActive ? theme.primary : theme.badgeBg,
+                                  color: isActive ? '#ffffff' : theme.sidebarText,
+                                }}
+                                className="text-[10px] px-1.5 py-0.2 rounded font-extrabold shrink-0 ml-2"
+                              >
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </button>
 
-                      {isItemLockedBySession ? (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold shrink-0 ml-2">
-                          Bloqué
-                        </span>
-                      ) : item.badge !== undefined && item.badge > 0 ? (
-                        <span
-                          style={{
-                            backgroundColor: isActive ? theme.primary : theme.badgeBg,
-                            color: isActive ? '#ffffff' : theme.sidebarText,
-                          }}
-                          className="text-[10px] px-1.5 py-0.2 rounded font-extrabold shrink-0 ml-2"
-                        >
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+                          {hasChildren && isGroupExpanded && (
+                            <div className="ml-6 space-y-0.5 mt-0.5 border-l border-slate-200/30 pl-2">
+                              {item.children?.map((child, childIdx) => {
+                                // Add a unique identifier based on label to prevent active state overlap
+                                // If a child has an onClick, it shouldn't be highlighted as active just because its parent 'id' matches the current view, UNLESS we specifically track sub-views. For now, let's keep it simple: it's active if it doesn't have a special onClick, OR if we want to visually unify, we can just highlight the main one.
+                                // Actually, let's use the label to distinguish.
+                                // But since we don't have sub-routing, all of them route to `child.id` (e.g. 'invoices').
+                                // We'll make only the first one (or the one without specific filters) show as active, or we just let them act as buttons without staying "active".
+                                const isChildActive = currentView === child.id;
+                                if (!allowedViews.includes(child.id as AppView)) return null;
+
+                                return (
+                                  <button
+                                    key={`child-${item.id}-${child.id}-${childIdx}-${child.label.replace(/\s+/g, '')}`}
+                                    onClick={() => {
+                                      setCurrentView(child.id as AppView);
+                                      if (child.onClick) {
+                                        child.onClick();
+                                      }
+                                      setSidebarOpen(false);
+                                    }}
+                                    style={
+                                      isChildActive
+                                        ? { 
+                                            backgroundColor: theme.activeNavBg,
+                                            color: theme.activeNavText,
+                                            borderColor: theme.sidebarBorder,
+                                          }
+                                        : { 
+                                            color: theme.sidebarText 
+                                          }
+                                    }
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between ${
+                                      isChildActive 
+                                        ? 'font-bold border shadow-xs' 
+                                        : theme.isDarkSidebar
+                                        ? 'hover:bg-white/10 opacity-85 hover:opacity-100'
+                                        : 'hover:bg-slate-100 opacity-85 hover:opacity-100'
+                                    }`}
+                                  >
+                                    <span>{child.label}</span>
+                                    {child.badge !== undefined && child.badge > 0 && (
+                                      <span
+                                        style={{
+                                          backgroundColor: '#f43f5e',
+                                          color: '#ffffff',
+                                        }}
+                                        className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full text-white ml-2 shrink-0 leading-none"
+                                      >
+                                        {child.badge}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Role access limit notice */}
           {allowedViews.length < 8 && (
@@ -653,9 +841,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                   <div className="px-4 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                     Changer de profil utilisateur
                   </div>
-                  {users.map((u) => (
+                  {users.map((u, uIdx) => (
                     <button
-                      key={u.id}
+                      key={`sidebar-user-${u.id}-${u.login || uIdx}`}
                       onClick={() => {
                         onSelectUser(u);
                         setShowUserDropdown(false);
@@ -700,8 +888,11 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       {/* 3. Top Status Header for Main Content Area */}
       <header 
         style={{ borderTop: `3px solid ${theme.primary}` }}
-        className="sticky top-0 z-30 bg-white border-b border-slate-200/80 shadow-xs lg:pl-64 transition-all"
+        className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs lg:pl-64 transition-all"
       >
+        {/* Global Flash Info Ticker rendered at the absolute top of the header ("tout en haut") */}
+        <FlashInfoTicker company={company} currentUser={currentUser} />
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
           {/* Left: Mobile hamburger & Active view title */}
           <div className="flex items-center space-x-3">
@@ -726,46 +917,62 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             </div>
           </div>
 
-          {/* Central Barcode & Dossier Quick Lookup Scanner */}
-          {onSearchNDM && (
-            <div className="hidden md:flex flex-1 max-w-sm mx-4 relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Scanner ou Saisir N° Dossier (NDM)..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const val = e.currentTarget.value.trim();
-                    if (val) {
-                      onSearchNDM(decodeScannerInput(val));
-                      e.currentTarget.value = '';
+          {/* Central Barcode & Dossier Quick Lookup Scanner + Omnibox Trigger */}
+          <div className="hidden md:flex flex-1 max-w-md mx-4 items-center space-x-2">
+            {onSearchNDM && (
+              <div className="flex-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Scanner N° Dossier (NDM)..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = e.currentTarget.value.trim();
+                      if (val) {
+                        onSearchNDM(decodeScannerInput(val));
+                        e.currentTarget.value = '';
+                      }
                     }
-                  }
-                }}
-                className="w-full pl-9 pr-12 py-1.5 bg-slate-50 border border-slate-200 focus:border-slate-900 focus:bg-white focus:ring-1 focus:ring-slate-900 text-xs font-bold text-slate-900 placeholder:text-slate-400 rounded-lg transition shadow-inner"
-              />
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <span className="text-[9px] font-mono font-black uppercase text-slate-400 bg-slate-200/50 border border-slate-300 px-1.5 py-0.5 rounded leading-none">
-                  ENTRÉE
-                </span>
+                  }}
+                  className="w-full pl-9 pr-12 py-1.5 bg-slate-50 border border-slate-200 focus:border-slate-900 focus:bg-white focus:ring-1 focus:ring-slate-900 text-xs font-bold text-slate-900 placeholder:text-slate-400 rounded-lg transition shadow-inner"
+                />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <span className="text-[9px] font-mono font-black uppercase text-slate-400 bg-slate-200/50 border border-slate-300 px-1.5 py-0.5 rounded leading-none">
+                    ENTRÉE
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Right: Quick actions, persistence indicator, user switcher button */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Permanent Storage Persistence Badge */}
-            <div
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-extrabold"
-              title="Sauvegarde permanente active : vos tests, factures et résultats restent enregistrés et persistés sur le système."
+            {/* Omnibox Global Search Button (Ctrl+K) */}
+            <button
+              id="btn-open-omnibox"
+              onClick={() => setIsOmniboxOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer shadow-2xs"
+              title="Recherche universelle et raccourcis rapides (Ctrl + K)"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="whitespace-nowrap">Sauvegarde Permanente Active</span>
-            </div>
+              <Search className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden lg:inline text-[11px]">Recherche rapide</span>
+              <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-white border border-slate-300 rounded shadow-2xs text-slate-600">
+                Ctrl K
+              </kbd>
+            </button>
+          </div>
+
+          {/* Right: Quick actions and user switcher button */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Mobile Omnibox button */}
+            <button
+              onClick={() => setIsOmniboxOpen(true)}
+              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition"
+              title="Rechercher (Ctrl + K)"
+            >
+              <Search className="w-4 h-4" />
+            </button>
 
             {/* Profile Pill Button in Top Bar */}
             <div className="relative">
@@ -811,23 +1018,23 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                       <div className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                         Changer de profil
                       </div>
-                      {users.map((u) => (
+                      {users.map((u, uIdx) => (
                         <button
-                          key={u.id}
+                          key={`topbar-user-${u.id}-${u.login || uIdx}`}
                           onClick={() => {
                             onSelectUser(u);
                             setShowQuickActionMenu(false);
                           }}
-                          className={`w-full text-left px-4 py-1.5 flex items-center justify-between hover:bg-slate-50 transition ${
+                          className={`w-full text-left px-4 py-1.5 hover:bg-slate-50 transition ${
                             currentUser?.id === u.id
-                              ? 'bg-slate-100 font-bold text-slate-900'
+                              ? 'bg-slate-100 font-bold text-slate-900 border-l-2 border-slate-900'
                               : 'text-slate-700'
                           }`}
                         >
-                          <span className="truncate">{u.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {u.role}
-                          </span>
+                          <div className="truncate font-semibold text-slate-800">{u.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">
+                            {u.role || u.login}
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -874,6 +1081,23 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           </div>
         </div>
       </header>
+
+      {/* 4. Global Omnibox Search Modal (Ctrl + K) */}
+      <OmniboxModal
+        isOpen={isOmniboxOpen}
+        onClose={() => setIsOmniboxOpen(false)}
+        partners={partners}
+        moves={moves}
+        currentUser={currentUser}
+        company={company}
+        onNavigateToView={(view) => {
+          setCurrentView(view);
+          setSidebarOpen(false);
+        }}
+        onSelectPatient={onSelectPatient}
+        onSelectMove={onSelectMove}
+        onSearchNDM={onSearchNDM}
+      />
     </>
   );
 };

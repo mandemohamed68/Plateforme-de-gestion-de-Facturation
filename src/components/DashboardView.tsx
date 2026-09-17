@@ -644,7 +644,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1.5 border-t border-slate-100">
               <span>Reste Assurances:</span>
-              <span className="font-bold text-indigo-700 font-mono text-[10px]">{formatFCFA(metrics.pendingInsuranceResidual)}</span>
+              <span className="font-bold text-teal-700 font-mono text-[10px]">{formatFCFA(metrics.pendingInsuranceResidual)}</span>
             </div>
           </div>
         </div>
@@ -708,17 +708,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Analyses Labo
             </span>
-            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-bold">
+            <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 border border-teal-200 flex items-center justify-center font-bold">
               <Microscope className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-xl font-black text-purple-900 tracking-tight font-mono">
+            <div className="text-xl font-black text-teal-950 tracking-tight font-mono">
               {metrics.totalExamsPrescribed} actes
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1.5 border-t border-slate-100">
               <span>Validation Bio:</span>
-              <span className="font-bold text-purple-800">{metrics.labValidationRate}%</span>
+              <span className="font-bold text-teal-800">{metrics.labValidationRate}%</span>
             </div>
           </div>
         </div>
@@ -785,11 +785,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold border-b-2 transition cursor-pointer ${
                 isActive
-                  ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50 rounded-t-lg'
+                  ? 'border-slate-900 text-teal-700 bg-teal-50/50 rounded-t-lg'
                   : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-teal-600' : 'text-slate-400'}`} />
               <span>{tab.label}</span>
             </button>
           );
@@ -935,14 +935,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Microscope className="w-4 h-4 text-purple-600" />
+                    <Microscope className="w-4 h-4 text-teal-600" />
                     <span>Top 6 des Examens les Plus Prescrits</span>
                   </h3>
                   <p className="text-[11px] text-slate-500">Volume &amp; Chiffre d'affaires généré par examen</p>
                 </div>
                 <button
                   onClick={() => handleNavigate('products')}
-                  className="text-xs text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                  className="text-xs text-teal-700 hover:text-teal-950 font-bold underline cursor-pointer"
                 >
                   Catalogue &rarr;
                 </button>
@@ -952,7 +952,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {topExamsData.map((exam, idx) => (
                   <div key={exam.name} className="py-2.5 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-3 min-w-0 flex-1 pr-3">
-                      <span className="w-5 h-5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 font-bold text-[10px] flex items-center justify-center shrink-0">
+                      <span className="w-5 h-5 rounded-md bg-teal-50 text-teal-700 border border-teal-200 font-bold text-[10px] flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -1050,7 +1050,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
               <div className="text-xs font-bold text-slate-500 uppercase">Prise en Charge (Assurances / Tiers)</div>
-              <div className="text-2xl font-black text-indigo-900 font-mono mt-1">
+              <div className="text-2xl font-black text-teal-950 font-mono mt-1">
                 {formatFCFA(metrics.insuranceShare)}
               </div>
               <p className="text-[11px] text-slate-500 mt-1">
@@ -1150,7 +1150,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs">
               <div className="text-[11px] font-bold text-slate-500 uppercase">Résultats Saisis</div>
-              <div className="text-2xl font-black text-indigo-600 font-mono mt-1">
+              <div className="text-2xl font-black text-teal-600 font-mono mt-1">
                 {filteredLabOrders.filter((o) => o.status === 'results_entered').length}
               </div>
               <p className="text-[10px] text-slate-400 mt-1">En attente de signature biologique</p>
@@ -1175,7 +1175,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <button
                 onClick={() => handleNavigate('lab_results')}
-                className="text-xs font-bold text-purple-800 underline cursor-pointer"
+                className="text-xs font-bold text-teal-800 underline cursor-pointer"
               >
                 Accéder au Laboratoire &rarr;
               </button>
@@ -1223,7 +1223,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <td className="py-2.5 px-2 text-right">
                           <button
                             onClick={() => handleNavigate('lab_results')}
-                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold cursor-pointer transition"
+                            className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded text-[11px] font-bold cursor-pointer transition"
                           >
                             Voir
                           </button>

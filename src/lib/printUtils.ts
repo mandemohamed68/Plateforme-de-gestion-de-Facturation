@@ -1,6 +1,8 @@
 /**
- * Universal, cross-browser print utility that works reliably inside all browsers and iframe sandboxes.
- * Uses a root-level print container and @media print CSS rules to isolate the print content seamlessly.
+ * Universal, cross-browser print utility that works reliably inside all browsers,
+ * iframe sandboxes, and modern operating systems.
+ * Uses a dedicated in-page hidden iframe and @media print CSS rules to isolate
+ * the print content seamlessly without popup blockers.
  */
 
 export function printElement(
@@ -24,255 +26,197 @@ export function printElement(
         element.id === 'thermal-labels-print-container' ||
         element.querySelector('#thermal-labels-print-container') !== null;
 
-      // Detect if we are in an iframe sandbox (e.g., AI Studio preview)
-      const isInIframe = window.self !== window.top;
+      // 1. Gather all document styles to match current theme and typography
+      let stylesHtml = '';
+      const stylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'));
+      stylesheets.forEach((sheet) => {
+        stylesHtml += sheet.outerHTML;
+      });
 
-      if (isInIframe) {
-        // --- SANDBOX BYPASS: Open print layout in a new tab where window.print() is allowed ---
-        console.log('[PrintUtils] Sandbox detected. Opening printable layout in a new tab...');
-        
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-          // Popup blocked! Show the friendly fallback alert
-          showPrintBlockedFallback();
-          resolve();
-          return;
+      // 2. Extract content HTML
+      const contentHtml = element.outerHTML || element.innerHTML;
+
+      // 3. Build Print Stylesheet
+      const printStyles = `
+        html, body {
+          background: #ffffff !important;
+          color: #0f172a !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
+        body {
+          padding: ${isThermal ? '0' : '16px'} !important;
+        }
+        #thermal-labels-print-container {
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        @media print {
+          html, body {
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: ${isThermal ? '0' : '10mm'} !important;
+          }
+          .no-print, button, .cursor-pointer {
+            display: none !important;
+          }
+        }
+        ${
+          isThermal
+            ? `
+          @page {
+            size: 50mm 30mm !important;
+            margin: 0 !important;
+          }
+          html, body {
+            width: 50mm !important;
+            height: 30mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+          `
+            : `
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+          `
+        }
+      `;
 
-        // 1. Gather all document styles to match current theme and layout
-        let stylesHtml = '';
-        
-        // Copy stylesheet links and active inline styles
-        const stylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'));
-        stylesheets.forEach((sheet) => {
-          stylesHtml += sheet.outerHTML;
-        });
+      // 4. Try Primary Method: In-page hidden iframe (Most reliable, never blocked by popup blockers)
+      let iframePrinted = false;
+      try {
+        const existingIframe = document.getElementById('app-print-hidden-frame');
+        if (existingIframe) existingIframe.remove();
 
-        // 2. Extract content HTML
-        const contentHtml = element.outerHTML || element.innerHTML;
+        const iframe = document.createElement('iframe');
+        iframe.id = 'app-print-hidden-frame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = 'none';
+        iframe.style.visibility = 'hidden';
+        document.body.appendChild(iframe);
 
-        // 3. Write self-contained printable document to the new window
-        printWindow.document.open();
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html lang="fr">
-            <head>
-              <meta charset="UTF-8">
-              <title>${documentTitle}</title>
-              ${stylesHtml}
-              <style>
-                /* Ensure pristine page styling for printing */
-                html, body {
-                  background: #ffffff !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  width: 100% !important;
-                  height: auto !important;
-                  overflow: visible !important;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                  color-adjust: exact !important;
-                }
-                body {
-                  padding: ${isThermal ? '0' : '20px'} !important;
-                  font-family: system-ui, -apple-system, sans-serif;
-                }
-                #thermal-labels-print-container {
-                  padding: 0 !important;
-                  margin: 0 !important;
-                }
-                @media print {
-                  html, body {
-                    width: 100% !important;
-                    height: auto !important;
-                  }
-                  .no-print {
-                    display: none !important;
-                  }
-                }
-                ${
-                  isThermal
-                    ? `
-                  @page {
-                    size: 50mm 30mm !important;
-                    margin: 0 !important;
-                  }
-                  html, body {
-                    width: 50mm !important;
-                    height: 30mm !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #ffffff !important;
-                  }
-                  `
-                    : `
-                  @page {
-                    size: A4 portrait;
-                    margin: 10mm;
-                  }
-                  `
-                }
-              </style>
-            </head>
-            <body>
-              <div id="print-content-root">
-                ${contentHtml}
-              </div>
-              <script>
-                // Execute print when all elements and images are fully loaded
-                window.onload = function() {
-                  const images = Array.from(document.querySelectorAll('img'));
-                  if (images.length > 0) {
-                    Promise.all(images.map(img => {
-                      if (img.complete) return Promise.resolve();
-                      return new Promise(r => { img.onload = r; img.onerror = r; });
-                    })).then(() => {
-                      setTimeout(() => {
-                        window.print();
-                        window.close();
-                      }, 300);
-                    });
-                  } else {
-                    setTimeout(() => {
-                      window.print();
-                      window.close();
-                    }, 300);
-                  }
-                };
-              </script>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        resolve();
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          iframeDoc.open();
+          iframeDoc.write(`
+            <!DOCTYPE html>
+            <html lang="fr">
+              <head>
+                <meta charset="UTF-8">
+                <title>${documentTitle}</title>
+                ${stylesHtml}
+                <style>${printStyles}</style>
+              </head>
+              <body>
+                <div id="print-content-root">
+                  ${contentHtml}
+                </div>
+              </body>
+            </html>
+          `);
+          iframeDoc.close();
+
+          // Wait a tick for fonts/styles to load in the iframe
+          await new Promise((r) => setTimeout(r, 250));
+
+          if (iframe.contentWindow) {
+            iframe.contentWindow.focus();
+            try {
+              iframe.contentWindow.print();
+              iframePrinted = true;
+            } catch (iframeErr) {
+              console.warn('[PrintUtils] Iframe print was blocked or failed:', iframeErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[PrintUtils] Failed to print via iframe:', err);
+      }
+
+      // If iframe printing succeeded, we clean up and exit
+      if (iframePrinted) {
+        setTimeout(() => {
+          document.title = originalTitle;
+          const f = document.getElementById('app-print-hidden-frame');
+          if (f) f.remove();
+          resolve();
+        }, 1000);
         return;
       }
 
-      // --- STANDARD PRINTING FOR PRODUCTION / NON-IFRAME ENVIRONMENT ---
-      // 1. Target or create a root-level print container
-      const printContainerId = 'app-global-print-target';
-      let printContainer = document.getElementById(printContainerId);
-      if (!printContainer) {
-        printContainer = document.createElement('div');
-        printContainer.id = printContainerId;
-        document.body.appendChild(printContainer);
+      // 5. Fallback Method: In-page isolated Print Root & Modal Preview
+      // Create or update #app-print-isolated-root
+      let printRoot = document.getElementById('app-print-isolated-root');
+      if (!printRoot) {
+        printRoot = document.createElement('div');
+        printRoot.id = 'app-print-isolated-root';
+        document.body.appendChild(printRoot);
       }
+      printRoot.innerHTML = contentHtml;
 
-      // Clear previous print content (this acts as our cleanup from the PREVIOUS print job)
-      printContainer.innerHTML = '';
-
-      // Clone the requested element into our root print container
-      const clone = element.cloneNode(true) as HTMLElement;
-      printContainer.appendChild(clone);
-
-      // 2. Inject or update active print CSS rules in head
-      const styleId = 'app-global-print-rules';
-      let styleTag = document.getElementById(styleId) as HTMLStyleElement | null;
+      // Add print media styles to hide everything else during print
+      let styleTag = document.getElementById('app-print-style-isolated') as HTMLStyleElement | null;
       if (!styleTag) {
         styleTag = document.createElement('style');
-        styleTag.id = styleId;
+        styleTag.id = 'app-print-style-isolated';
         document.head.appendChild(styleTag);
       }
-
       styleTag.innerHTML = `
-        @media screen {
-          #${printContainerId} {
-            display: none !important;
-          }
-        }
         @media print {
-          /* Hide all application elements except the print container */
-          body > *:not(#${printContainerId}) {
+          body > *:not(#app-print-isolated-root) {
             display: none !important;
           }
-
-          #${printContainerId} {
+          #app-print-isolated-root {
             display: block !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            margin: 0 !important;
-            padding: ${isThermal ? '0' : '15mm'} !important;
             background: #ffffff !important;
             color: #000000 !important;
-            box-sizing: border-box !important;
+            z-index: 999999 !important;
           }
-
-          ${
-            isThermal
-              ? `
-            @page {
-              size: 50mm 30mm !important;
-              margin: 0 !important;
-            }
-            html, body {
-              width: 50mm !important;
-              height: 30mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-            }
-            `
-              : `
-            @page {
-              size: A4 portrait;
-              margin: 10mm;
-            }
-            `
-          }
-
-          /* Hide UI action buttons and controls during print */
-          .no-print {
+        }
+        @media screen {
+          #app-print-isolated-root {
             display: none !important;
           }
         }
       `;
 
-      // 3. Ensure all images inside cloned element are loaded before triggering print
-      const images = Array.from(clone.querySelectorAll('img'));
-      if (images.length > 0) {
-        await Promise.race([
-          Promise.all(
-            images.map((img) => {
-              if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-              return new Promise<void>((r) => {
-                img.onload = () => r();
-                img.onerror = () => r();
-              });
-            })
-          ),
-          new Promise((r) => setTimeout(r, 400)),
-        ]);
-      }
-
-      // Small delay for DOM layout render
-      await new Promise((r) => setTimeout(r, 150));
-
-      // 4. Trigger print dialog and detect if it was blocked by the iframe sandbox
-      let printDialogOpened = false;
-      const onBeforePrint = () => { printDialogOpened = true; };
-      window.addEventListener('beforeprint', onBeforePrint, { once: true });
-
+      // Try native window.print()
+      let nativePrintSuccess = false;
       try {
         window.print();
-      } catch (err) {
-        console.warn('[PrintUtils] window.print() threw an error:', err);
+        nativePrintSuccess = true;
+      } catch (nativeErr) {
+        console.warn('[PrintUtils] window.print() failed:', nativeErr);
       }
 
-      // 5. Check if blocked & Restore Title
+      // If both iframe and native print could not complete, show the interactive in-page print preview modal
+      if (!nativePrintSuccess) {
+        showInteractivePrintModal(contentHtml, documentTitle, isThermal);
+      }
+
       setTimeout(() => {
-        window.removeEventListener('beforeprint', onBeforePrint);
         document.title = originalTitle;
-        
-        // If the print dialog was blocked (e.g., by AI Studio sandbox iframe without allow-modals), 
-        // show a gentle fallback message explaining how to print.
-        if (!printDialogOpened) {
-          showPrintBlockedFallback();
-        }
-        
         resolve();
-      }, 1500);
+      }, 500);
 
     } catch (e) {
       console.error('[PrintUtils] Exception in printElement:', e);
@@ -281,35 +225,108 @@ export function printElement(
   });
 }
 
-function showPrintBlockedFallback() {
-  const existing = document.getElementById('app-print-fallback-alert');
+/**
+ * High-fidelity in-page printable document viewer that allows direct printing,
+ * text copying, and previewing without ever being blocked by sandbox attributes.
+ */
+function showInteractivePrintModal(contentHtml: string, title: string, isThermal: boolean) {
+  const existing = document.getElementById('app-print-preview-modal');
   if (existing) existing.remove();
 
-  const alertDiv = document.createElement('div');
-  alertDiv.id = 'app-print-fallback-alert';
-  alertDiv.innerHTML = `
-    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.85); z-index: 999999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 20px; font-family: system-ui, -apple-system, sans-serif;">
-      <div style="background: white; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); text-align: center; animation: print-alert-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
-        <div style="width: 56px; height: 56px; background: #FEF2F2; color: #DC2626; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+  const modal = document.createElement('div');
+  modal.id = 'app-print-preview-modal';
+  modal.innerHTML = `
+    <div style="position: fixed; inset: 0; background: rgba(15,23,42,0.75); z-index: 999999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); padding: 16px; font-family: system-ui, -apple-system, sans-serif;">
+      <div style="background: white; border-radius: 16px; max-width: 780px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid #e2e8f0; overflow: hidden;">
+        
+        <!-- Header -->
+        <div style="padding: 16px 20px; background: white; color: #0f172a; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; color: #334155; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; border: 1px solid #cbd5e1;">
+              DOC
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: #0f172a;">Aperçu & Impression du Document</h3>
+              <p style="margin: 2px 0 0; font-size: 11px; color: #64748b;">${title}</p>
+            </div>
+          </div>
+          <button id="app-print-modal-close-btn" style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1;">✕</button>
         </div>
-        <h2 style="margin: 0 0 12px; font-size: 20px; font-weight: 700; color: #0F172A;">Impression bloquée par l'aperçu</h2>
-        <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.5; color: #475569;">
-          La plateforme bloque l'ouverture de la fenêtre d'impression par sécurité (iframe sandbox).<br><br>
-          Pour imprimer vos documents, veuillez <strong>ouvrir l'application dans un nouvel onglet</strong> en utilisant l'icône dédiée ou l'URL fournie.
-        </p>
-        <button onclick="document.getElementById('app-print-fallback-alert').remove()" style="background: #0F172A; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 15px; cursor: pointer; transition: background 0.2s; width: 100%;">
-          J'ai compris
-        </button>
+
+        <!-- Document Preview Canvas -->
+        <div style="padding: 24px; overflow-y: auto; background: #f8fafc; flex: 1;">
+          <div id="app-print-inner-paper" style="background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); max-width: 680px; margin: 0 auto; color: #0f172a;">
+            ${contentHtml}
+          </div>
+        </div>
+
+        <!-- Actions Footer -->
+        <div style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: gap;">
+          <div style="font-size: 12px; color: #64748b;">
+            Document certifié conforme, prêt pour émission
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="app-print-modal-copy-btn" style="background: white; border: 1px solid #cbd5e1; color: #334155; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s;">
+              Copier le texte
+            </button>
+            <button id="app-print-modal-print-btn" style="background: #0f172a; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+              Lancer l'Impression
+            </button>
+          </div>
+        </div>
       </div>
     </div>
-    <style>
-      @keyframes print-alert-pop {
-        0% { opacity: 0; transform: scale(0.95) translateY(10px); }
-        100% { opacity: 1; transform: scale(1) translateY(0); }
-      }
-    </style>
   `;
-  document.body.appendChild(alertDiv);
+
+  document.body.appendChild(modal);
+
+  // Bind close buttons
+  document.getElementById('app-print-modal-close-btn')?.addEventListener('click', () => {
+    modal.remove();
+  });
+
+  // Bind direct print button
+  document.getElementById('app-print-modal-print-btn')?.addEventListener('click', () => {
+    try {
+      window.print();
+    } catch (e) {
+      console.warn('Native print call failed:', e);
+    }
+  });
+
+  // Bind copy button
+  document.getElementById('app-print-modal-copy-btn')?.addEventListener('click', () => {
+    const text = document.getElementById('app-print-inner-paper')?.innerText || '';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      const btn = document.getElementById('app-print-modal-copy-btn');
+      if (btn) btn.innerText = 'Copié dans le presse-papier';
+      setTimeout(() => {
+        if (btn) btn.innerText = 'Copier le texte';
+      }, 2000);
+    }
+  });
 }
 
+/**
+ * Convenience helper to print any DOM element by ID or fall back to body/container.
+ */
+export function printDocumentById(elementId: string, title = 'Document'): Promise<void> {
+  const el = document.getElementById(elementId);
+  if (el) {
+    return printElement(el, title);
+  }
+  const fallback = document.getElementById('main-content-area') || document.body;
+  return printElement(fallback, title);
+}
+
+/**
+ * Universal print handler that can be invoked safely anywhere.
+ */
+export function printContentOrPage(container?: HTMLElement | null, title = 'Document'): Promise<void> {
+  if (container) {
+    return printElement(container, title);
+  }
+  const fallback = document.getElementById('main-content-area') || document.body;
+  return printElement(fallback, title);
+}

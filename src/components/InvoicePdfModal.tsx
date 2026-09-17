@@ -447,7 +447,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
 
                   {move.insurance_enabled && (
                     <div className="text-[10px] font-mono font-bold bg-blue-50/70 border border-blue-200 text-blue-950 px-2.5 py-1 rounded flex flex-wrap justify-between items-center gap-2">
-                      <span>🛡️ Prise en charge : <strong className="text-blue-900">{move.insurance_name || 'Assurance'}</strong> ({move.insurance_coverage_rate || 80}%)</span>
+                      <span>Prise en charge : <strong className="text-blue-900">{move.insurance_name || 'Assurance'}</strong> ({move.insurance_coverage_rate || 80}%)</span>
                       <span>Part Assurance : <strong className="text-blue-900">{formatVal(move.insurance_amount || (totalMtAPayer * (move.insurance_coverage_rate || 80) / 100))} FCFA</strong></span>
                       <span>Ticket modérateur (Part Patient) : <strong className="text-blue-900">{formatVal(move.client_share_amount || (totalMtAPayer - (move.insurance_amount || (totalMtAPayer * (move.insurance_coverage_rate || 80) / 100))))} FCFA</strong></span>
                     </div>

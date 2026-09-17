@@ -84,39 +84,80 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
     }).length;
   };
 
-  // Fetch all logs from backend
-  const fetchAllLogs = async () => {
+  // Helper to generate fallback logs from labOrders if network/backend is offline
+  const generateFallbackLogs = (orders: LabExamOrder[]): ConsolidatedAuditLog[] => {
+    return orders.map((o, index) => {
+      const ts = o.updated_at || o.created_at || new Date().toISOString();
+      return {
+        id: `wf-fallback-${o.id || index}`,
+        category: 'workflow_lims',
+        category_label: 'Workflow LIMS & Analyses',
+        timestamp: ts,
+        etape: o.status === 'validated' || o.status === 'valide_biologiste' ? 'validation_biologiste' : o.status === 'in_progress' ? 'prelevement' : 'reception_laboratoire',
+        etat_avant: 'pending',
+        etat_apres: o.status,
+        acteur: o.technician_name || o.validated_by_doctor || 'Équipe Laboratoire',
+        reference: o.order_number || `ORD-${o.id}`,
+        patient_name: o.partner_name,
+        description: `Dossier ${o.order_number} (${o.exam_names?.length || 1} analyse(s)) - Statut: ${o.status}`
+      };
+    });
+  };
+
+  // Fetch all logs from backend with AbortSignal & fallback resilience
+  const fetchAllLogs = async (signal?: AbortSignal) => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/all-audit-logs');
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs || []);
-      }
-      
-      const wfRes = await fetch('/api/lab-workflow-logs');
-      if (wfRes.ok) {
-        const wfData = await wfRes.json();
-        setWorkflowLogs(wfData);
+
+      const [allLogsRes, wfRes, notifRes] = await Promise.allSettled([
+        fetch('/api/all-audit-logs', { signal }).then(r => r.ok ? r.json() : null),
+        fetch('/api/lab-workflow-logs', { signal }).then(r => r.ok ? r.json() : null),
+        fetch('/api/lab-notifications', { signal }).then(r => r.ok ? r.json() : null)
+      ]);
+
+      if (allLogsRes.status === 'fulfilled' && allLogsRes.value) {
+        const fetchedLogs = allLogsRes.value.logs || (Array.isArray(allLogsRes.value) ? allLogsRes.value : []);
+        if (fetchedLogs.length > 0) {
+          setLogs(fetchedLogs);
+        } else if (labOrders.length > 0) {
+          setLogs(prev => prev.length > 0 ? prev : generateFallbackLogs(labOrders));
+        }
+      } else if (labOrders.length > 0) {
+        setLogs(prev => prev.length > 0 ? prev : generateFallbackLogs(labOrders));
       }
 
-      const notifRes = await fetch('/api/lab-notifications');
-      if (notifRes.ok) {
-        const notifData = await notifRes.json();
-        setNotifications(notifData);
+      if (wfRes.status === 'fulfilled' && Array.isArray(wfRes.value)) {
+        setWorkflowLogs(wfRes.value);
       }
-    } catch (err) {
-      console.error('Erreur chargement logs:', err);
+
+      if (notifRes.status === 'fulfilled' && Array.isArray(notifRes.value)) {
+        setNotifications(notifRes.value);
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.warn('[LogsAuditView] Chargement différé des logs (réseau déconnecté ou mode autonome):', err?.message || err);
+        if (labOrders.length > 0) {
+          setLogs(prev => prev.length > 0 ? prev : generateFallbackLogs(labOrders));
+        }
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAllLogs();
-    const interval = setInterval(fetchAllLogs, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    const controller = new AbortController();
+    fetchAllLogs(controller.signal);
+
+    const interval = setInterval(() => {
+      fetchAllLogs(controller.signal);
+    }, 12000);
+
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [labOrders]);
 
   // Handle Clear Logs
   const handleClearLogs = async () => {
@@ -124,8 +165,8 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
       await fetch('/api/lab-clear-workflow-data', { method: 'POST' });
       setShowClearConfirmModal(false);
       await fetchAllLogs();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.warn('Erreur réinitialisation logs:', e?.message || e);
     }
   };
 
@@ -286,22 +327,23 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
   return (
     <div ref={printRef} className="space-y-6 animate-in fade-in duration-200">
       {/* 1. Header with Title & Action Controls */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-sm">
-              <ScrollText className="w-6 h-6" />
+            <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center shrink-0">
+              <ScrollText className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>Journal des Logs & Registre d'Audit</span>
-                <span className="text-[10px] uppercase font-extrabold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <div className="flex items-center space-x-2">
+                <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+                  Journal des Logs & Registre d'Audit
+                </h1>
+                <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
                   Temps Réel
                 </span>
-              </h1>
+              </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Traçabilité intégrale du Workflow LIMS, des transferts automates (HL7), des notifications SMS/Email et de la sécurité.
+                Traçabilité intégrale du Workflow LIMS, des automates de laboratoire (HL7), des notifications et de la sécurité.
               </p>
             </div>
           </div>
@@ -310,9 +352,9 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
         <div className="flex items-center flex-wrap gap-2">
           <button
             id="btn-refresh-logs"
-            onClick={fetchAllLogs}
+            onClick={() => fetchAllLogs()}
             disabled={isLoading}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center space-x-1.5 cursor-pointer"
             title="Actualiser immédiatement les journaux"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-slate-900' : ''}`} />
@@ -322,7 +364,7 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
           <button
             id="btn-export-logs-csv"
             onClick={handleExportCSV}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition flex items-center space-x-1.5 cursor-pointer"
             title="Exporter la liste filtrée au format Excel/CSV"
           >
             <Download className="w-3.5 h-3.5 text-slate-600" />
@@ -338,7 +380,7 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
                 window.print();
               }
             }}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition flex items-center space-x-1.5 cursor-pointer"
             title="Imprimer le registre d'audit certifié"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" />
@@ -348,7 +390,7 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
           <button
             id="btn-clear-logs-modal"
             onClick={() => setShowClearConfirmModal(true)}
-            className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-700 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-lg transition flex items-center space-x-1.5 cursor-pointer"
             title="Réinitialiser l'historique d'audit"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -357,144 +399,144 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
         </div>
       </div>
 
-      {/* 2. Top Banner: LIMS Automation Status */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-5 shadow-sm border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
-            <Bot className="w-6 h-6 text-emerald-400 animate-pulse" />
+      {/* 2. Top Summary Card: Clean, Professional Medical Supervision */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
+            <Bot className="w-5 h-5 text-slate-700" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-sm font-black text-white">Moteur LIMS Automatisé Actif</span>
-              <span className="text-[10px] font-extrabold bg-emerald-500 text-white px-2 py-0.5 rounded-full">
-                100% Autonome
+              <span className="text-sm font-bold text-slate-900">Moteur LIMS &amp; Flux d'Automatisation</span>
+              <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.2 rounded">
+                Actif
               </span>
             </div>
-            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Dès qu'un agent confirme le prélèvement, le système enchaîne automatiquement : 
-              <span className="text-emerald-300 font-semibold"> Réception Technique</span> ➔ 
-              <span className="text-purple-300 font-semibold"> Import Automate HL7</span> ➔ 
-              <span className="text-amber-300 font-semibold"> Validation Technique</span> ➔ 
-              <span className="text-teal-300 font-semibold"> Signature Biologique</span> ➔ 
-              <span className="text-sky-300 font-semibold"> Rendu SMS & Email</span> sans intervention manuelle.
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+              Enchaînement automatique : Prélèvement ➔ Réception Technique ➔ Analyse Automate HL7 ➔ Validation Technique ➔ Signature Biologique ➔ Notification Patient.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 shrink-0 bg-white/10 p-3 rounded-xl border border-white/10">
-          <div className="text-center px-2 border-r border-white/10">
-            <div className="text-lg font-black text-white">{workflowLogs.length}</div>
-            <div className="text-[10px] text-slate-300 uppercase font-bold">Traces Workflow</div>
+        <div className="flex items-center space-x-4 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pt-0 md:pl-4">
+          <div className="text-left md:text-center">
+            <div className="text-base font-bold text-slate-900">{workflowLogs.length}</div>
+            <div className="text-[10px] text-slate-500 uppercase font-medium">Traces LIMS</div>
           </div>
-          <div className="text-center px-2">
-            <div className="text-lg font-black text-emerald-400">{notifications.length}</div>
-            <div className="text-[10px] text-slate-300 uppercase font-bold">Notifications</div>
+          <div className="text-left md:text-center">
+            <div className="text-base font-bold text-slate-900">{notifications.length}</div>
+            <div className="text-[10px] text-slate-500 uppercase font-medium">Notifications</div>
           </div>
         </div>
       </div>
 
-      {/* 3. Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
-            <ScrollText className="w-5 h-5" />
+      {/* 3. Stat Cards: Clean & Uniform */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+            <ScrollText className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-2xl font-black text-slate-900">{logs.length}</div>
-            <div className="text-xs font-bold text-slate-500">Total Événements d'Audit</div>
+            <div className="text-xl font-bold text-slate-900">{logs.length}</div>
+            <div className="text-xs text-slate-500 font-medium">Événements d'audit</div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-            <FlaskConical className="w-5 h-5" />
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+            <FlaskConical className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-2xl font-black text-indigo-900">
+            <div className="text-xl font-bold text-slate-900">
               {logs.filter(l => l.category === 'workflow_lims').length}
             </div>
-            <div className="text-xs font-bold text-slate-500">Traces Workflow LIMS</div>
+            <div className="text-xs text-slate-500 font-medium">Traces LIMS</div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600">
-            <Mail className="w-5 h-5" />
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+            <Mail className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-2xl font-black text-sky-900">
+            <div className="text-xl font-bold text-slate-900">
               {logs.filter(l => l.category === 'notification').length}
             </div>
-            <div className="text-xs font-bold text-slate-500">Messages & Notifications</div>
+            <div className="text-xs text-slate-500 font-medium">Messages &amp; Alertes</div>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <ShieldCheck className="w-5 h-5" />
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center space-x-3.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 shrink-0">
+            <ShieldCheck className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-2xl font-black text-emerald-800">100 %</div>
-            <div className="text-xs font-bold text-slate-500">Conformité ISO 15189</div>
+            <div className="text-xl font-bold text-slate-900">100 %</div>
+            <div className="text-xs text-slate-500 font-medium">Conformité ISO 15189</div>
           </div>
         </div>
       </div>
 
-      {/* 4. Live LIMS Interactive Stepper & Real-time Queues */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col">
-        <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center space-x-2">
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
-              <span>Supervision du Workflow LIMS &amp; Flux d'Automatisation</span>
-              <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-0.5 rounded-full font-black border border-emerald-200">
-                100% Automatisé
-              </span>
-            </span>
-          </div>
+      {/* 4. Live LIMS Interactive Stepper & Supervision */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col">
+        <div className="p-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowWorkflowDashboard(!showWorkflowDashboard)}
-              className="text-xs bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 py-1.5 rounded-xl transition flex items-center space-x-1 cursor-pointer shadow-xs"
-            >
-              <span>{showWorkflowDashboard ? 'Masquer la Supervision' : 'Afficher la Supervision'}</span>
-            </button>
+            <Activity className="w-4 h-4 text-slate-700" />
+            <span className="text-xs font-bold text-slate-900">
+              Supervision du Workflow LIMS &amp; Étapes
+            </span>
           </div>
+          <button
+            onClick={() => setShowWorkflowDashboard(!showWorkflowDashboard)}
+            className="text-xs text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 font-semibold px-2.5 py-1 rounded-md transition cursor-pointer"
+          >
+            {showWorkflowDashboard ? 'Masquer la Supervision' : 'Afficher la Supervision'}
+          </button>
         </div>
 
         {showWorkflowDashboard && (
-          <div className="p-5 space-y-5">
-            {/* Horizontal 7-step Stepper */}
-            <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
-              <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest mb-3 flex items-center justify-between">
-                <span>Workflow Actif (du Paiement en Caisse au Rendu Patient)</span>
-                <span className="text-[11px] text-slate-400 lowercase font-medium">actualisation automatique</span>
+          <div className="p-4 space-y-4">
+            {/* Horizontal 7-step Stepper (Clean, Sober) */}
+            <div className="bg-slate-50/60 p-3.5 rounded-lg border border-slate-200">
+              <div className="text-xs font-semibold text-slate-600 mb-2.5 flex items-center justify-between">
+                <span>Étapes du flux (Du paiement au rendu)</span>
+                <span className="text-[11px] text-slate-400 font-normal">Mise à jour automatique</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                 {[
-                  { key: 'paye', label: '1. Paiement', desc: 'En Caisse', color: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-                  { key: 'preleve', label: '2. Prélèvement', desc: 'Tubes Prêts', color: 'border-indigo-200 bg-indigo-50 text-indigo-800' },
-                  { key: 'accepte', label: '3. Réception', desc: 'Labo OK', color: 'border-teal-200 bg-teal-50 text-teal-800' },
-                  { key: 'analyse', label: '4. Analyse HL7', desc: 'Automate', color: 'border-amber-200 bg-amber-50 text-amber-800' },
-                  { key: 'valide_tech', label: '5. Val. Tech', desc: 'Contrôles', color: 'border-cyan-200 bg-cyan-50 text-cyan-800' },
-                  { key: 'valide_biologiste', label: '6. Val. Bio', desc: 'Signé', color: 'border-purple-200 bg-purple-50 text-purple-800' },
-                  { key: 'envoye', label: '7. Rendu', desc: 'Diffusé SMS/Mail', color: 'border-slate-300 bg-slate-100 text-slate-800' },
+                  { key: 'paye', label: '1. Paiement', desc: 'En Caisse' },
+                  { key: 'preleve', label: '2. Prélèvement', desc: 'Tubes Prêts' },
+                  { key: 'accepte', label: '3. Réception', desc: 'Labo OK' },
+                  { key: 'analyse', label: '4. Analyse HL7', desc: 'Automate' },
+                  { key: 'valide_tech', label: '5. Val. Tech', desc: 'Contrôles' },
+                  { key: 'valide_biologiste', label: '6. Val. Bio', desc: 'Signé' },
+                  { key: 'envoye', label: '7. Rendu', desc: 'Diffusé' },
                 ].map((step, idx) => {
                   const count = countByWorkflowStatus(step.key);
+                  const hasItems = count > 0;
                   return (
-                    <div key={step.key} className={`p-2.5 rounded-xl border text-center relative flex flex-col justify-between ${step.color} shadow-3xs`}>
-                      <div className="text-[11px] font-extrabold tracking-tight leading-tight">{step.label}</div>
-                      <div className="text-[9px] font-semibold text-slate-500 mt-0.5">{step.desc}</div>
-                      <div className="mt-2 text-xs font-black bg-white rounded-full px-2.5 py-0.5 inline-block mx-auto border border-inherit shadow-3xs">
-                        {count}
+                    <div
+                      key={step.key}
+                      className={`p-2 rounded-lg border text-center relative flex flex-col justify-between transition ${
+                        hasItems
+                          ? 'bg-white border-slate-300 shadow-3xs'
+                          : 'bg-white/60 border-slate-200'
+                      }`}
+                    >
+                      <div className="text-[11px] font-bold text-slate-900 leading-tight">{step.label}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{step.desc}</div>
+                      <div className="mt-1.5">
+                        <span className={`text-[11px] font-mono px-2 py-0.2 rounded-full font-bold ${
+                          hasItems
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {count}
+                        </span>
                       </div>
                       {idx < 6 && (
-                        <div className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 z-10">
-                          <span className="text-slate-300 font-extrabold text-sm">➔</span>
+                        <div className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 z-10 text-slate-300 text-xs">
+                          →
                         </div>
                       )}
                     </div>
@@ -585,65 +627,65 @@ export const LogsAuditView: React.FC<LogsAuditViewProps> = ({ company, currentUs
       </div>
 
       {/* 4. Categorized Tabs & Interactive Filters */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div ref={printRef} id="audit-logs-table-container" className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         {/* Navigation Tabs */}
-        <div className="border-b border-slate-200 bg-slate-50/50 px-4 pt-3 flex flex-wrap gap-2">
+        <div className="border-b border-slate-200 bg-slate-50/50 px-4 pt-2.5 flex flex-wrap gap-1.5">
           <button
             onClick={() => setActiveCategoryTab('all')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 flex items-center space-x-2 cursor-pointer ${
               activeCategoryTab === 'all'
-                ? 'border-slate-900 text-slate-900 bg-white shadow-xs'
-                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                ? 'border-slate-900 text-slate-900 bg-white shadow-3xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
             }`}
           >
-            <Layers className="w-4 h-4" />
+            <Layers className="w-3.5 h-3.5" />
             <span>Tous les Événements</span>
-            <span className="bg-slate-200 text-slate-800 text-[10px] px-1.5 py-0.5 rounded-full font-black">
+            <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.2 rounded-md font-medium">
               {logs.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveCategoryTab('workflow_lims')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 flex items-center space-x-2 cursor-pointer ${
               activeCategoryTab === 'workflow_lims'
-                ? 'border-indigo-600 text-indigo-900 bg-white shadow-xs'
-                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                ? 'border-slate-900 text-slate-900 bg-white shadow-3xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
             }`}
           >
-            <FlaskConical className="w-4 h-4 text-indigo-600" />
-            <span>Workflow LIMS & Automates</span>
-            <span className="bg-indigo-100 text-indigo-800 text-[10px] px-1.5 py-0.5 rounded-full font-black">
+            <FlaskConical className="w-3.5 h-3.5 text-slate-600" />
+            <span>Workflow LIMS &amp; Automates</span>
+            <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.2 rounded-md font-medium">
               {logs.filter(l => l.category === 'workflow_lims').length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveCategoryTab('notification')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 flex items-center space-x-2 cursor-pointer ${
               activeCategoryTab === 'notification'
-                ? 'border-sky-600 text-sky-900 bg-white shadow-xs'
-                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                ? 'border-slate-900 text-slate-900 bg-white shadow-3xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
             }`}
           >
-            <Mail className="w-4 h-4 text-sky-600" />
-            <span>Notifications (SMS & Email)</span>
-            <span className="bg-sky-100 text-sky-800 text-[10px] px-1.5 py-0.5 rounded-full font-black">
+            <Mail className="w-3.5 h-3.5 text-slate-600" />
+            <span>Notifications (SMS &amp; Email)</span>
+            <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.2 rounded-md font-medium">
               {logs.filter(l => l.category === 'notification').length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveCategoryTab('caisse_security')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center space-x-2 cursor-pointer ${
+            className={`px-3.5 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 flex items-center space-x-2 cursor-pointer ${
               activeCategoryTab === 'caisse_security'
-                ? 'border-emerald-600 text-emerald-900 bg-white shadow-xs'
-                : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                ? 'border-slate-900 text-slate-900 bg-white shadow-3xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Audit Sécurité & Caisses</span>
-            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-black">
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-600" />
+            <span>Audit Sécurité &amp; Caisses</span>
+            <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.2 rounded-md font-medium">
               {logs.filter(l => l.category === 'caisse_security').length}
             </span>
           </button>

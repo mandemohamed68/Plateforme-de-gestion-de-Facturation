@@ -22,8 +22,73 @@ import { InvoicePdfModal } from './components/InvoicePdfModal';
 import { PatientDossierModal } from './components/PatientDossierModal';
 import { PatientDossiersDirectoryView } from './components/PatientDossiersDirectoryView';
 import { InsuranceClaimsView } from './components/InsuranceClaimsView';
+import { ConsultationsView } from './components/ConsultationsView';
+import { PatientJourneyView } from './components/PatientJourneyView';
+import {
+  InfirmierDashboard,
+  MedecinDashboard,
+  SpecialisteDashboard,
+  LaboDashboard,
+  ImagerieDashboard,
+  HospitDashboard,
+  SuperviseurDashboard,
+  CaisseDashboard,
+  FacturesDashboard,
+  CaisseFactureDashboard,
+  AdminDashboard,
+} from './components/ModuleDashboards';
+import {
+  SuperviseurSessionsView,
+  SuperviseurCaissesView,
+  SuperviseurReportsView,
+  CaisseClotureView,
+} from './components/SuperviseurAndCaisseViews';
+import {
+  InfirmierQueueTableView,
+  InfirmierTriageTableView,
+  InfirmierVitalsTableView,
+  InfirmierCareTableView,
+  InfirmierPrescriptionsTableView,
+  InfirmierReferredTableView,
+  MedecinQueueTableView,
+  MedecinPrescriptionsTableView,
+  SpecialisteReferredTableView,
+  SpecialisteFollowupTableView,
+} from './components/ClinicalModuleViews';
+import {
+  LaboQueueTableView,
+  LaboInProgressTableView,
+  ImagerieQueueTableView,
+  ImagerieScheduledTableView,
+  ImagerieReportsTableView,
+  ImageriePrescriptionsTableView,
+  HospitAdmissionsTableView,
+  HospitPatientsTableView,
+  HospitDischargesTableView,
+} from './components/DiagnosticAndHospitViews';
+import {
+  AdminRolesTableView,
+  AdminPermissionsTableView,
+  AdminMedicalSettingsTableView,
+} from './components/AdminModuleViews';
 import { FlashInfoTicker } from './components/FlashInfoTicker';
 import { FlashAnnouncementsView, DEFAULT_FLASH_ANNOUNCEMENTS } from './components/FlashAnnouncementsView';
+import {
+  AppointmentsView,
+  BedManagementView,
+  HospitalTransfersView,
+  LettersReferralsView,
+  CarePlansView,
+  TransmissionsView,
+  NurseScheduleView,
+  SurgeryTheaterView,
+  ImagingPacsView,
+  PharmacyDispensingView,
+  SterilizationLogView,
+  QualityVigilanceView,
+  HrManagementView
+} from './components/SihCustomViews';
+import { HospitalScenariosView } from './components/HospitalScenariosView';
 import {
   AccountMove,
   ResPartner,
@@ -41,6 +106,7 @@ import {
   LabExamOrder,
   PartnerReduction,
   TillSession,
+  MedicalConsultation,
 } from './types';
 
 const safeFetchJson = async <T,>(url: string, fallback: T): Promise<T> => {
@@ -67,6 +133,8 @@ export default function App() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moveTypeFilter, setMoveTypeFilter] = useState<MoveType>('out_invoice');
+  const [invoiceStateFilter, setInvoiceStateFilter] = useState<string>('all');
+  const [invoicePaymentFilter, setInvoicePaymentFilter] = useState<string>('all');
 
   // Session workflow navigation helpers
   const [autoOpenInvoiceCreate, setAutoOpenInvoiceCreate] = useState(false);
@@ -85,6 +153,8 @@ export default function App() {
   const [partnerReductions, setPartnerReductions] = useState<PartnerReduction[]>([]);
   const [labOrders, setLabOrders] = useState<LabExamOrder[]>([]);
   const [tillSessions, setTillSessions] = useState<TillSession[]>([]);
+  const [consultations, setConsultations] = useState<MedicalConsultation[]>([]);
+  const [selectedConsultation, setSelectedConsultation] = useState<MedicalConsultation | null>(null);
   const [uoms, setUoms] = useState<UomUom[]>([]);
   const [countries, setCountries] = useState<ResCountry[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -289,8 +359,9 @@ export default function App() {
     if (currentUser) {
       const allowed = getAllowedViews(currentUser);
       if (!allowed.includes(currentView)) {
-        const nextView = allowed[0] || 'invoices';
-        setCurrentView(nextView);
+        // Find the first view that is NOT a group ID (for rendering)
+        const nextView = allowed.find(v => !v.endsWith('_group')) || allowed[0] || 'dashboard';
+        setCurrentView(nextView as AppView);
         localStorage.setItem('app_current_view', nextView);
       }
     }
@@ -319,6 +390,7 @@ export default function App() {
         companyRes,
         partnerReductionsRes,
         tillSessionsRes,
+        consultationsRes,
       ] = await Promise.all([
         safeFetchJson('/api/moves', []),
         safeFetchJson('/api/partners', []),
@@ -336,6 +408,7 @@ export default function App() {
         safeFetchJson('/api/company', null),
         safeFetchJson('/api/partner-reductions', []),
         safeFetchJson('/api/till-sessions', []),
+        safeFetchJson('/api/consultations', []),
       ]);
 
       const safeMoves = Array.isArray(movesRes) ? movesRes : [];
@@ -351,6 +424,7 @@ export default function App() {
       const safeCountries = Array.isArray(countriesRes) ? countriesRes : [];
       const safeReductions = Array.isArray(partnerReductionsRes) ? partnerReductionsRes : [];
       const safeTillSessions = Array.isArray(tillSessionsRes) ? tillSessionsRes : [];
+      const safeConsultations = Array.isArray(consultationsRes) ? consultationsRes : [];
 
       setMoves(safeMoves);
       setPartners(safePartners);
@@ -363,6 +437,7 @@ export default function App() {
       setPartnerReductions(safeReductions);
       setLabOrders(safeLabOrders);
       setTillSessions(safeTillSessions);
+      setConsultations(safeConsultations);
       setAnalytics(analyticsRes);
       setUoms(safeUoms);
       setCountries(safeCountries);
@@ -472,9 +547,8 @@ export default function App() {
           return existing;
         });
       }
-    } catch (err) {
-      console.error('Erreur chargement données:', err);
-      showToast('Erreur de connexion au serveur backend', 'error');
+    } catch (err: any) {
+      console.warn('Chargement données (mode local / autonome actif):', err?.message || err);
     } finally {
       setIsLoading(false);
     }
@@ -631,6 +705,13 @@ export default function App() {
     }
   }, [isLoading, partners, moves]);
 
+  // Active user till session
+  const activeUserSession = tillSessions.find(
+    (s) =>
+      (s.cashier_id === currentUser?.id || s.cashier_name === currentUser?.name) &&
+      s.state === 'in_progress'
+  );
+
   // Invoice Handlers
   const handleSaveMove = async (moveData: any): Promise<AccountMove | null> => {
     try {
@@ -644,7 +725,7 @@ export default function App() {
         body: JSON.stringify({
           ...moveData,
           invoice_user_id: moveData.invoice_user_id || currentUser?.id,
-          till_session_id: moveData.till_session_id || activeUserSession?.id || null,
+          ...(isEdit ? {} : { till_session_id: moveData.till_session_id || activeUserSession?.id || null }),
         }),
       });
       if (res.ok) {
@@ -705,11 +786,17 @@ export default function App() {
   };
 
   const handlePayInvoice = (move: AccountMove) => {
-    setMoveTypeFilter(move.move_type);
-    setSelectedMoveForPayment(move); // We'll use this to pass it to InvoicesView
-    setAutoOpenInvoiceCreate(false);
+    setSelectedMoveForPayment(move);
+    setAutoOpenPaymentModal(true);
+    setReturnToSessionMode(true);
+    setCurrentView('payments');
+  };
+
+  const handleNavigateToNewPayment = async () => {
+    await fetchAllData();
+    setAutoOpenPaymentModal(true);
     setReturnToSessionMode(false);
-    setCurrentView('invoices');
+    setCurrentView('payments');
   };
 
   // Register Payment Handler
@@ -1123,11 +1210,6 @@ export default function App() {
     );
   }
 
-  const activeUserSession = tillSessions.find(
-    (s) =>
-      (s.cashier_id === currentUser?.id || s.cashier_name === currentUser?.name) &&
-      s.state === 'in_progress'
-  );
   const hasActiveSession = Boolean(activeUserSession);
 
   return (
@@ -1167,108 +1249,131 @@ export default function App() {
       )}
 
       {/* Structured Left Sidebar & Top Status Header Navigation */}
-      <AppNavigation
-        currentView={currentView}
-        setCurrentView={(view) => {
-          const roleLower = (currentUser?.role || '').toLowerCase();
-          const loginLower = (currentUser?.login || '').toLowerCase();
-          const emailLower = (currentUser?.email || '').toLowerCase();
+      {(() => {
+        const pendingPaymentsCount = moves.filter(
+          (m) => m.move_type === 'out_invoice' && m.state === 'posted' && m.payment_state !== 'paid' && m.amount_residual > 0
+        ).length;
 
-          const isSupervisorOrAdmin =
-            roleLower.includes('supervis') ||
-            roleLower.includes('admin') ||
-            roleLower.includes('directeur') ||
-            roleLower.includes('biolog') ||
-            roleLower.includes('technic') ||
-            loginLower === 'admin' ||
-            loginLower === 'superviseur' ||
-            (currentUser?.group_ids || []).includes(1) ||
-            (currentUser?.group_ids || []).includes(5);
+        return (
+          <AppNavigation
+            currentView={currentView}
+            setCurrentView={(view) => {
+              const roleLower = (currentUser?.role || '').toLowerCase();
+              const loginLower = (currentUser?.login || '').toLowerCase();
+              const emailLower = (currentUser?.email || '').toLowerCase();
 
-          const isSessionReq =
-            !isSupervisorOrAdmin &&
-            (roleLower.includes('factur') ||
-              roleLower.includes('caiss') ||
-              loginLower === 'facturier' ||
-              loginLower === 'caissier' ||
-              loginLower === 'facture_caisse');
+              const isSupervisorOrAdmin =
+                roleLower.includes('supervis') ||
+                roleLower.includes('admin') ||
+                roleLower.includes('directeur') ||
+                roleLower.includes('biolog') ||
+                roleLower.includes('technic') ||
+                loginLower === 'admin' ||
+                loginLower === 'superviseur' ||
+                (currentUser?.group_ids || []).includes(1) ||
+                (currentUser?.group_ids || []).includes(5);
 
-          if (isSessionReq && !hasActiveSession && view !== 'caisse_sessions') {
-            showToast('Ouverture de session requise pour accéder aux autres fonctionnalités', 'error');
-            setCurrentView('caisse_sessions');
-            return;
-          }
+              // Seuls les profils caisse et caisse & facture doivent ouvrir et fermer une session
+              const isSessionReq =
+                !isSupervisorOrAdmin &&
+                (roleLower.includes('caiss') ||
+                  loginLower === 'caissier' ||
+                  loginLower === 'caisse_facture' ||
+                  loginLower === 'facture_caisse');
 
-          const allowed = getAllowedViews(currentUser);
-          if (allowed.includes(view)) {
-            if (view === 'invoices') {
-              setSelectedMoveForPayment(null);
-              setAutoOpenInvoiceCreate(false);
-            }
-            setCurrentView(view);
-          } else {
-            showToast('Accès non autorisé pour votre profil', 'error');
-          }
-        }}
-        currentUser={currentUser}
-        users={users}
-        groups={groups}
-        company={company}
-        hasActiveSession={hasActiveSession}
-        onSelectUser={(u) => {
-          setCurrentUser(u);
-          localStorage.setItem('app_saved_user', JSON.stringify(u));
-          const allowed = getAllowedViews(u);
-          const rLower = (u.role || '').toLowerCase();
-          const lLower = (u.login || '').toLowerCase();
-          const eLower = (u.email || '').toLowerCase();
+              if (isSessionReq && !hasActiveSession && view !== 'caisse_sessions') {
+                showToast('Ouverture de session requise pour accéder aux autres fonctionnalités', 'error');
+                setCurrentView('caisse_sessions');
+                return;
+              }
 
-          const isUAdminOrSup =
-            rLower.includes('supervis') ||
-            rLower.includes('admin') ||
-            rLower.includes('directeur') ||
-            rLower.includes('biolog') ||
-            rLower.includes('technic') ||
-            lLower === 'admin' ||
-            lLower === 'superviseur' ||
-            (u.group_ids || []).includes(1) ||
-            (u.group_ids || []).includes(5);
+              const allowed = getAllowedViews(currentUser);
+              if (allowed.includes(view)) {
+                if (view === 'invoices') {
+                  setSelectedMoveForPayment(null);
+                  setAutoOpenInvoiceCreate(false);
+                }
+                setCurrentView(view);
+              } else {
+                showToast('Accès non autorisé pour votre profil', 'error');
+              }
+            }}
+            currentUser={currentUser}
+            users={users}
+            groups={groups}
+            company={company}
+            hasActiveSession={hasActiveSession}
+            onSelectUser={(u) => {
+              setCurrentUser(u);
+              localStorage.setItem('app_saved_user', JSON.stringify(u));
+              const allowed = getAllowedViews(u);
+              const rLower = (u.role || '').toLowerCase();
+              const lLower = (u.login || '').toLowerCase();
+              const eLower = (u.email || '').toLowerCase();
 
-          const isURequired =
-            !isUAdminOrSup &&
-            (rLower.includes('factur') ||
-              rLower.includes('caiss') ||
-              lLower === 'facturier' ||
-              lLower === 'caissier' ||
-              lLower === 'facture_caisse');
+              const isUAdminOrSup =
+                rLower.includes('supervis') ||
+                rLower.includes('admin') ||
+                rLower.includes('directeur') ||
+                rLower.includes('biolog') ||
+                rLower.includes('technic') ||
+                lLower === 'admin' ||
+                lLower === 'superviseur' ||
+                (u.group_ids || []).includes(1) ||
+                (u.group_ids || []).includes(5);
 
-          if (isURequired) {
-            setCurrentView('caisse_sessions');
-          } else if (rLower.includes('supervis') || lLower === 'mande' || (u.group_ids || []).includes(1)) {
-            setCurrentView('dashboard');
-          } else if (!allowed.includes(currentView)) {
-            setCurrentView(allowed[0] || 'dashboard');
-          }
-          showToast(`Profil actif : ${u.name} (${u.role || 'Opérateur'})`);
-        }}
-        onLogout={handleLogout}
-        onNewInvoice={() => {
-          setMoveTypeFilter('out_invoice');
-          setCurrentView('invoices');
-        }}
-        onNewPayment={() => setCurrentView('payments')}
-        onNewLabOrder={() => setCurrentView('lab_results')}
-        onResetDb={handleResetDb}
-        notificationCount={notifications.length}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        onSearchNDM={handleGlobalSearchNDM}
-      />
+              const isURequired =
+                !isUAdminOrSup &&
+                (rLower.includes('caiss') ||
+                  lLower === 'caissier' ||
+                  lLower === 'caisse_facture' ||
+                  lLower === 'facture_caisse');
+
+              if (isURequired) {
+                setCurrentView('caisse_sessions');
+              } else if (rLower.includes('supervis') || lLower === 'mande' || (u.group_ids || []).includes(1)) {
+                setCurrentView('dashboard');
+              } else if (!allowed.includes(currentView)) {
+                setCurrentView(allowed[0] || 'dashboard');
+              }
+              showToast(`Profil actif : ${u.name} (${u.role || 'Opérateur'})`);
+            }}
+            onLogout={handleLogout}
+            onNewInvoice={() => {
+              setMoveTypeFilter('out_invoice');
+              setCurrentView('invoices');
+            }}
+            onNewPayment={() => {
+              setAutoOpenPaymentModal(false);
+              setCurrentView('payments');
+            }}
+            onNewLabOrder={() => setCurrentView('lab_results')}
+            onResetDb={handleResetDb}
+            notificationCount={notifications.length}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            onSearchNDM={handleGlobalSearchNDM}
+            pendingPaymentsCount={pendingPaymentsCount}
+            partners={partners}
+            moves={moves}
+            onSelectPatient={(p) => {
+              if (p.ndm) {
+                handleGlobalSearchNDM(p.ndm);
+              } else {
+                setLookupPatient(p);
+                setIsLookupOpen(true);
+              }
+            }}
+            onSelectMove={(m) => {
+              setPdfMove(m);
+            }}
+            showToast={showToast}
+          />
+        );
+      })()}
 
       {/* Main App Canvas - Full Width View Without Restrictive Width Constraints */}
       <main className="flex-1 lg:pl-64 transition-all p-3 sm:p-5 lg:p-6 w-full relative">
-        {/* Global Flash Info Ticker / Targeted Announcement Slides */}
-        <FlashInfoTicker company={company} currentUser={currentUser} />
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
@@ -1290,48 +1395,236 @@ export default function App() {
               transition={{ duration: 0.18, ease: 'easeOut' }}
               className="w-full"
             >
-            {currentView === 'dashboard' && analytics && (
-              <DashboardView
-                analytics={analytics}
-                company={company}
-                moves={moves}
-                overdueMoves={(moves || []).filter(
-                  (m) =>
-                    m &&
-                    m.state === 'posted' &&
-                    m.amount_residual > 0 &&
-                    m.invoice_date_due &&
-                    m.invoice_date_due < new Date().toISOString().split('T')[0]
-                )}
-                payments={payments}
+            {currentView === 'infirmier_dashboard' && (
+              <InfirmierDashboard
+                currentView={currentView}
+                consultations={consultations}
                 partners={partners}
-                products={products}
-                labOrders={labOrders}
+                moves={moves}
+                payments={payments}
                 tillSessions={tillSessions}
+                labOrders={labOrders}
                 users={users}
                 currentUser={currentUser}
-                notifications={notifications}
-                onNewInvoice={() => {
-                  setMoveTypeFilter('out_invoice');
-                  setCurrentView('invoices');
-                }}
-                onNewPayment={() => setCurrentView('payments')}
-                onNewLabOrder={() => setCurrentView('lab_results')}
-                onOpenSessions={() => setCurrentView('caisse_sessions')}
-                onSendReminder={handleSendReminder}
-                onNavigateTab={(v) => setCurrentView(v as any)}
-                onOpenInvoice={(m) => setPdfMove(m)}
-                onNavigate={(v) => setCurrentView(v as any)}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
               />
             )}
 
-            {currentView === 'invoices' && (
+            {currentView === 'medecin_dashboard' && (
+              <MedecinDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'specialiste_dashboard' && (
+              <SpecialisteDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'labo_dashboard' && (
+              <LaboDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'imagerie_dashboard' && (
+              <ImagerieDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'hospit_dashboard' && (
+              <HospitDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'superviseur_dashboard' && (
+              <SuperviseurDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'caisse_dashboard' && (
+              <CaisseDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'factures_dashboard' && (
+              <FacturesDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {currentView === 'caisse_facture_dashboard' && (
+              <CaisseFactureDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {(currentView === 'admin_dashboard' || currentView === 'dashboard') && (
+              <AdminDashboard
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                labOrders={labOrders}
+                users={users}
+                currentUser={currentUser}
+                company={company}
+                analytics={analytics}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => { setMoveTypeFilter('out_invoice'); setCurrentView('invoices'); }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {(currentView === 'invoices' ||
+              currentView === 'factures_all' ||
+              currentView === 'factures_new_invoice' ||
+              currentView === 'factures_draft' ||
+              currentView === 'factures_paid' ||
+              currentView === 'factures_unpaid' ||
+              currentView === 'factures_cancelled' ||
+              currentView === 'caisse_facture_all_invoices' ||
+              currentView === 'caisse_facture_new_invoice' ||
+              currentView === 'caisse_facture_draft' ||
+              currentView === 'caisse_facture_paid' ||
+              currentView === 'caisse_facture_unpaid' ||
+              currentView === 'caisse_facture_cancelled' ||
+              currentView === 'superviseur_invoices') && (
               <InvoicesView
                 moves={moves}
                 partners={partners}
                 users={users}
                 products={products}
                 taxes={taxes}
+                consultations={consultations}
                 currentUser={currentUser}
                 onSaveMove={handleSaveMove}
                 onPostMove={handlePostMove}
@@ -1344,7 +1637,11 @@ export default function App() {
                 onSendReminder={handleSendReminder}
                 moveTypeFilter={moveTypeFilter}
                 setMoveTypeFilter={setMoveTypeFilter}
-                autoOpenCreate={autoOpenInvoiceCreate}
+                autoOpenCreate={
+                  autoOpenInvoiceCreate ||
+                  currentView === 'factures_new_invoice' ||
+                  currentView === 'caisse_facture_new_invoice'
+                }
                 initialMove={selectedMoveForPayment}
                 onClearInitialMove={() => setSelectedMoveForPayment(null)}
                 onFinishAndReturnToSession={returnToSessionMode ? handleReturnToSession : undefined}
@@ -1357,10 +1654,26 @@ export default function App() {
                 tillSessions={tillSessions}
                 onShowToast={showToast}
                 onNavigateToLab={() => setCurrentView('lab_sampling')}
+                stateFilter={
+                  ['factures_draft', 'caisse_facture_draft'].includes(currentView)
+                    ? 'draft'
+                    : ['factures_cancelled', 'caisse_facture_cancelled'].includes(currentView)
+                    ? 'cancel'
+                    : invoiceStateFilter
+                }
+                setStateFilter={setInvoiceStateFilter}
+                paymentFilter={
+                  ['factures_paid', 'caisse_facture_paid'].includes(currentView)
+                    ? 'paid'
+                    : ['factures_unpaid', 'caisse_facture_unpaid'].includes(currentView)
+                    ? 'not_paid'
+                    : invoicePaymentFilter
+                }
+                setPaymentFilter={setInvoicePaymentFilter}
               />
             )}
 
-            {currentView === 'lab_results' && (
+            {(currentView === 'lab_results' || currentView === 'labo_in_progress' || currentView === 'labo_results') && (
               <LabResultsView
                 labOrders={labOrders}
                 partners={partners}
@@ -1371,7 +1684,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'lab_sampling' && (
+            {(currentView === 'lab_sampling' || currentView === 'labo_sampling') && (
               <LabSamplingView
                 labOrders={labOrders}
                 partners={partners}
@@ -1382,7 +1695,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'lab_grouped_results' && (
+            {(currentView === 'lab_grouped_results' || currentView === 'labo_validation') && (
               <LabGroupedResultsView
                 labOrders={labOrders}
                 partners={partners}
@@ -1393,7 +1706,12 @@ export default function App() {
               />
             )}
 
-            {currentView === 'payments' && (
+            {(currentView === 'payments' ||
+              currentView === 'caisse_payments' ||
+              currentView === 'caisse_new_payment' ||
+              currentView === 'caisse_facture_all_payments' ||
+              currentView === 'caisse_facture_new_payment' ||
+              currentView === 'superviseur_payments') && (
               <PaymentsView
                 payments={payments}
                 moves={moves}
@@ -1401,19 +1719,29 @@ export default function App() {
                 currentUser={currentUser}
                 onRegisterPayment={handleRegisterPayment}
                 selectedMoveForPayment={selectedMoveForPayment}
-                onClearSelectedMove={() => setSelectedMoveForPayment(null)}
+                onClearSelectedMove={() => {
+                  setSelectedMoveForPayment(null);
+                  setAutoOpenPaymentModal(false);
+                }}
                 autoOpenModal={autoOpenPaymentModal}
                 onFinishAndReturnToSession={returnToSessionMode ? handleReturnToSession : undefined}
+                company={company}
+                onNavigateToTriage={() => setCurrentView('infirmier_triage')}
+                onNavigateToLab={() => setCurrentView('lab_sampling')}
+                onNavigateToSoins={() => setCurrentView('infirmier_care')}
+                onShowToast={showToast}
               />
             )}
 
-            {currentView === 'caisse_sessions' && (
+            {(currentView === 'caisse_sessions' ||
+              currentView === 'caisse_facture_sessions') && (
               <CaisseSessionsView
                 company={company}
                 currentUser={currentUser}
                 moves={moves}
                 tillSessions={tillSessions}
                 onSessionChange={fetchAllData}
+                onRefreshData={fetchAllData}
                 onShowToast={showToast}
                 onNavigateToLab={() => setCurrentView('lab_sampling')}
                 onOpenNewInvoice={async () => {
@@ -1433,6 +1761,32 @@ export default function App() {
               />
             )}
 
+            {currentView === 'superviseur_sessions' && (
+              <SuperviseurSessionsView
+                currentView={currentView}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                partners={partners}
+                company={company}
+                currentUser={currentUser}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {(currentView === 'caisse_cloture' || currentView === 'caisse_facture_cloture') && (
+              <CaisseClotureView
+                currentView={currentView}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                partners={partners}
+                company={company}
+                currentUser={currentUser}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
             {currentView === 'insurance_claims' && (
               <InsuranceClaimsView
                 moves={moves}
@@ -1449,7 +1803,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'partners' && (
+            {(currentView === 'partners' || currentView === 'specialiste_patients') && (
               <PartnersView
                 partners={partners}
                 countries={countries}
@@ -1461,7 +1815,35 @@ export default function App() {
               />
             )}
 
-            {currentView === 'patient_dossiers' && (
+            {(currentView === 'consultations' ||
+              currentView === 'medecin_consultations' ||
+              currentView === 'specialiste_consultations') && (
+              <ConsultationsView
+                company={company}
+                partners={partners}
+                products={products}
+                currentUser={currentUser}
+                initialConsultation={selectedConsultation}
+                onSelectConsultation={(c) => setSelectedConsultation(c)}
+                onClearInitialConsultation={() => setSelectedConsultation(null)}
+                onShowToast={showToast}
+                onNavigateToInvoices={() => setCurrentView('invoices')}
+                onNavigateToLab={() => setCurrentView('lab_sampling')}
+              />
+            )}
+
+            {currentView === 'specialiste_followup' && (
+              <SpecialisteFollowupTableView
+                currentView={currentView}
+                consultations={consultations}
+                partners={partners}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {(currentView === 'patient_dossiers' || currentView === 'medecin_dossiers') && (
               <PatientDossiersDirectoryView
                 partners={partners}
                 moves={moves}
@@ -1471,7 +1853,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'products' && (
+            {(currentView === 'products' || currentView === 'admin_pricing' || currentView === 'labo_catalog') && (
               <ProductsView
                 products={products}
                 uoms={uoms}
@@ -1481,7 +1863,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'users' && (
+            {(currentView === 'users' || currentView === 'admin_users') && (
               <UsersView
                 users={users}
                 groups={groups}
@@ -1493,10 +1875,40 @@ export default function App() {
               />
             )}
 
-            {currentView === 'company' && (
+            {currentView === 'admin_roles' && (
+              <AdminRolesTableView
+                currentView={currentView}
+                users={users}
+                groups={groups}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'admin_permissions' && (
+              <AdminPermissionsTableView
+                currentView={currentView}
+                users={users}
+                groups={groups}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {(currentView === 'company' || currentView === 'admin_company') && (
               <CompanySettingsView
                 company={company}
                 onSaveCompany={handleSaveCompany}
+              />
+            )}
+
+            {currentView === 'admin_medical_settings' && (
+              <AdminMedicalSettingsTableView
+                currentView={currentView}
+                users={users}
+                groups={groups}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
               />
             )}
 
@@ -1525,7 +1937,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'logs_audit' && (
+            {(currentView === 'logs_audit' || currentView === 'admin_audit') && (
               <LogsAuditView
                 company={company}
                 currentUser={currentUser}
@@ -1538,6 +1950,380 @@ export default function App() {
                 rawSql={schemaSql}
                 tables={schemaTables}
                 onExecuteSql={handleExecuteSql}
+              />
+            )}
+
+            {currentView === 'appointments' && (
+              <AppointmentsView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {(currentView === 'bed_management' || currentView === 'hospit_beds') && (
+              <BedManagementView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'hospit_transfers' && (
+              <HospitalTransfersView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'letters_referrals' && (
+              <LettersReferralsView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {(currentView === 'care_plans' || currentView === 'hospit_monitoring') && (
+              <CarePlansView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'transmissions' && (
+              <TransmissionsView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'nurse_schedule' && (
+              <NurseScheduleView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'surgery_theater' && (
+              <SurgeryTheaterView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {(currentView === 'imaging_pacs' || currentView === 'imagerie_validation') && (
+              <ImagingPacsView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'pharmacy_dispensing' && (
+              <PharmacyDispensingView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'sterilization_log' && (
+              <SterilizationLogView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'quality_vigilance' && (
+              <QualityVigilanceView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {currentView === 'hr_management' && (
+              <HrManagementView
+                partners={partners}
+                currentUser={currentUser}
+              />
+            )}
+
+            {/* Scénarios Hospitaliers S01 à S50 & Règles R01 à R10 */}
+            {currentView === 'scenarios_s01_s50' && (
+              <HospitalScenariosView
+                onNavigateToView={(v) => setCurrentView(v as AppView)}
+                currentUserId={currentUser?.id}
+                currentUserName={currentUser?.name}
+                onSelectPatient={(p) => {
+                  setLookupPatient(p);
+                  setIsLookupOpen(true);
+                }}
+              />
+            )}
+
+            {/* Parcours Patient 360° Unifié */}
+            {currentView === 'patient_journey' && (
+              <PatientJourneyView
+                partners={partners}
+                invoices={moves}
+                payments={payments}
+                consultations={consultations}
+                company={company}
+                currentUser={currentUser}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onNewInvoice={() => {
+                  setMoveTypeFilter('out_invoice');
+                  setCurrentView('invoices');
+                }}
+                onNewPayment={handleNavigateToNewPayment}
+              />
+            )}
+
+            {/* Workspaces Métier Infirmier */}
+            {currentView === 'infirmier_queue' && (
+              <InfirmierQueueTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'infirmier_triage' && (
+              <InfirmierTriageTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'infirmier_vitals' && (
+              <InfirmierVitalsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'infirmier_care' && (
+              <InfirmierCareTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'infirmier_prescriptions' && (
+              <InfirmierPrescriptionsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'infirmier_referred' && (
+              <InfirmierReferredTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {/* Workspaces Métier Médecin & Spécialiste */}
+            {currentView === 'medecin_queue' && (
+              <MedecinQueueTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                moves={moves}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onSelectConsultation={(c) => {
+                  setSelectedConsultation(c);
+                  setCurrentView('medecin_consultations');
+                }}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {(currentView === 'medecin_prescriptions' || currentView === 'specialiste_prescriptions') && (
+              <MedecinPrescriptionsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                moves={moves}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'specialiste_referred' && (
+              <SpecialisteReferredTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onRefreshData={fetchAllData}
+                onSelectConsultation={(c) => {
+                  setSelectedConsultation(c);
+                  setCurrentView('specialiste_consultations');
+                }}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {/* Workspaces Métier Laboratoire */}
+            {currentView === 'labo_queue' && (
+              <LaboQueueTableView
+                currentView={currentView}
+                labOrders={labOrders}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onRefreshData={fetchAllData}
+              />
+            )}
+
+            {currentView === 'labo_in_progress' && (
+              <LaboInProgressTableView
+                currentView={currentView}
+                labOrders={labOrders}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onRefreshData={fetchAllData}
+              />
+            )}
+
+            {/* Workspaces Métier Imagerie */}
+            {currentView === 'imagerie_queue' && (
+              <ImagerieQueueTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'imagerie_scheduled' && (
+              <ImagerieScheduledTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {(currentView === 'imagerie_reports' || currentView === 'imagerie_completed' || currentView === 'imagerie_validation') && (
+              <ImagerieReportsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'imagerie_prescriptions' && (
+              <ImageriePrescriptionsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {/* Workspaces Métier Hospitalisation */}
+            {currentView === 'hospit_admissions' && (
+              <HospitAdmissionsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'hospit_patients' && (
+              <HospitPatientsTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'hospit_discharges' && (
+              <HospitDischargesTableView
+                currentView={currentView}
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {/* Workspaces Métier Superviseur */}
+            {currentView === 'superviseur_caisses' && (
+              <SuperviseurCaissesView
+                currentView={currentView}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                partners={partners}
+                company={company}
+                currentUser={currentUser}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {(currentView === 'superviseur_reports' || currentView === 'admin_reports') && (
+              <SuperviseurReportsView
+                currentView={currentView}
+                moves={moves}
+                payments={payments}
+                tillSessions={tillSessions}
+                partners={partners}
+                company={company}
+                currentUser={currentUser}
+                onNavigateToView={(v) => setCurrentView(v)}
               />
             )}
             </motion.div>
@@ -1626,7 +2412,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Real-time Toast Notifications Container with smooth motion transitions */}
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col space-y-2 pointer-events-none max-w-sm w-full">
+      <div className="fixed bottom-6 right-6 z-[99999] flex flex-col space-y-2 pointer-events-none max-w-sm w-full">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div

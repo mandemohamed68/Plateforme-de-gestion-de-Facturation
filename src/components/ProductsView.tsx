@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Package,
   Plus,
@@ -20,7 +20,18 @@ import {
   HelpCircle,
   FileSpreadsheet,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Pill,
+  Film,
+  Stethoscope,
+  BedDouble,
+  Syringe,
+  UploadCloud,
+  Download,
+  FileUp,
+  Check,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { ProductProduct, UomUom } from '../types';
 import { formatFCFA } from '../lib/formatters';
@@ -33,7 +44,7 @@ interface ProductsViewProps {
   onRefreshProducts?: () => Promise<void>;
 }
 
-const LAB_DEPARTMENTS = [
+const DEPARTMENTS_LIST = [
   'Biochimie Clinique',
   'Hématologie & Cytologie',
   'Sérologie & Immunologie',
@@ -41,8 +52,11 @@ const LAB_DEPARTMENTS = [
   'Microbiologie & Bactériologie',
   'Immuno-Hématologie (Groupage)',
   'Hormonologie & Marqueurs',
-  'Profils & Bilans de Santé',
-  'Prestations & Soins Généraux',
+  'Radiologie & Échographie',
+  'Pharmacie Centrale & Solutés',
+  'Consultations & Spécialités',
+  'Soins Infirmiers & Pansements',
+  'Hospitalisation & Reanimation',
 ];
 
 const SAMPLE_TYPES = [
@@ -55,7 +69,8 @@ const SAMPLE_TYPES = [
   'Selles fraîches (Coprologie)',
   'Prélèvement Vaginal / Écouvillon',
   'Ponction / Liquide Biologique',
-  'Autre Échantillon',
+  'Cliché / Film Radiologique',
+  'Non applicable (Médicament / Soin)',
 ];
 
 export const ProductsView: React.FC<ProductsViewProps> = ({
@@ -66,14 +81,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onRefreshProducts,
 }) => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
-  const [filterType, setFilterType] = useState<'all' | 'lab_exam' | 'lab_profile' | 'service'>('all');
+  const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Excel importation states
+  // Auto-seed comprehensive catalog if products list is empty on mount
+  useEffect(() => {
+    if (products.length === 0 && onRefreshProducts) {
+      handleSeedComprehensiveCatalog();
+    }
+  }, []);
+  
+  // Custom CSV / Excel Upload Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importedRows, setImportedRows] = useState<any[]>([]);
+  const [importFileName, setImportFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImportExcel = async () => {
+  // Auto Template Seed Import
+  const handleImportSeedTemplate = async () => {
     setIsImporting(true);
     setImportResult(null);
     try {
@@ -81,9 +108,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         setImportResult({ text: data.message, type: 'success' });
-        if (onRefreshProducts) {
-          await onRefreshProducts();
-        }
+        if (onRefreshProducts) await onRefreshProducts();
       } else {
         setImportResult({ text: data.error || "Erreur lors de l'importation.", type: 'error' });
       }
@@ -92,6 +117,154 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     } finally {
       setIsImporting(false);
     }
+  };
+
+  // Download Sample CSV Template
+  const handleDownloadSampleCSV = () => {
+    const headers = 'Code;Nom;Type;Département;Prix_Public;Prix_TM;Prix_HP;Description\n';
+    const sampleRows = [
+      'MED-001;Paracétamol 500mg Comprimé;medication;Pharmacie Centrale & Solutés;500;100;500;Boîte de 20 comprimés',
+      'MED-002;Amoxicilline 1g Injectable;medication;Pharmacie Centrale & Solutés;2500;500;2500;Poudre pour suspension injectable',
+      'LAB-010;Glycémie à jeun;lab_exam;Biochimie Clinique;2000;400;2000;Dosage du glucose plasmatique',
+      'LAB-020;NFS / Hémogramme Complet;lab_profile;Hématologie & Cytologie;6000;1200;6000;Numération Formule Sanguine',
+      'RAD-005;Radio Thorax Face;imaging;Radiologie & Échographie;12000;2400;12000;Radiographie pulmonaire de face',
+      'RAD-012;Échographie Abdominale;imaging;Radiologie & Échographie;18000;3600;18000;Échographie organes abdominaux',
+      'ACT-001;Consultation Médecine Générale;service;Consultations & Spécialités;5000;1000;5000;Consultation médicale standard',
+      'HOS-001;Chambre Standard Nuitée;hospitalization;Hospitalisation & Reanimation;15000;3000;15000;Séjour hospitalier par nuitée'
+    ].join('\n');
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(headers + sampleRows);
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', csvContent);
+    downloadAnchor.setAttribute('download', 'modele_import_prestations_hopital.csv');
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    document.body.removeChild(downloadAnchor);
+  };
+
+  // Client-side File Upload Handler for CSV/XLSX
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result as string;
+        if (!text) return;
+
+        // Parse CSV lines
+        const lines = text.split(/\r\n|\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) {
+          setImportResult({ text: "Le fichier CSV ne contient pas assez de données.", type: 'error' });
+          return;
+        }
+
+        // Detect separator (; or , or tab)
+        const headerLine = lines[0];
+        const separator = headerLine.includes(';') ? ';' : headerLine.includes('\t') ? '\t' : ',';
+        const headers = headerLine.split(separator).map(h => h.trim().replace(/^["']|["']$/g, ''));
+
+        const parsedData: any[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const cells = lines[i].split(separator).map(c => c.trim().replace(/^["']|["']$/g, ''));
+          if (cells.length < 2) continue;
+
+          const rowObj: any = {};
+          headers.forEach((h, idx) => {
+            rowObj[h] = cells[idx] || '';
+          });
+
+          // Standardize fields
+          const name = rowObj['Nom'] || rowObj['nom'] || rowObj['Désignation'] || rowObj['designation'] || rowObj['name'] || cells[1] || '';
+          const code = rowObj['Code'] || rowObj['code'] || rowObj['Référence'] || rowObj['reference'] || cells[0] || `PRD-${Date.now()}-${i}`;
+          const type = rowObj['Type'] || rowObj['type'] || rowObj['Catégorie'] || rowObj['category_type'] || 'service';
+          const dept = rowObj['Département'] || rowObj['departement'] || rowObj['Department'] || 'Général';
+          const pricePublic = Number(rowObj['Prix_Public'] || rowObj['Prix Public'] || rowObj['Prix'] || rowObj['prix_public'] || rowObj['list_price'] || cells[4] || 0);
+          const priceTm = Number(rowObj['Prix_TM'] || rowObj['Prix TM'] || rowObj['prix_tm'] || cells[5] || 0);
+          const priceHp = Number(rowObj['Prix_HP'] || rowObj['Prix HP'] || rowObj['prix_hp'] || cells[6] || 0);
+          const desc = rowObj['Description'] || rowObj['description'] || cells[7] || '';
+
+          if (name) {
+            parsedData.push({
+              default_code: code,
+              name,
+              category_type: type,
+              lab_department: dept,
+              list_price: pricePublic,
+              prix_tm: priceTm,
+              prix_hp: priceHp,
+              description: desc,
+            });
+          }
+        }
+
+        setImportedRows(parsedData);
+      } catch (err) {
+        setImportResult({ text: "Erreur lors de la lecture du fichier CSV.", type: 'error' });
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  // Submit Batch Upload to API
+  const handleConfirmBatchImport = async () => {
+    if (importedRows.length === 0) return;
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const res = await fetch('/api/products/import-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: importedRows })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setImportResult({ text: data.message, type: 'success' });
+        setShowImportModal(false);
+        setImportedRows([]);
+        setImportFileName('');
+        if (onRefreshProducts) await onRefreshProducts();
+      } else {
+        setImportResult({ text: data.error || "Erreur lors de l'importation.", type: 'error' });
+      }
+    } catch (e: any) {
+      setImportResult({ text: "Erreur de connexion au serveur.", type: 'error' });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Seed comprehensive catalog
+  const handleSeedComprehensiveCatalog = async () => {
+    setIsImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/products/seed-comprehensive', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setImportResult({ text: data.message, type: 'success' });
+        if (onRefreshProducts) await onRefreshProducts();
+      } else {
+        setImportResult({ text: data.error || "Erreur lors du rechargement du catalogue.", type: 'error' });
+      }
+    } catch (e: any) {
+      setImportResult({ text: "Erreur de connexion au serveur.", type: 'error' });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Helper for category item count
+  const getCategoryCount = (catId: string) => {
+    if (catId === 'all') return products.length;
+    return products.filter((p) => p.category_type === catId).length;
   };
 
   // Full form inline editing/creating mode state
@@ -107,7 +280,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [prixHp, setPrixHp] = useState<number | string>(0);
   const [defaultCode, setDefaultCode] = useState('');
   const [uomId, setUomId] = useState(1);
-  const [categoryType, setCategoryType] = useState<'service' | 'lab_exam' | 'lab_profile'>('lab_exam');
+  const [categoryType, setCategoryType] = useState<any>('lab_exam');
   const [labDepartment, setLabDepartment] = useState('Biochimie Clinique');
   const [labSampleType, setLabSampleType] = useState('Sang total (Tube EDTA Violet)');
   const [labReferenceRange, setLabReferenceRange] = useState('');
@@ -137,7 +310,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setLabTests(labTests.filter((_, i) => i !== index));
   };
 
-  const handleOpenCreateForm = (defaultDept?: string) => {
+  const handleOpenCreateForm = (defaultCategory?: string) => {
     setEditingProduct(null);
     setName('');
     setDescription('');
@@ -146,8 +319,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setPrixHp(0);
     setDefaultCode(`PREST-${Date.now().toString().slice(-4)}`);
     setUomId(1);
-    setCategoryType('lab_exam');
-    setLabDepartment(defaultDept && defaultDept !== 'all' ? defaultDept : 'Biochimie Clinique');
+    setCategoryType(defaultCategory || 'lab_exam');
+    setLabDepartment('Biochimie Clinique');
     setLabSampleType('Sang total (Tube EDTA Violet)');
     setLabReferenceRange('');
     setLabTurnaroundTime('2 heures');
@@ -215,6 +388,54 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     setProductToDelete(null);
   };
 
+  // Helper for Category Badges
+  const renderCategoryBadge = (type?: string) => {
+    switch (type) {
+      case 'medication':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <Pill className="w-3 h-3" />
+            <span>Médicament</span>
+          </span>
+        );
+      case 'imaging':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+            <Film className="w-3 h-3" />
+            <span>Imagerie</span>
+          </span>
+        );
+      case 'lab_profile':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <FlaskConical className="w-3 h-3" />
+            <span>Bilan / Profil</span>
+          </span>
+        );
+      case 'lab_exam':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <Microscope className="w-3 h-3" />
+            <span>Examen Labo</span>
+          </span>
+        );
+      case 'hospitalization':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <BedDouble className="w-3 h-3" />
+            <span>Hospitalisation</span>
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <Stethoscope className="w-3 h-3" />
+            <span>Acte &amp; Soin</span>
+          </span>
+        );
+    }
+  };
+
   // Filter products
   const filteredProducts = products
     .filter((p) => {
@@ -278,11 +499,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             
             {/* Header Field: Act Name */}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Désignation de la prestation</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Désignation de la prestation / Article</label>
               <input
                 type="text"
                 required
-                placeholder="Désignation de la prestation"
+                placeholder="Ex: Paracétamol 500mg, Radio Thorax, Glycémie..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full text-lg md:text-2xl font-bold text-slate-900 bg-transparent border-b-2 border-slate-200 focus:border-slate-900 focus:outline-none pb-2 transition-all"
@@ -298,41 +519,43 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 
                 {/* Référence Interne */}
                 <div className="grid grid-cols-3 items-center gap-2">
-                  <label className="text-xs font-bold text-slate-600">Référence interne</label>
+                  <label className="text-xs font-bold text-slate-600">Référence / Code</label>
                   <input
                     type="text"
                     required
-                    placeholder="Code ou Référence"
+                    placeholder="Code interne"
                     value={defaultCode}
                     onChange={(e) => setDefaultCode(e.target.value)}
                     className="col-span-2 w-full bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition"
                   />
                 </div>
 
-                {/* Catégorie d'article */}
+                {/* Type de Prestation */}
                 <div className="grid grid-cols-3 items-center gap-2">
-                  <label className="text-xs font-bold text-slate-600">Catégorie d'article</label>
+                  <label className="text-xs font-bold text-slate-600">Famille / Nature</label>
                   <select
-                    value={articleCategory}
-                    onChange={(e) => setArticleCategory(e.target.value)}
-                    className="col-span-2 w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition"
+                    value={categoryType}
+                    onChange={(e) => setCategoryType(e.target.value)}
+                    className="col-span-2 w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition"
                   >
-                    <option value="All">All</option>
-                    <option value="Services">Services / Actes Médicaux</option>
-                    <option value="Analyses">Analyses de Laboratoire</option>
-                    <option value="Consultations">Consultations &amp; Avis</option>
+                    <option value="medication">Pharmacie &amp; Médicament</option>
+                    <option value="lab_exam">Examen de Laboratoire Individuel</option>
+                    <option value="lab_profile">Bilan / Profil Complexe Multi-Analyses</option>
+                    <option value="imaging">Imagerie Médicale (Radio/Écho/TDM)</option>
+                    <option value="service">Consultation &amp; Acte de Soin</option>
+                    <option value="hospitalization">Hospitalisation &amp; Séjour</option>
                   </select>
                 </div>
 
                 {/* Département Médical */}
                 <div className="grid grid-cols-3 items-center gap-2">
-                  <label className="text-xs font-bold text-slate-600">Département médical</label>
+                  <label className="text-xs font-bold text-slate-600">Département / Pôle</label>
                   <select
                     value={labDepartment}
                     onChange={(e) => setLabDepartment(e.target.value)}
                     className="col-span-2 w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-600"
                   >
-                    {LAB_DEPARTMENTS.map((dept) => (
+                    {DEPARTMENTS_LIST.map((dept) => (
                       <option key={dept} value={dept}>
                         {dept}
                       </option>
@@ -340,9 +563,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   </select>
                 </div>
 
-                {/* Type d'Échantillon / Tube */}
+                {/* Type d'Échantillon / Support */}
                 <div className="grid grid-cols-3 items-center gap-2">
-                  <label className="text-xs font-bold text-slate-600">Échantillon / Tube</label>
+                  <label className="text-xs font-bold text-slate-600">Échantillon / Prélèvement</label>
                   <select
                     value={labSampleType}
                     onChange={(e) => setLabSampleType(e.target.value)}
@@ -357,27 +580,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </div>
               </div>
 
-              {/* RIGHT COLUMN: Prestation Type & Pricing */}
+              {/* RIGHT COLUMN: Tariff Structure */}
               <div className="space-y-5">
-                <h3 className="text-xs font-bold text-slate-900 border-b border-slate-100 pb-1 uppercase tracking-wide">Tarification &amp; Type d'acte</h3>
-
-                {/* Type Prestation */}
-                <div className="grid grid-cols-3 items-center gap-2">
-                  <label className="text-xs font-bold text-slate-600">Type de prestation</label>
-                  <select
-                    value={categoryType}
-                    onChange={(e) => setCategoryType(e.target.value as any)}
-                    className="col-span-2 w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition"
-                  >
-                    <option value="lab_exam">Examen de Laboratoire Individuel</option>
-                    <option value="lab_profile">Bilan / Profil Complet (Multi-Analyses)</option>
-                    <option value="service">Prestation Générale / Acte de Soins</option>
-                  </select>
-                </div>
+                <h3 className="text-xs font-bold text-slate-900 border-b border-slate-100 pb-1 uppercase tracking-wide">Tarification &amp; Grille de Prix</h3>
 
                 {/* Prix de Vente (Public) */}
                 <div className="grid grid-cols-3 items-center gap-2">
-                  <label className="text-xs font-bold text-slate-600">Prix de vente (Base)</label>
+                  <label className="text-xs font-bold text-slate-600">Prix Public (Base)</label>
                   <div className="col-span-2 relative">
                     <input
                       type="number"
@@ -396,7 +605,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 {/* Prix Ticket Modérateur (TM) */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <div className="flex items-center space-x-1">
-                    <label className="text-xs font-bold text-slate-600">Prix TM</label>
+                    <label className="text-xs font-bold text-slate-600">Prix TM (Assurance)</label>
                     <div className="group relative">
                       <HelpCircle className="w-3.5 h-3.5 text-slate-400 cursor-help" />
                       <div className="absolute z-50 hidden group-hover:block bg-slate-800 text-white text-[10px] font-bold rounded p-2 w-48 -left-20 top-5 leading-normal shadow-lg">
@@ -422,7 +631,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 {/* Prix Hors Patient / Privé (HP) */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <div className="flex items-center space-x-1">
-                    <label className="text-xs font-bold text-slate-600">Prix HP</label>
+                    <label className="text-xs font-bold text-slate-600">Prix HP (Privé)</label>
                     <div className="group relative">
                       <HelpCircle className="w-3.5 h-3.5 text-slate-400 cursor-help" />
                       <div className="absolute z-50 hidden group-hover:block bg-slate-800 text-white text-[10px] font-bold rounded p-2 w-48 -left-20 top-5 leading-normal shadow-lg">
@@ -447,43 +656,40 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </div>
             </div>
 
-            {/* Bottom section: Clinical description and dynamic inputs */}
+            {/* Bottom Section: Specifics & Description */}
             <div className="pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-8">
               
-              {/* Clinical reference specifications */}
+              {/* Clinical Description */}
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Spécifications Cliniques</h3>
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Informatons Complémentaires</h3>
                 
-                {/* Normes de Référence */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-500">Normes de Référence &amp; Valeurs Usuelles</label>
+                  <label className="text-xs font-semibold text-slate-500">Normes de Référence / Posologie de base</label>
                   <input
                     type="text"
-                    placeholder="Valeurs de référence"
+                    placeholder="Ex: 0.70 - 1.10 g/L ou 1 comprimé 3x/jour"
                     value={labReferenceRange}
                     onChange={(e) => setLabReferenceRange(e.target.value)}
                     className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono text-slate-800 focus:outline-none"
                   />
                 </div>
 
-                {/* Délai d'exécution */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-500">Délai moyen d'exécution</label>
+                  <label className="text-xs font-semibold text-slate-500">Délai d'exécution / Disponibilité</label>
                   <input
                     type="text"
-                    placeholder="Délai de rendu"
+                    placeholder="Ex: 2 heures, Immédiat, 24h"
                     value={labTurnaroundTime}
                     onChange={(e) => setLabTurnaroundTime(e.target.value)}
                     className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-none"
                   />
                 </div>
 
-                {/* Description clinique */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-500">Description / Indications cliniques</label>
+                  <label className="text-xs font-semibold text-slate-500">Description / Remarques pour les praticiens</label>
                   <textarea
-                    rows={2}
-                    placeholder="Description"
+                    rows={3}
+                    placeholder="Saisissez ici des précisions de prescription ou d'utilisation..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-300 rounded p-2.5 text-xs font-medium text-slate-800 focus:outline-none"
@@ -491,27 +697,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 </div>
               </div>
 
-              {/* Dynamic Profiles Section */}
+              {/* Lab Exam Sub-Tests Parameters (if lab_exam / lab_profile) */}
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Composition &amp; Paramètres</h3>
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Paramètres Spécifiques</h3>
                 {categoryType === 'lab_profile' ? (
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-500">Examens inclus (un par ligne)</label>
+                    <label className="text-xs font-semibold text-slate-500">Examens / Analyses inclus (un par ligne)</label>
                     <textarea
                       rows={6}
-                      placeholder="Liste des examens inclus"
+                      placeholder="Liste des examens inclus dans ce bilan..."
                       value={labProfileExamsText}
                       onChange={(e) => setLabProfileExamsText(e.target.value)}
                       className="w-full bg-slate-50 hover:bg-white border border-slate-300 rounded p-2.5 text-xs font-mono text-slate-800 focus:outline-none"
                     />
-                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                      Ces examens seront automatiquement listés et cochés lors de la prescription de ce bilan complet.
-                    </p>
                   </div>
                 ) : categoryType === 'lab_exam' ? (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-slate-500">Liste des tests / paramètres (Saisie des résultats)</label>
+                      <label className="text-xs font-semibold text-slate-500">Paramètres de sous-tests</label>
                       <button
                         type="button"
                         onClick={handleAddLabTest}
@@ -524,7 +727,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                     {labTests.length === 0 ? (
                       <div className="bg-slate-50 border border-dashed border-slate-200 rounded p-4 text-center text-xs text-slate-400">
-                        Aucun paramètre de sous-test configuré.
+                        Aucun paramètre configuré.
                         <button
                           type="button"
                           onClick={handleAddLabTest}
@@ -534,7 +737,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div className="border border-slate-200 rounded-md overflow-hidden max-h-[300px] overflow-y-auto">
+                      <div className="border border-slate-200 rounded-md overflow-hidden max-h-[220px] overflow-y-auto">
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="bg-slate-100 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -553,7 +756,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                                     placeholder="Ex: Hémoglobine"
                                     value={test.name}
                                     onChange={(e) => handleUpdateLabTest(index, 'name', e.target.value)}
-                                    className="w-full bg-transparent hover:bg-white focus:bg-white border-0 focus:ring-1 focus:ring-indigo-600 rounded px-1.5 py-1 text-xs font-medium text-slate-800 focus:outline-none"
+                                    className="w-full bg-transparent border-0 rounded px-1.5 py-1 text-xs font-medium text-slate-800 focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1">
@@ -562,7 +765,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                                     placeholder="Ex: g/dL"
                                     value={test.unit}
                                     onChange={(e) => handleUpdateLabTest(index, 'unit', e.target.value)}
-                                    className="w-full bg-transparent hover:bg-white focus:bg-white border-0 focus:ring-1 focus:ring-indigo-600 rounded px-1.5 py-1 text-xs font-medium text-slate-800 focus:outline-none"
+                                    className="w-full bg-transparent border-0 rounded px-1.5 py-1 text-xs font-medium text-slate-800 focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1">
@@ -571,14 +774,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                                     placeholder="Ex: 12 - 16"
                                     value={test.reference_range}
                                     onChange={(e) => handleUpdateLabTest(index, 'reference_range', e.target.value)}
-                                    className="w-full bg-transparent hover:bg-white focus:bg-white border-0 focus:ring-1 focus:ring-indigo-600 rounded px-1.5 py-1 text-xs font-medium text-slate-800 focus:outline-none"
+                                    className="w-full bg-transparent border-0 rounded px-1.5 py-1 text-xs font-medium text-slate-800 focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1 text-center">
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveLabTest(index)}
-                                    className="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50 transition"
+                                    className="text-rose-500 hover:text-rose-700 p-1"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -593,10 +796,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 ) : (
                   <div className="bg-slate-50 border border-slate-200 rounded-md p-6 text-center text-slate-400 text-xs flex flex-col items-center justify-center h-full min-h-[160px]">
                     <Layers className="w-8 h-8 text-slate-300 mb-2" />
-                    <span>Cette prestation est un acte de service simple.</span>
-                    <span className="text-[10px] text-slate-400 mt-1">
-                      Aucune configuration de paramètres de laboratoire n'est requise.
-                    </span>
+                    <span>Cette prestation est une fourniture ou un acte médical standard.</span>
                   </div>
                 )}
               </div>
@@ -610,32 +810,39 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           {/* Header Action Bar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-100">
             <div>
-              <h1 className="text-xl text-slate-700 font-normal flex items-center space-x-2">
-                <FlaskConical className="w-6 h-6 text-emerald-600" />
-                <span>Nomenclature des actes &amp; Prestations</span>
+              <h1 className="text-xl text-slate-800 font-bold flex items-center space-x-2">
+                <Package className="w-6 h-6 text-indigo-600" />
+                <span>Paramétrage des Prestations &amp; Nomenclature Médicale</span>
               </h1>
               <p className="text-xs text-slate-500 font-normal mt-1">
-                Configurez les actes, analyses médicales et consultations cliniques, avec leurs tarifs de base et grilles tarifaires TM / HP.
+                Gérez les médicaments, examens de laboratoire, imageries médicales, consultations et tarifs TM/HP.
               </p>
             </div>
             
             <div className="flex flex-wrap gap-2 mt-4 md:mt-0 self-start md:self-auto">
               <button
-                id="btn-import-excel"
                 type="button"
-                disabled={isImporting}
-                onClick={handleImportExcel}
-                className={`px-4 py-2 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-md shadow-xs transition duration-200 flex items-center space-x-1.5 uppercase tracking-wider ${isImporting ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'bg-white hover:bg-slate-50'}`}
+                onClick={handleSeedComprehensiveCatalog}
+                className="px-3 py-2 border border-indigo-200 hover:border-indigo-300 text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 text-xs font-bold rounded-md shadow-xs transition duration-200 flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer"
+                title="Charger les données de démonstration exhaustives (médicaments, radios, soins, bilans...)"
               >
-                <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span>{isImporting ? 'Importation en cours...' : 'Importer Excel'}</span>
+                <Sparkles className="w-4 h-4 shrink-0 text-indigo-600" />
+                <span>Générer Catalogue Exhaustif</span>
               </button>
 
               <button
-                id="btn-creer-prestation"
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="px-3 py-2 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-md shadow-xs transition duration-200 flex items-center space-x-1.5 uppercase tracking-wider bg-white hover:bg-slate-50 cursor-pointer"
+              >
+                <FileUp className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>Importer CSV / Excel</span>
+              </button>
+
+              <button
                 type="button"
                 onClick={() => handleOpenCreateForm()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-md shadow-xs transition duration-200 flex items-center space-x-1.5 uppercase tracking-wider"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-md shadow-xs transition duration-200 flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer"
               >
                 <Plus className="w-4 h-4 shrink-0" />
                 <span>Créer prestation</span>
@@ -657,17 +864,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </div>
           )}
 
-          {/* Search, Filter Tabs & Layout Grid */}
+          {/* Search & Category Tabs */}
           <div className="bg-white rounded-lg shadow-xs border border-slate-200/80 p-4 space-y-4">
             
-            {/* Filter Tabs & Search Row */}
+            {/* Search Bar & Department Selector */}
             <div className="flex flex-col md:flex-row gap-3">
-              {/* Search Bar */}
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher une prestation (code, désignation, indications...)"
+                  placeholder="Rechercher une prestation (médicament, radio, examen, code...)"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-md pl-9 pr-4 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:border-indigo-600 transition-all"
@@ -682,7 +888,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 )}
               </div>
 
-              {/* Department Selector */}
               <div className="w-full md:w-64">
                 <select
                   value={selectedDepartment}
@@ -690,7 +895,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   className="w-full bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none"
                 >
                   <option value="all">Tous les Départements</option>
-                  {LAB_DEPARTMENTS.map((dept) => (
+                  {DEPARTMENTS_LIST.map((dept) => (
                     <option key={dept} value={dept}>
                       {dept}
                     </option>
@@ -699,181 +904,253 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               </div>
             </div>
 
-            {/* Secondary Category Filter Buttons */}
-            <div className="flex items-center space-x-2 border-t border-slate-100 pt-3 overflow-x-auto pb-1 ">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Filtrer par type :</span>
+            {/* Category Filter Pills */}
+            <div className="flex items-center space-x-2 border-t border-slate-100 pt-3 overflow-x-auto pb-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2 shrink-0">Famille :</span>
               {[
                 { id: 'all', label: 'Toutes prestations' },
-                { id: 'lab_exam', label: 'Examens Individuels' },
+                { id: 'medication', label: 'Pharmacie & Médicaments' },
+                { id: 'lab_exam', label: 'Examens Laboratoire' },
                 { id: 'lab_profile', label: 'Bilans Complets' },
-                { id: 'service', label: 'Prestations de Soins' },
-              ].map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setFilterType(t.id as any)}
-                  className={`px-3 py-1 text-xs font-bold rounded-full transition cursor-pointer ${
-                    filterType === t.id
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+                { id: 'imaging', label: 'Imagerie Médicale' },
+                { id: 'service', label: 'Consultations & Soins' },
+                { id: 'hospitalization', label: 'Hospitalisation' },
+              ].map((t) => {
+                const count = getCategoryCount(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setFilterType(t.id)}
+                    className={`px-3 py-1 text-xs font-bold rounded-full transition cursor-pointer shrink-0 flex items-center space-x-1.5 ${
+                      filterType === t.id
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span>{t.label}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      filterType === t.id ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Prestation Catalog Table */}
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-            <div className="w-full">
-              <table className="w-full text-left border-collapse text-xs table-fixed">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-white border-b border-slate-200 text-slate-700 font-bold z-10 shadow-sm text-[11px] uppercase tracking-wider">
-                    <th className="py-2.5 px-3 w-[12%]">Réf.</th>
-                    <th className="py-2.5 px-3 w-[30%]">Désignation</th>
-                    <th className="py-2.5 px-2 w-[16%] hidden lg:table-cell">Département</th>
-                    <th className="py-2.5 px-2 w-[14%] hidden md:table-cell">Échantillon</th>
-                    <th className="py-2.5 px-2 text-right w-[14%]">Prix Public</th>
-                    <th className="py-2.5 px-2 text-right w-[10%] hidden sm:table-cell">Prix TM</th>
-                    <th className="py-2.5 px-2 text-center w-[6%]">Actions</th>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px] uppercase tracking-wider">
+                    <th className="py-2.5 px-3 w-28">Réf. Code</th>
+                    <th className="py-2.5 px-3">Désignation Prestation</th>
+                    <th className="py-2.5 px-2">Famille</th>
+                    <th className="py-2.5 px-2 hidden lg:table-cell">Département</th>
+                    <th className="py-2.5 px-2 text-right">Prix Public</th>
+                    <th className="py-2.5 px-2 text-right hidden sm:table-cell">Prix TM</th>
+                    <th className="py-2.5 px-2 text-right hidden md:table-cell">Prix HP</th>
+                    <th className="py-2.5 px-2 text-center w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400 bg-slate-50/50">
-                        Aucune prestation ou analyse trouvée dans cette sélection.
+                      <td colSpan={8} className="py-12 text-center text-slate-400 bg-slate-50/50">
+                        Aucune prestation trouvée pour ces critères de recherche.
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map((p) => {
-                      const isProfile = p.category_type === 'lab_profile';
+                    filteredProducts.map((p, idx) => (
+                      <tr key={`prod-${p.id}-${p.default_code || idx}`} className="hover:bg-slate-50/70 transition">
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
+                          <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-[10px] block truncate">
+                            {p.default_code || `PREST-${p.id}`}
+                          </span>
+                        </td>
+                        
+                        <td className="py-2.5 px-3">
+                          <div className="font-bold text-slate-900">{p.name}</div>
+                          {p.description && (
+                            <p className="text-[10px] text-slate-500 font-normal mt-0.5 truncate max-w-md">
+                              {p.description}
+                            </p>
+                          )}
+                        </td>
+                        
+                        <td className="py-2.5 px-2">
+                          {renderCategoryBadge(p.category_type)}
+                        </td>
 
-                      return (
-                        <tr key={p.id} className="hover:bg-slate-50/70 transition">
-                          {/* Code */}
-                          <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
-                            <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-[10px] block truncate">
-                              {p.default_code || `PREST-${p.id}`}
-                            </span>
-                          </td>
-                          
-                          {/* Name / Description */}
-                          <td className="py-2.5 px-3">
-                            <div className="flex items-center space-x-1.5 min-w-0">
-                              <span className="font-bold text-slate-900 truncate">{p.name}</span>
-                              {isProfile && (
-                                <span className="text-[9px] bg-indigo-100 text-indigo-700 border border-indigo-200 px-1 py-0.2 rounded font-bold uppercase shrink-0">
-                                  Bilan
-                                </span>
-                              )}
-                            </div>
-                            {p.description && (
-                              <p className="text-[10px] text-slate-500 font-normal mt-0.5 truncate">
-                                {p.description}
-                              </p>
-                            )}
-                            {p.lab_tests && p.lab_tests.length > 0 && (
-                              <div className="mt-1 space-y-1">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleProductExpand(p.id)}
-                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center space-x-1 cursor-pointer select-none"
-                                >
-                                  {expandedProductIds.includes(p.id) ? (
-                                    <>
-                                      <ChevronUp className="w-3 h-3 text-indigo-600" />
-                                      <span>Masquer ({p.lab_tests.length} tests)</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown className="w-3 h-3 text-indigo-600" />
-                                      <span>Détail ({p.lab_tests.length} sous-tests)</span>
-                                    </>
-                                  )}
-                                </button>
-                                
-                                {expandedProductIds.includes(p.id) && (
-                                  <div className="bg-slate-50 border border-slate-200/60 rounded p-2 max-w-xs space-y-1 mt-1 animate-in slide-in-from-top-1 duration-150">
-                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-200/50">
-                                      Nomenclature paramètres
-                                    </div>
-                                    <div className="divide-y divide-slate-100 max-h-[150px] overflow-y-auto pr-1">
-                                      {p.lab_tests.map((t, idx) => (
-                                        <div key={idx} className="flex items-center justify-between py-0.5 text-[10px] font-normal">
-                                          <span className="text-slate-700 font-medium truncate">{t.name}</span>
-                                          <div className="flex items-center space-x-1 shrink-0">
-                                            {t.unit && (
-                                              <span className="text-[8px] font-mono text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-100">
-                                                {t.unit}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          
-                          {/* Department */}
-                          <td className="py-2.5 px-2 text-slate-700 font-medium hidden lg:table-cell">
-                            <span className="truncate block text-xs">{p.lab_department || 'Général'}</span>
-                          </td>
-                          
-                          {/* Sample tube */}
-                          <td className="py-2.5 px-2 text-slate-600 hidden md:table-cell">
-                            {p.lab_sample_type ? (
-                              <span className="text-[10px] bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded block truncate">
-                                {p.lab_sample_type}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          
-                          {/* List Price (Base) */}
-                          <td className="py-2.5 px-2 text-right font-mono font-bold text-slate-900">
-                            {formatFCFA(p.list_price || 0)}
-                          </td>
+                        <td className="py-2.5 px-2 text-slate-700 font-medium hidden lg:table-cell">
+                          <span className="truncate block text-xs">{p.lab_department || 'Général'}</span>
+                        </td>
+                        
+                        <td className="py-2.5 px-2 text-right font-mono font-bold text-slate-900">
+                          {formatFCFA(p.list_price || 0)}
+                        </td>
 
-                          {/* Ticket Modérateur Price (TM) */}
-                          <td className="py-2.5 px-2 text-right font-mono font-bold text-amber-900 bg-amber-50/20 border-l border-amber-100/50 hidden sm:table-cell">
-                            {formatFCFA(p.prix_tm || 0)}
-                          </td>
-                          
-                          {/* Actions */}
-                          <td className="py-2.5 px-2 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditForm(p)}
-                                className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition cursor-pointer"
-                                title="Modifier"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setProductToDelete(p)}
-                                className="p-1 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                        <td className="py-2.5 px-2 text-right font-mono font-bold text-amber-900 bg-amber-50/20 hidden sm:table-cell">
+                          {formatFCFA(p.prix_tm || 0)}
+                        </td>
+
+                        <td className="py-2.5 px-2 text-right font-mono font-bold text-indigo-900 bg-indigo-50/20 hidden md:table-cell">
+                          {formatFCFA(p.prix_hp || 0)}
+                        </td>
+                        
+                        <td className="py-2.5 px-2 text-center">
+                          <div className="flex items-center justify-center space-x-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditForm(p)}
+                              className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded transition cursor-pointer"
+                              title="Modifier"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProductToDelete(p)}
+                              className="p-1 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
             </div>
           </div>
         </>
+      )}
+
+      {/* CSV / EXCEL IMPORTation MODAL */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2 text-indigo-600">
+                <FileSpreadsheet className="w-5 h-5" />
+                <h3 className="text-base font-bold text-slate-900">Importation de Prestations par Fichier CSV / Excel</h3>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-md p-4 text-xs space-y-2 text-slate-600">
+                <p className="font-bold text-slate-800">
+                  Importez vos listes de médicaments, examens, imageries et tarifs en un clic.
+                </p>
+                <p>
+                  Sélectionnez un fichier CSV ou Excel contenant les colonnes : <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[10px]">Code</code>, <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[10px]">Nom</code>, <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[10px]">Type</code>, <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[10px]">Prix_Public</code>, <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-[10px]">Prix_TM</code>.
+                </p>
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleCSV}
+                    className="text-indigo-600 hover:underline font-bold flex items-center space-x-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Télécharger le modèle de fichier CSV exemple</span>
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={handleImportSeedTemplate}
+                    disabled={isImporting}
+                    className="text-emerald-700 hover:underline font-bold flex items-center space-x-1"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isImporting ? 'animate-spin' : ''}`} />
+                    <span>Charger le catalogue standard serveur</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* File Dropzone */}
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-lg p-6 text-center cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition"
+              >
+                <UploadCloud className="w-8 h-8 text-indigo-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-700">Cliquez pour choisir un fichier CSV / TXT</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Formats acceptés : .csv, .txt, .tsv</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.txt,.tsv"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+
+              {importFileName && (
+                <div className="flex items-center justify-between text-xs bg-emerald-50 border border-emerald-200 p-2.5 rounded text-emerald-800 font-bold">
+                  <span className="truncate">Fichier sélectionné : {importFileName} ({importedRows.length} prestations détectées)</span>
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                </div>
+              )}
+
+              {/* Preview table if parsed */}
+              {importedRows.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Aperçu des 5 premiers éléments :</h4>
+                  <div className="border border-slate-200 rounded max-h-40 overflow-y-auto text-[11px]">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-100 font-bold text-slate-700">
+                        <tr>
+                          <th className="p-1.5">Code</th>
+                          <th className="p-1.5">Désignation</th>
+                          <th className="p-1.5">Famille</th>
+                          <th className="p-1.5 text-right">Prix Public</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {importedRows.slice(0, 5).map((row, idx) => (
+                          <tr key={idx}>
+                            <td className="p-1.5 font-mono">{row.default_code}</td>
+                            <td className="p-1.5 font-bold">{row.name}</td>
+                            <td className="p-1.5">{row.category_type}</td>
+                            <td className="p-1.5 text-right font-mono">{row.list_price} FCFA</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 text-xs font-bold rounded-md bg-white hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={importedRows.length === 0 || isImporting}
+                onClick={handleConfirmBatchImport}
+                className={`px-5 py-2 text-white text-xs font-bold rounded-md flex items-center space-x-2 ${
+                  importedRows.length === 0 || isImporting
+                    ? 'bg-slate-300 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer shadow-sm'
+                }`}
+              >
+                <span>{isImporting ? 'Importation...' : `Valider et importer (${importedRows.length})`}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
