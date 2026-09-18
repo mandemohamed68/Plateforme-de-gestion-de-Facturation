@@ -66,7 +66,7 @@ import {
 import { formatFCFA, getUserBillingProfile } from '../lib/formatters';
 import { PaginationControls } from './PaginationControls';
 import { SupervisorCorrectionModal } from './CaisseSessionGuard';
-import { logFinancialCorrection } from '../utils/caisseSessionService';
+import { logFinancialCorrection, isSupervisorOrAdmin } from '../utils/caisseSessionService';
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../utils/dateUtils';
 
 export type InvoiceStep = 1 | 2 | 3;
@@ -1570,8 +1570,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     .filter((m) => {
       if (m.move_type !== moveTypeFilter) return false;
 
-      // Respect user compartment boundaries (standard practitioners can only see their own accounts/creations)
-      if (!isSupervisor) {
+      // Respect user compartment boundaries
+      // 1. Non-supervisors/admins can only see their own accounts/creations
+      // 2. Non-supervisors/admins can only see TODAY'S accounts (info antérieure invisible)
+      if (!isSupervisorOrAdmin(currentUser)) {
+        // Restriction à la date du jour
+        const today = new Date().toISOString().split('T')[0];
+        const invoiceDate = (m.invoice_date || m.create_date || '').split(' ')[0].split('T')[0];
+        if (invoiceDate !== today) return false;
+
         if (profile === 'facture' || profile === 'facture_caisse') {
           // Un facturier ou polyvalent ne voit que ses propres factures créées
           if (Number(m.invoice_user_id) !== Number(currentUser?.id)) {

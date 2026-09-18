@@ -38,6 +38,7 @@ import {
   AppView
 } from '../types';
 import { formatFCFA } from '../lib/formatters';
+import { isSupervisorOrAdmin } from '../utils/caisseSessionService';
 
 interface ModuleDashboardProps {
   currentView: AppView;
@@ -1278,9 +1279,16 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
       };
     });
 
-    if (isSupervisor) return rawEnriched;
-    return rawEnriched.filter(p => Number(p.user_id) === Number(currentUser?.id));
-  }, [payments, partners, moves, currentUser, isSupervisor]);
+    if (isSupervisorOrAdmin(currentUser)) return rawEnriched;
+    
+    // Restriction pour les caissiers : seulement leurs propres encaissements DU JOUR
+    const today = new Date().toISOString().split('T')[0];
+    return rawEnriched.filter(p => {
+      const isOwn = Number(p.user_id) === Number(currentUser?.id);
+      const paymentDate = (p.payment_date || p.created_at || '').split(' ')[0].split('T')[0];
+      return isOwn && paymentDate === today;
+    });
+  }, [payments, partners, moves, currentUser]);
 
   const filteredPayments = useMemo(() => {
     return enrichedPayments.filter((p) => {
@@ -1772,12 +1780,17 @@ export const FacturesDashboard: React.FC<ModuleDashboardProps> = ({
   onNavigateToView,
   onNewInvoice,
 }) => {
-  const isSupervisor = currentUser?.role?.toLowerCase().includes('superv') || currentUser?.role?.toLowerCase().includes('admin') || currentUser?.role?.toLowerCase().includes('direct') || currentUser?.login?.toLowerCase().includes('admin') || currentUser?.login === 'mandemohamed68@gmail.com';
-
   const myInvoices = useMemo(() => {
-    if (isSupervisor) return moves;
-    return moves.filter(m => Number(m.invoice_user_id) === Number(currentUser?.id));
-  }, [moves, currentUser, isSupervisor]);
+    if (isSupervisorOrAdmin(currentUser)) return moves;
+
+    // Restriction pour les facturiers : seulement leurs propres factures DU JOUR
+    const today = new Date().toISOString().split('T')[0];
+    return moves.filter(m => {
+      const isOwn = Number(m.invoice_user_id) === Number(currentUser?.id);
+      const invoiceDate = (m.invoice_date || m.create_date || '').split(' ')[0].split('T')[0];
+      return isOwn && invoiceDate === today;
+    });
+  }, [moves, currentUser]);
 
   const customerInvoices = myInvoices.filter(m => m.move_type === 'out_invoice');
   const draftInvoices = customerInvoices.filter(m => m.state === 'draft');
@@ -1963,17 +1976,28 @@ export const FacturesDashboard: React.FC<ModuleDashboardProps> = ({
 // -------------------------------------------------------------
 export const CaisseFactureDashboard: React.FC<ModuleDashboardProps> = (props) => {
   const { currentUser, moves, payments } = props;
-  const isSupervisor = currentUser?.role?.toLowerCase().includes('superv') || currentUser?.role?.toLowerCase().includes('admin') || currentUser?.role?.toLowerCase().includes('direct') || currentUser?.login?.toLowerCase().includes('admin') || currentUser?.login === 'mandemohamed68@gmail.com';
-
+  
   const myInvoices = useMemo(() => {
-    if (isSupervisor) return moves;
-    return moves.filter(m => Number(m.invoice_user_id) === Number(currentUser?.id));
-  }, [moves, currentUser, isSupervisor]);
+    if (isSupervisorOrAdmin(currentUser)) return moves;
+
+    const today = new Date().toISOString().split('T')[0];
+    return moves.filter(m => {
+      const isOwn = Number(m.invoice_user_id) === Number(currentUser?.id);
+      const invoiceDate = (m.invoice_date || m.create_date || '').split(' ')[0].split('T')[0];
+      return isOwn && invoiceDate === today;
+    });
+  }, [moves, currentUser]);
 
   const myPayments = useMemo(() => {
-    if (isSupervisor) return payments;
-    return payments.filter(p => Number(p.user_id) === Number(currentUser?.id));
-  }, [payments, currentUser, isSupervisor]);
+    if (isSupervisorOrAdmin(currentUser)) return payments;
+
+    const today = new Date().toISOString().split('T')[0];
+    return payments.filter(p => {
+      const isOwn = Number(p.user_id) === Number(currentUser?.id);
+      const paymentDate = (p.payment_date || p.created_at || '').split(' ')[0].split('T')[0];
+      return isOwn && paymentDate === today;
+    });
+  }, [payments, currentUser]);
 
   const customerInvoices = myInvoices.filter(m => m.move_type === 'out_invoice');
 

@@ -261,10 +261,17 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   const filteredPayments = payments
     .filter((p) => {
-      // Respect user compartment boundaries (standard cashiers can only see their own collections)
-      if (!isSupervisor) {
+      // Respect user compartment boundaries
+      // 1. Non-supervisors/admins can only see their own collections
+      // 2. Non-supervisors/admins can only see TODAY'S collections (info antérieure invisible)
+      if (!isSupervisorOrAdmin(currentUser)) {
         const isOwnPayment = Number(p.user_id) === Number(currentUser?.id);
         if (!isOwnPayment) return false;
+
+        // Restriction à la date du jour
+        const today = new Date().toISOString().split('T')[0];
+        const paymentDate = (p.payment_date || p.created_at || '').split(' ')[0].split('T')[0];
+        if (paymentDate !== today) return false;
       }
 
       if (!searchQuery) return true;

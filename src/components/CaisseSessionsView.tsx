@@ -32,7 +32,8 @@ import { TillSession, TillSessionTransaction, CompanySettings, ResUser, AccountM
 import { getAppTheme } from '../lib/theme';
 import { printElement, printDocumentById } from '../lib/printUtils';
 import { formatFCFA, getUserBillingProfile } from '../lib/formatters';
-import { openNewCashierSession, closeCashierSession, saveAllSessions } from '../utils/caisseSessionService';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
+import { openNewCashierSession, closeCashierSession, saveAllSessions, isSupervisorOrAdmin } from '../utils/caisseSessionService';
 
 interface CaisseSessionsViewProps {
   company: CompanySettings;
@@ -415,6 +416,17 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   // Filter sessions for Supervisor list
   const filteredSessionsList = sessions
     .filter((s) => {
+      // Restriction pour les profils non-superviseurs/admins
+      if (!isSupervisorOrAdmin(currentUser)) {
+        // Un caissier ne voit que ses propres sessions
+        if (Number(s.cashier_id) !== Number(currentUser?.id)) return false;
+
+        // Restriction à la date du jour
+        const today = formatDateDDMMYYYY(new Date()); 
+        const sessionDate = (s.opening_date || s.created_at || '').split(' ')[0];
+        if (sessionDate !== today) return false;
+      }
+
       if (statusFilter !== 'all' && s.state !== statusFilter) return false;
       if (searchTerm) {
         const q = searchTerm.toLowerCase();
