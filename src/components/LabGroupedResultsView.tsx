@@ -776,8 +776,8 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
       {/* 5. Modal: Edit Lab Results & Biological Validation */}
       {editingOrder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-2xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-md max-w-3xl w-full border border-slate-200 shadow-xl overflow-hidden my-8 animate-in fade-in zoom-in-95">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-white rounded-md max-w-3xl w-full border border-slate-200 shadow-xl overflow-hidden my-8 animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2.5">
                 <Microscope className="w-5 h-5 text-slate-700" />
                 <div>
@@ -791,13 +791,13 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
               </div>
               <button
                 onClick={() => setEditingOrder(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
               {/* Patient info box */}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-md grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div>

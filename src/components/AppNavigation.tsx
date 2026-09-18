@@ -760,7 +760,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                     {cat.items.map((item, itemIdx) => {
                       const Icon = item.icon;
                       const isActive = currentView === item.id;
-                      const isItemLockedBySession = isLockedOutWithoutSession && item.id !== 'caisse_sessions' && !item.children;
+                      const isItemLockedBySession =
+                        (isLockedOutWithoutSession && item.id !== 'caisse_sessions') ||
+                        (!isSupervisorOrAdmin && !hasActiveSession && (item.id === 'caisse_group' || item.id === 'caisse_facture_group'));
                       const hasChildren = item.children && item.children.length > 0;
                       const isGroupExpanded = expandedMenus[item.id as string];
 
@@ -769,16 +771,16 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                           <button
                             id={`nav-${item.id}`}
                             onClick={() => {
-                              if (hasChildren) {
-                                toggleMenu(item.id as string);
-                                return;
-                              }
                               if (isItemLockedBySession) {
                                 if (showToast) {
-                                  showToast("Ouverture de vacation requise pour déverrouiller vos opérations de facturation.", 'warning');
+                                  showToast("Ouverture de vacation requise pour déverrouiller vos opérations.", 'warning');
                                 }
                                 setCurrentView('caisse_sessions');
                                 setSidebarOpen(false);
+                                return;
+                              }
+                              if (hasChildren) {
+                                toggleMenu(item.id as string);
                                 return;
                               }
                               if (item.onClick) {
@@ -828,7 +830,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                             ) : null}
                           </button>
 
-                          {hasChildren && isGroupExpanded && (
+                          {hasChildren && isGroupExpanded && !isItemLockedBySession && (
                             <div className="ml-6 space-y-0.5 mt-0.5 border-l border-slate-200/30 pl-2">
                               {item.children?.map((child, childIdx) => {
                                 // Add a unique identifier based on label to prevent active state overlap
@@ -839,7 +841,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                                 const isChildActive = currentView === child.id;
                                 if (!allowedViews.includes(child.id as AppView)) return null;
 
-                                const isChildLockedBySession = isLockedOutWithoutSession && child.id !== 'caisse_sessions';
+                                const isChildLockedBySession =
+                                  (isLockedOutWithoutSession && child.id !== 'caisse_sessions') ||
+                                  (!isSupervisorOrAdmin && !hasActiveSession && (item.id === 'caisse_group' || item.id === 'caisse_facture_group'));
 
                                 return (
                                   <button

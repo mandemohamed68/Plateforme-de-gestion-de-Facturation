@@ -46,6 +46,7 @@ interface CaisseSessionsViewProps {
   onPayInvoice?: (move: AccountMove) => void;
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
   onNavigateToLab?: () => void;
+  onSessionClosed?: (sessionCode: string) => void;
 }
 
 // Billets et Pièces simples pour le décompte physique
@@ -73,6 +74,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   onPayInvoice,
   onShowToast,
   onNavigateToLab,
+  onSessionClosed,
 }) => {
   const notify = (
     text: string,
@@ -354,6 +356,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
     setShowPrintModal(true);
     await fetchSessions();
     if (onSessionChange) onSessionChange();
+    if (onSessionClosed) onSessionClosed(sessionToClose.session_code);
   };
 
   // Invoices ready for collection: All unpaid client invoices (Facturation & Prescriptions, draft or posted)
@@ -1837,7 +1840,7 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
       {/* ========================================================================= */}
       {showOpenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-slate-200">
+          <div className="bg-white rounded-xl max-w-md w-full p-5 space-y-4 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-slate-100 text-slate-700 rounded-md">

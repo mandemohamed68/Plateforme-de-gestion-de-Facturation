@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, ShieldAlert, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AppNavigation, AppView } from './components/AppNavigation';
+import { getUserBillingProfile } from './lib/formatters';
 import { getAllowedViews } from './utils/navigation';
 import { LoginView } from './components/LoginView';
 import { CompanySettingsView } from './components/CompanySettingsView';
@@ -29,6 +30,7 @@ import {
   getActiveSessionForCashier,
   saveAllSessions,
   closeCashierSession,
+  loadAllSessions,
 } from './utils/caisseSessionService';
 import { InvoicePdfModal } from './components/InvoicePdfModal';
 import { PatientDossierModal } from './components/PatientDossierModal';
@@ -278,6 +280,8 @@ export default function App() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [schemaSql, setSchemaSql] = useState<string>('');
   const [schemaTables, setSchemaTables] = useState<any[]>([]);
+  const [showSessionClosedSuccessModal, setShowSessionClosedSuccessModal] = useState(false);
+  const [closedSessionCodeForSuccess, setClosedSessionCodeForSuccess] = useState('');
 
   // Company Branding & Settings State
   const [company, setCompany] = useState<CompanySettings>({
@@ -843,7 +847,15 @@ export default function App() {
       return false;
     });
 
-    if (serverActive) return serverActive;
+    if (serverActive) {
+      // Prioritize explicit local closed status so the UI responds instantly to closure
+      const allLocal = loadAllSessions();
+      const localState = allLocal.find((s) => s.id === serverActive.id);
+      if (localState && localState.state === 'closed') {
+        return null;
+      }
+      return serverActive;
+    }
 
     // 2. Fallback to local session registry
     return getActiveSessionForCashier(currentUser);
@@ -1411,16 +1423,24 @@ export default function App() {
                 (currentUser?.group_ids || []).includes(1) ||
                 (currentUser?.group_ids || []).includes(5);
 
-              // Seuls les profils caisse et caisse & facture doivent ouvrir et fermer une session
+              // Seuls les profils caisse, facture et caisse & facture doivent ouvrir et fermer une session
+              const profile = getUserBillingProfile(currentUser);
               const isSessionReq =
                 !isSupervisorOrAdmin &&
                 (roleLower.includes('caiss') ||
+                  roleLower.includes('factur') ||
+                  roleLower.includes('polyvalent') ||
                   loginLower === 'caissier' ||
                   loginLower === 'caisse_facture' ||
-                  loginLower === 'facture_caisse');
+                  loginLower === 'facturer' ||
+                  loginLower === 'facturier' ||
+                  profile === 'caisse' ||
+                  profile === 'facture' ||
+                  profile === 'facture_caisse');
 
-              if (isSessionReq && !hasActiveSession && view !== 'caisse_sessions') {
-                showToast('Ouverture de session requise pour accéder aux autres fonctionnalités', 'error');
+              const isCaisseOrPolyvalentView = view.startsWith('caisse_') && view !== 'caisse_sessions';
+              if ((isSessionReq || isCaisseOrPolyvalentView) && !hasActiveSession && view !== 'caisse_sessions') {
+                showToast('Ouverture de session requise pour accéder aux fonctionnalités de caisse', 'error');
                 setCurrentView('caisse_sessions');
                 return;
               }
@@ -1460,12 +1480,19 @@ export default function App() {
                 (u.group_ids || []).includes(1) ||
                 (u.group_ids || []).includes(5);
 
+              const uProfile = getUserBillingProfile(u);
               const isURequired =
                 !isUAdminOrSup &&
                 (rLower.includes('caiss') ||
+                  rLower.includes('factur') ||
+                  rLower.includes('polyvalent') ||
                   lLower === 'caissier' ||
                   lLower === 'caisse_facture' ||
-                  lLower === 'facture_caisse');
+                  lLower === 'facturer' ||
+                  lLower === 'facturier' ||
+                  uProfile === 'caisse' ||
+                  uProfile === 'facture' ||
+                  uProfile === 'facture_caisse');
 
               if (isURequired) {
                 setCurrentView('caisse_sessions');
@@ -1950,6 +1977,10 @@ export default function App() {
                   setCurrentView('payments');
                 }}
                 onPayInvoice={handlePayInvoice}
+                onSessionClosed={(code) => {
+                  setClosedSessionCodeForSuccess(code);
+                  setShowSessionClosedSuccessModal(true);
+                }}
               />
             )}
 
@@ -2781,6 +2812,54 @@ export default function App() {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modern, friendly and reassuring Session Closed Success Modal */}
+      <AnimatePresence>
+        {showSessionClosedSuccessModal && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl max-w-md w-full p-6 text-center space-y-5 shadow-2xl border border-slate-150 relative overflow-hidden"
+            >
+              {/* Decorative background shape */}
+              <div className="absolute top-0 left-0 right-0 h-2 bg-rose-500" />
+              
+              <div className="mx-auto w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-rose-500">
+                <Clock className="w-6 h-6 animate-pulse" />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Session Clôturée avec Succès
+                </h3>
+                {closedSessionCodeForSuccess && (
+                  <p className="font-mono text-xs font-semibold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md inline-block">
+                    {closedSessionCodeForSuccess}
+                  </p>
+                )}
+                <p className="text-xs text-slate-500 leading-relaxed pt-2">
+                  Votre vacation de caisse est désormais fermée. Les opérations financières de facturation, encaissement, et les accès aux sous-menus ont été verrouillés en toute sécurité pour votre compte.
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Le PV de clôture (Bordereau Z) a été généré avec succès. Vous pouvez l'imprimer depuis l'écran de gestion des sessions.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSessionClosedSuccessModal(false)}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-md active:scale-98 cursor-pointer"
+                >
+                  D'accord, fermer
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

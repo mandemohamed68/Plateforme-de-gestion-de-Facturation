@@ -143,10 +143,10 @@ export const PatientDossierModal: React.FC<PatientDossierModalProps> = ({
           onClick={onClose}
         />
 
-        <div className="inline-block w-full max-w-5xl my-6 overflow-hidden text-left align-middle transition-all transform bg-white shadow-2xl rounded-2xl border border-slate-200 relative z-10">
+        <div className="inline-block w-full max-w-5xl my-6 text-left align-middle transition-all transform bg-white shadow-2xl rounded-2xl border border-slate-200 relative z-10 max-h-[92vh] flex flex-col overflow-hidden">
           
           {/* Top Bar */}
-          <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-slate-50/80">
+          <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-slate-50/80 shrink-0">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-sm shadow-sm">
                 {patient.name.charAt(0).toUpperCase()}
@@ -193,7 +193,7 @@ export const PatientDossierModal: React.FC<PatientDossierModalProps> = ({
           )}
 
           {/* Navigation Tabs Bar */}
-          <div className="px-6 border-b border-slate-200 bg-white flex flex-wrap gap-1">
+          <div className="px-6 border-b border-slate-200 bg-white flex flex-wrap gap-1 shrink-0">
             {[
               { id: 'vitals', label: 'Constantes & Synthèse', icon: Activity },
               { id: 'consultations', label: `Consultations (${patientConsultations.length})`, icon: Stethoscope },
@@ -224,7 +224,7 @@ export const PatientDossierModal: React.FC<PatientDossierModalProps> = ({
           </div>
 
           {/* Main Tab Content */}
-          <div className="p-6 bg-slate-50/50 min-h-[420px] max-h-[62vh] overflow-y-auto">
+          <div className="p-6 bg-slate-50/50 min-h-[420px] overflow-y-auto flex-1">
             
             {/* 1. CONSTANTES & SYNTHESE MEDICALE */}
             {activeTab === 'vitals' && (
