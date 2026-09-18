@@ -55,8 +55,19 @@ import {
   PartnerReduction,
   MedicalConsultation,
 } from '../types';
+import {
+  getStoredConventions,
+  getStoredConsultationTypes,
+  getStoredPatientFieldsConfig,
+  EnterpriseConvention,
+  HospitalConsultationType,
+  PatientFieldConfig,
+} from '../data/conventionsData';
 import { formatFCFA, getUserBillingProfile } from '../lib/formatters';
 import { PaginationControls } from './PaginationControls';
+import { SupervisorCorrectionModal } from './CaisseSessionGuard';
+import { logFinancialCorrection } from '../utils/caisseSessionService';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../utils/dateUtils';
 
 export type InvoiceStep = 1 | 2 | 3;
 
@@ -188,6 +199,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   // Safe In-App Delete Modal State
   const [moveToDelete, setMoveToDelete] = useState<AccountMove | null>(null);
+  const [supervisorCorrectionTarget, setSupervisorCorrectionTarget] = useState<AccountMove | null>(null);
 
   // Billing view tabs: Invoices Register vs Pending Medical Prescriptions
   const [billingViewTab, setBillingViewTab] = useState<'invoices' | 'prescriptions'>('invoices');
@@ -196,15 +208,58 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   // --- Step 1: Facturation (Interface Unique Complète) ---
   const [invoiceCategory, setInvoiceCategory] = useState<'exam' | 'consultation'>('consultation');
-  const [consultationType, setConsultationType] = useState<'infirmier' | 'generaliste' | 'specialiste' | ''>('');
+  
+  // Dynamic Consultation State
+  const [storedConsultationTypes, setStoredConsultationTypes] = useState<HospitalConsultationType[]>(getStoredConsultationTypes());
+  const [selectedConsultationPole, setSelectedConsultationPole] = useState<string>('all');
+  const [selectedConsultationTypeId, setSelectedConsultationTypeId] = useState<string>('c_gen_jour');
+  const [consultationSearchQuery, setConsultationSearchQuery] = useState<string>('');
+  const [consultationType, setConsultationType] = useState<string>('c_gen_jour');
   const [consultationDoctorId, setConsultationDoctorId] = useState<number | null>(null);
+
+  // Dynamic Conventions & Third-Party Payers
+  const [storedConventions, setStoredConventions] = useState<EnterpriseConvention[]>(getStoredConventions());
+  const [selectedConventionId, setSelectedConventionId] = useState<string>('');
+
+  // Dynamic Patient Form Configuration
+  const [storedPatientFieldsConfig, setStoredPatientFieldsConfig] = useState<PatientFieldConfig[]>(getStoredPatientFieldsConfig());
+
+  // Patient Autocomplete & Disambiguation Popovers
+  const [isPatientDropdownOpen, setIsPatientDropdownOpen] = useState(false);
+  const [isNdmDropdownOpen, setIsNdmDropdownOpen] = useState(false);
+
+  // Synchronize state when admin backoffice updates settings
+  useEffect(() => {
+    const handleConventionsUpdated = (e: any) => {
+      if (e.detail) setStoredConventions(e.detail);
+      else setStoredConventions(getStoredConventions());
+    };
+    const handleConsultationsUpdated = (e: any) => {
+      if (e.detail) setStoredConsultationTypes(e.detail);
+      else setStoredConsultationTypes(getStoredConsultationTypes());
+    };
+    const handleFieldsUpdated = (e: any) => {
+      if (e.detail) setStoredPatientFieldsConfig(e.detail);
+      else setStoredPatientFieldsConfig(getStoredPatientFieldsConfig());
+    };
+
+    window.addEventListener('app_conventions_updated', handleConventionsUpdated);
+    window.addEventListener('app_consultation_types_updated', handleConsultationsUpdated);
+    window.addEventListener('app_patient_fields_updated', handleFieldsUpdated);
+
+    return () => {
+      window.removeEventListener('app_conventions_updated', handleConventionsUpdated);
+      window.removeEventListener('app_consultation_types_updated', handleConsultationsUpdated);
+      window.removeEventListener('app_patient_fields_updated', handleFieldsUpdated);
+    };
+  }, []);
 
   const [partnerId, setPartnerId] = useState<number>(partners[0]?.id || 1);
   const [partnerNameInput, setPartnerNameInput] = useState<string>('');
   const [patientPhone, setPatientPhone] = useState<string>('');
   const [prescribingDoctor, setPrescribingDoctor] = useState<string>('');
   const [ref, setRef] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().replace('T', ' ').substring(0, 16));
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [invoiceDateDue, setInvoiceDateDue] = useState(
     new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
   );
@@ -474,14 +529,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   // Financial Computations
+  const activeConsultationTypeObj = storedConsultationTypes.find(
+    (c) => c.id === selectedConsultationTypeId || c.code === consultationType
+  ) || storedConsultationTypes[0];
+
   const computedConsultationPrice = invoiceCategory === 'consultation'
-    ? (consultationType === 'infirmier'
-        ? 5000
-        : consultationType === 'specialiste'
-        ? 15000
-        : consultationType === 'generaliste'
-        ? 10000
-        : 0)
+    ? (activeConsultationTypeObj?.price || 10000)
     : 0;
 
   const computedUntaxed = invoiceCategory === 'consultation'
@@ -720,6 +773,24 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   const handleOpenEditModal = (move: AccountMove) => {
+    const profile = getUserBillingProfile(currentUser);
+
+    // Enforce active session for billing/caisse operational profiles
+    if (!hasActiveSession && (profile === 'caisse' || profile === 'facture_caisse' || profile === 'facture')) {
+      setShowRequireSessionModal(true);
+      return;
+    }
+
+    // Only supervisor can edit content of a posted invoice, but cashiers & polyvalents can open it to collect payments
+    if (move.state === 'posted' && profile !== 'superviseur' && profile !== 'caisse' && profile !== 'facture_caisse') {
+      notify(
+        "Action restreinte : Seul le Superviseur Caisse / Facture est habilité à modifier une facture déjà validée.",
+        'error',
+        'Privilège Superviseur Requis'
+      );
+      return;
+    }
+
     setEditingMove(move);
     if (move.state === 'posted' && move.payment_state === 'paid') {
       setCurrentStep(3);
@@ -1212,19 +1283,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       notify('Veuillez renseigner le nom du patient avant de sauvegarder.', 'warning', 'Saisie Incomplète');
       return;
     }
-    if (invoiceCategory === 'consultation') {
-      if (!consultationType) {
-        notify('Veuillez sélectionner un type de consultation.', 'warning', 'Saisie Incomplète');
-        return;
-      }
-      if (!consultationDoctorId) {
-        notify('Veuillez sélectionner un médecin ou praticien affecté.', 'warning', 'Saisie Incomplète');
-        return;
-      }
-    }
     setIsSubmitting(true);
     try {
       const resolvedId = await resolvePartnerId();
+      const activeConsult = storedConsultationTypes.find(
+        (c) => c.id === selectedConsultationTypeId || c.code === consultationType
+      ) || storedConsultationTypes[0];
+      const docObj = users.find((u) => u.id === consultationDoctorId);
+      const doctorSuffix = docObj ? ` - ${docObj.name}` : '';
+
       const moveData = {
         id: editingMove?.id,
         move_type: moveTypeFilter,
@@ -1255,27 +1322,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           ? [
               {
                 id: editingMove?.lines?.[0]?.id || undefined,
-                product_id: consultationType === 'infirmier' ? 991 : consultationType === 'specialiste' ? 993 : 992,
-                name: `Consultation Médicale (${
-                  consultationType === 'infirmier'
-                    ? 'Infirmier / Triage'
-                    : consultationType === 'specialiste'
-                    ? 'Médecin Spécialiste'
-                    : 'Médecin Généraliste'
-                }) - ${
-                  consultationDoctorId === 15
-                    ? 'Awa Diabate (Infirmier)'
-                    : consultationDoctorId === 17
-                    ? 'Dr. Mamadou Cisse'
-                    : 'Dr. Aboubacar Toure'
-                }`,
+                product_id: 990,
+                name: `Consultation : ${activeConsult?.name || 'Consultation Médicale'}${doctorSuffix}`,
                 quantity: 1,
-                price_unit: computedConsultationPrice,
+                price_unit: activeConsult?.price || computedConsultationPrice || 10000,
                 discount: 0,
                 tax_ids: [],
                 tax_rate: 0,
-                price_subtotal: computedConsultationPrice,
-                price_total: computedConsultationPrice,
+                price_subtotal: activeConsult?.price || computedConsultationPrice || 10000,
+                price_total: activeConsult?.price || computedConsultationPrice || 10000,
                 sequence: 1,
               }
             ]
@@ -1320,16 +1375,6 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       notify('Veuillez renseigner le nom du patient.', 'warning', 'Saisie Incomplète');
       return;
     }
-    if (invoiceCategory === 'consultation') {
-      if (!consultationType) {
-        notify('Veuillez sélectionner un type de consultation.', 'warning', 'Saisie Incomplète');
-        return;
-      }
-      if (!consultationDoctorId) {
-        notify('Veuillez sélectionner un médecin ou praticien affecté.', 'warning', 'Saisie Incomplète');
-        return;
-      }
-    }
     if (invoiceCategory !== 'consultation' && lines.length === 0) {
       notify('Veuillez ajouter au moins une analyse ou prestation médicale.', 'warning', 'Aucune Prestation');
       return;
@@ -1338,6 +1383,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     setIsSubmitting(true);
     try {
       const resolvedId = await resolvePartnerId();
+      const activeConsult = storedConsultationTypes.find(
+        (c) => c.id === selectedConsultationTypeId || c.code === consultationType
+      ) || storedConsultationTypes[0];
+      const docObj = users.find((u) => u.id === consultationDoctorId);
+      const doctorSuffix = docObj ? ` - ${docObj.name}` : '';
+
       const moveData = {
         id: editingMove?.id,
         move_type: moveTypeFilter,
@@ -1368,27 +1419,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           ? [
               {
                 id: editingMove?.lines?.[0]?.id || undefined,
-                product_id: consultationType === 'infirmier' ? 991 : consultationType === 'specialiste' ? 993 : 992,
-                name: `Consultation Médicale (${
-                  consultationType === 'infirmier'
-                    ? 'Infirmier / Triage'
-                    : consultationType === 'specialiste'
-                    ? 'Médecin Spécialiste'
-                    : 'Médecin Généraliste'
-                }) - ${
-                  consultationDoctorId === 15
-                    ? 'Awa Diabate (Infirmier)'
-                    : consultationDoctorId === 17
-                    ? 'Dr. Mamadou Cisse'
-                    : 'Dr. Aboubacar Toure'
-                }`,
+                product_id: 990,
+                name: `Consultation : ${activeConsult?.name || 'Consultation Médicale'}${doctorSuffix}`,
                 quantity: 1,
-                price_unit: computedConsultationPrice,
+                price_unit: activeConsult?.price || computedConsultationPrice || 10000,
                 discount: 0,
                 tax_ids: [],
                 tax_rate: 0,
-                price_subtotal: computedConsultationPrice,
-                price_total: computedConsultationPrice,
+                price_subtotal: activeConsult?.price || computedConsultationPrice || 10000,
+                price_total: activeConsult?.price || computedConsultationPrice || 10000,
                 sequence: 1,
               }
             ]
@@ -1530,6 +1569,24 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const filteredMoves = moves
     .filter((m) => {
       if (m.move_type !== moveTypeFilter) return false;
+
+      // Respect user compartment boundaries (standard practitioners can only see their own accounts/creations)
+      if (!isSupervisor) {
+        if (profile === 'facture' || profile === 'facture_caisse') {
+          // Un facturier ou polyvalent ne voit que ses propres factures créées
+          if (Number(m.invoice_user_id) !== Number(currentUser?.id)) {
+            return false;
+          }
+        } else if (profile === 'caisse') {
+          // Un caissier simple peut voir toutes les factures impayées (pour encaissement),
+          // mais pour les factures payées/annulées, il ne voit que celles de sa propre session ou créées par lui
+          if (m.payment_state === 'paid' || m.state === 'cancel') {
+            const isOwnInvoice = Number(m.invoice_user_id) === Number(currentUser?.id) || m.till_session_id === myActiveSession?.id;
+            if (!isOwnInvoice) return false;
+          }
+        }
+      }
+
       if (stateFilter !== 'all' && m.state !== stateFilter) return false;
       if (paymentFilter !== 'all' && m.payment_state !== paymentFilter) return false;
       if (searchQuery) {
@@ -1814,7 +1871,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-slate-600 font-mono text-[10px] truncate hidden md:table-cell">
-                        {(m.invoice_date || m.date || m.created_at).replace('T', ' ').substring(0, 16)}
+                        {formatDateTimeDDMMYYYY(m.invoice_date || m.date || m.created_at)}
                       </td>
                       <td className="py-2.5 px-3 truncate hidden lg:table-cell">
                         {m.insurance_enabled && insName ? (
@@ -2266,83 +2323,157 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   </div>
 
                   {invoiceCategory === 'consultation' && (
-                    <div className="p-4 bg-teal-50/40 border border-teal-200 rounded-lg space-y-4 animate-in fade-in">
-                      <div className="flex items-center space-x-2 border-b border-teal-100 pb-2">
-                        <Stethoscope className="w-4 h-4 text-teal-600 animate-pulse" />
-                        <h4 className="text-xs font-black text-teal-950 uppercase tracking-wider">
-                          Paramètres de la Consultation Médicale Directe
-                        </h4>
+                    <div className="p-4 bg-teal-50/40 border border-teal-200 rounded-lg space-y-3.5 animate-in fade-in">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-teal-100 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <Stethoscope className="w-4 h-4 text-teal-600" />
+                          <h4 className="text-xs font-black text-teal-950 uppercase tracking-wider">
+                            Pôle Médical &amp; Type de Consultation Directe
+                          </h4>
+                        </div>
+                        <div className="text-[11px] text-teal-800 font-medium bg-teal-100/70 px-2.5 py-0.5 rounded-full border border-teal-200">
+                          {storedConsultationTypes.length} Actes &amp; Consultations configurés
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {/* 1. Niveau / Type de Consultation */}
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-teal-900 block">Type de Consultation (Régime &amp; Tarif)</label>
-                          <div className="grid grid-cols-1 gap-2">
-                            {[
-                              { key: 'infirmier', label: 'Infirmier (Triage & Constantes)', price: '5 000 FCFA' },
-                              { key: 'generaliste', label: 'Médecin Généraliste', price: '10 000 FCFA' },
-                              { key: 'specialiste', label: 'Médecin Spécialiste', price: '15 000 FCFA' },
-                            ].map((opt) => (
-                              <button
-                                key={opt.key}
-                                type="button"
-                                onClick={() => {
-                                  setConsultationType(opt.key as any);
-                                  // Auto set default doctor matching selection
-                                  if (opt.key === 'infirmier') setConsultationDoctorId(15);
-                                  else if (opt.key === 'specialiste') setConsultationDoctorId(17);
-                                  else setConsultationDoctorId(16);
-                                }}
-                                className={`p-2.5 rounded-lg border text-left transition flex items-center justify-between cursor-pointer ${
-                                  consultationType === opt.key
-                                    ? 'bg-teal-600 text-white border-teal-700'
-                                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
-                                }`}
-                              >
-                                <span className="text-xs font-bold">{opt.label}</span>
-                                <span className={`text-xs font-black ${consultationType === opt.key ? 'text-white' : 'text-teal-600'}`}>{opt.price}</span>
-                              </button>
-                            ))}
-                          </div>
+                      {/* Filter by Pole */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                        {[
+                          { key: 'all', label: 'Tous les Pôles' },
+                          { key: 'generaliste', label: 'Médecine Générale' },
+                          { key: 'pediatrie', label: 'Pédiatrie & Enfants' },
+                          { key: 'maternite', label: 'Maternité & Gynéco' },
+                          { key: 'specialiste', label: 'Spécialistes' },
+                          { key: 'infirmier', label: 'Soins & Triage' },
+                          { key: 'urgences', label: 'Urgences 24/7' },
+                        ].map((pole) => {
+                          const count = pole.key === 'all'
+                            ? storedConsultationTypes.length
+                            : storedConsultationTypes.filter((c) => c.pole === pole.key).length;
+                          return (
+                            <button
+                              key={pole.key}
+                              type="button"
+                              onClick={() => setSelectedConsultationPole(pole.key)}
+                              className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full transition shrink-0 cursor-pointer ${
+                                selectedConsultationPole === pole.key
+                                  ? 'bg-teal-700 text-white shadow-xs'
+                                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {pole.label} ({count})
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Search & Grid of Consultations */}
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Rechercher un acte de consultation (ex: Pédiatrie, CPN, Cardiologie, Triage...)"
+                            value={consultationSearchQuery}
+                            onChange={(e) => setConsultationSearchQuery(e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-teal-600 focus:outline-none"
+                          />
                         </div>
 
-                        {/* 2. Sélection de l'intervenant / médecin */}
-                        <div className="space-y-1.5 sm:col-span-2">
-                          <label className="text-xs font-bold text-teal-900 block">Médecin / Pratiquant Affecté (Prise en Charge Directe)</label>
-                          <div className="grid grid-cols-1 gap-2">
-                            {[
-                              { id: 15, name: 'Awa Diabate (Infirmier)', specialty: 'Triage & Soins d\'Urgence', role: 'infirmier' },
-                              { id: 16, name: 'Dr. Aboubacar Toure', specialty: 'Médecine Générale', role: 'generaliste' },
-                              { id: 17, name: 'Dr. Mamadou Cisse', specialty: 'Médecine Spécialisée (Cardiologie)', role: 'specialiste' },
-                            ].map((doc) => (
-                              <button
-                                key={doc.id}
-                                type="button"
-                                onClick={() => {
-                                  setConsultationDoctorId(doc.id);
-                                  setConsultationType(doc.role as any);
-                                }}
-                                className={`p-2.5 rounded-lg border text-left transition flex items-center justify-between cursor-pointer ${
-                                  consultationDoctorId === doc.id
-                                    ? 'bg-slate-900 text-white border-slate-900'
-                                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
-                                }`}
-                              >
-                                <div className="space-y-0.5">
-                                  <div className="text-xs font-black">{doc.name}</div>
-                                  <div className={`text-[10px] ${consultationDoctorId === doc.id ? 'text-slate-300' : 'text-slate-500'}`}>{doc.specialty}</div>
-                                </div>
-                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border ${
-                                  consultationDoctorId === doc.id 
-                                    ? 'bg-teal-600 text-white border-teal-500' 
-                                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}>
-                                  {doc.role === 'infirmier' ? 'Infirmier' : doc.role === 'specialiste' ? 'Spécialiste' : 'Généraliste'}
-                                </span>
-                              </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1">
+                          {storedConsultationTypes
+                            .filter((c) => {
+                              const matchesPole = selectedConsultationPole === 'all' || c.pole === selectedConsultationPole;
+                              const matchesQuery =
+                                !consultationSearchQuery.trim() ||
+                                c.name.toLowerCase().includes(consultationSearchQuery.toLowerCase()) ||
+                                c.code.toLowerCase().includes(consultationSearchQuery.toLowerCase()) ||
+                                (c.description && c.description.toLowerCase().includes(consultationSearchQuery.toLowerCase()));
+                              return matchesPole && matchesQuery;
+                            })
+                            .map((consult) => {
+                              const isSelected =
+                                selectedConsultationTypeId === consult.id ||
+                                (consultationType === consult.code && !selectedConsultationTypeId);
+                              return (
+                                <button
+                                  key={consult.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedConsultationTypeId(consult.id);
+                                    setConsultationType(consult.code);
+                                  }}
+                                  className={`p-2.5 rounded-lg border text-left transition flex flex-col justify-between cursor-pointer group shadow-2xs ${
+                                    isSelected
+                                      ? 'bg-teal-700 text-white border-teal-800 ring-2 ring-teal-500/30'
+                                      : 'bg-white text-slate-800 border-slate-200 hover:border-teal-400 hover:bg-teal-50/20'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-1 w-full mb-1">
+                                    <span
+                                      className={`text-[9px] font-mono font-black uppercase px-1.5 py-0.5 rounded ${
+                                        isSelected ? 'bg-teal-800 text-teal-100' : 'bg-slate-100 text-slate-600 group-hover:bg-teal-100 group-hover:text-teal-800'
+                                      }`}
+                                    >
+                                      {consult.code}
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold ${
+                                        isSelected ? 'text-teal-100' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      {consult.duration_minutes ? `${consult.duration_minutes} min` : '30 min'}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs font-black line-clamp-1 mb-0.5">{consult.name}</div>
+                                  {consult.description && (
+                                    <div
+                                      className={`text-[10px] line-clamp-1 mb-1.5 ${
+                                        isSelected ? 'text-teal-100' : 'text-slate-500'
+                                      }`}
+                                    >
+                                      {consult.description}
+                                    </div>
+                                  )}
+                                  <div className="mt-auto pt-1 border-t border-dashed border-slate-200/50 flex items-center justify-between">
+                                    <span
+                                      className={`text-[9px] font-bold uppercase ${
+                                        isSelected ? 'text-teal-200' : 'text-teal-700'
+                                      }`}
+                                    >
+                                      {consult.pole}
+                                    </span>
+                                    <span className="text-xs font-black">{formatFCFA(consult.price)}</span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+
+                      {/* Doctor / Practicien Selection (Optional) */}
+                      <div className="pt-2 border-t border-teal-100/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-teal-950 block">
+                            Médecin / Praticien d'astreinte ou affecté (Optionnel)
+                          </label>
+                          <select
+                            value={consultationDoctorId || ''}
+                            onChange={(e) => setConsultationDoctorId(e.target.value ? Number(e.target.value) : null)}
+                            className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-teal-600 transition"
+                          >
+                            <option value="">-- Praticien de Garde / Équipe de Consultation --</option>
+                            {users.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.role || 'Praticien'})
+                              </option>
                             ))}
-                          </div>
+                          </select>
+                        </div>
+                        <div className="flex items-center text-[11px] text-teal-800 bg-white/70 p-2 rounded border border-teal-100">
+                          <span>
+                            L'affectation du médecin est flexible et s'adapte à la rotation des équipes et gardes du jour.
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -2359,7 +2490,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <button
                           type="button"
                           onClick={() => openPatientCreationModal()}
-                          className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-black px-2.5 py-1 rounded flex items-center space-x-1 transition shadow-sm"
+                          className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-black px-2.5 py-1 rounded flex items-center space-x-1 transition shadow-sm cursor-pointer"
                         >
                           <UserPlus className="w-3 h-3" />
                           <span>+ Créer un Dossier Patient</span>
@@ -2395,43 +2526,133 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         </div>
                       )}
 
-
-                      {/* NDM */}
-                      <div className="space-y-1">
+                      {/* NDM with Smart Autocomplete */}
+                      <div className="space-y-1 relative">
                         <label className="text-xs font-bold text-slate-700 block">N° Dossier Patient (NDM)</label>
                         <input
                           type="text"
-                          list="ndm-invoice-datalist"
-                          placeholder="N° de dossier"
+                          placeholder="Ex: NDM-2026-..."
                           value={ndm}
+                          onFocus={() => setIsNdmDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setIsNdmDropdownOpen(false), 250)}
                           onChange={(e) => handleSelectNdm(e.target.value)}
                           className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 focus:border-slate-800 transition"
                         />
-                        <datalist id="ndm-invoice-datalist">
-                          {partners
-                            .filter((p) => p.ndm)
-                            .map((p, idx) => (
-                              <option key={`ndm-opt-${p.id}-${idx}`} value={p.ndm || ''} label={p.name} />
-                            ))}
-                        </datalist>
+                        {isNdmDropdownOpen && (
+                          <div className="absolute left-0 top-full mt-1 w-72 bg-white border border-slate-300 rounded shadow-xl z-50 max-h-52 overflow-y-auto">
+                            {partners
+                              .filter((p) => p.ndm && (!ndm || p.ndm.toLowerCase().includes(ndm.toLowerCase()) || p.name.toLowerCase().includes(ndm.toLowerCase())))
+                              .slice(0, 10)
+                              .map((p) => (
+                                <button
+                                  key={`ndm-pop-${p.id}`}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    handleSelectNdm(p.ndm || '');
+                                    handleSelectPartner(p.name);
+                                    setIsNdmDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-2.5 py-2 hover:bg-teal-50 border-b border-slate-100 transition text-xs flex flex-col"
+                                >
+                                  <span className="font-mono font-bold text-teal-800">{p.ndm}</span>
+                                  <span className="text-[11px] text-slate-700 font-medium truncate">{p.name} {p.phone ? `(${p.phone})` : ''}</span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Nom Patient */}
-                      <div className="sm:col-span-2 space-y-1">
-                        <label className="text-xs font-bold text-slate-700 block">Nom &amp; Prénoms du Patient *</label>
+                      {/* Nom Patient with Disambiguation Popover */}
+                      <div className="sm:col-span-2 space-y-1 relative">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-700 block">Nom &amp; Prénoms du Patient *</label>
+                          <span className="text-[10px] text-slate-400">Recherche avec levée d'homonymie</span>
+                        </div>
                         <input
                           type="text"
-                          list="partners-invoice-datalist"
                           value={partnerNameInput}
-                          onChange={(e) => handleSelectPartner(e.target.value)}
-                          placeholder="Nom complet du patient..."
+                          onFocus={() => setIsPatientDropdownOpen(true)}
+                          onBlur={() => setTimeout(() => setIsPatientDropdownOpen(false), 250)}
+                          onChange={(e) => {
+                            setPartnerNameInput(e.target.value);
+                            setIsPatientDropdownOpen(true);
+                          }}
+                          placeholder="Tapez le nom complet ou recherchez..."
                           className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:border-slate-800 transition"
                         />
-                        <datalist id="partners-invoice-datalist">
-                          {partners.map((p, idx) => (
-                            <option key={`partner-opt-${p.id}-${idx}`} value={p.name} />
-                          ))}
-                        </datalist>
+
+                        {/* Smart Disambiguation Dropdown */}
+                        {isPatientDropdownOpen && (
+                          <div className="absolute left-0 top-full mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-2xl z-50 max-h-64 overflow-y-auto">
+                            <div className="p-1.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between">
+                              <span>Patients enregistrés ({partners.length})</span>
+                              <span>NDM • Téléphone • Âge • Commune</span>
+                            </div>
+                            {(() => {
+                              const matches = partners.filter((p) => {
+                                if (!partnerNameInput.trim()) return true;
+                                const q = partnerNameInput.toLowerCase();
+                                return (
+                                  p.name.toLowerCase().includes(q) ||
+                                  (p.ndm && p.ndm.toLowerCase().includes(q)) ||
+                                  (p.phone && p.phone.includes(q))
+                                );
+                              });
+
+                              if (matches.length === 0) {
+                                return (
+                                  <div className="p-3 text-center text-xs text-slate-400">
+                                    Aucun patient trouvé pour "{partnerNameInput}".
+                                    <button
+                                      type="button"
+                                      onMouseDown={() => openPatientCreationModal(partnerNameInput, ndm)}
+                                      className="block mx-auto mt-1 text-teal-600 font-bold hover:underline"
+                                    >
+                                      + Créer une nouvelle fiche
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              return matches.slice(0, 20).map((p) => (
+                                <button
+                                  key={`pat-disambig-${p.id}`}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    handleSelectPartner(p.name);
+                                    if (p.ndm) setNdm(p.ndm);
+                                    setIsPatientDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-teal-50/70 border-b border-slate-100 transition flex items-center justify-between text-xs group"
+                                >
+                                  <div className="space-y-0.5">
+                                    <div className="font-bold text-slate-900 group-hover:text-teal-900 flex items-center space-x-2">
+                                      <span>{p.name}</span>
+                                      {p.gender && (
+                                        <span className="text-[9px] bg-slate-100 text-slate-600 px-1 rounded">
+                                          {p.gender}
+                                        </span>
+                                      )}
+                                      {p.insurance_name && (
+                                        <span className="text-[9px] bg-indigo-50 text-indigo-700 font-bold px-1.5 rounded border border-indigo-200">
+                                          {p.insurance_name} ({p.insurance_coverage_rate || 80}%)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 flex items-center space-x-2">
+                                      {p.phone && <span>📞 {p.phone}</span>}
+                                      {p.age !== undefined && <span>• {p.age} ans</span>}
+                                      {p.commune && <span>• 📍 {p.commune}</span>}
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono font-black text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 shrink-0 ml-2">
+                                    {p.ndm || 'SANS NDM'}
+                                  </span>
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                        )}
                       </div>
 
                       {/* Téléphone */}
@@ -2572,13 +2793,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Section 2: Prise en Charge Assurance / Mutuelle (Tiers-Payeur) */}
+                  {/* Section 2: Prise en Charge Assurance / Convention Entreprise (Tiers-Payeur) */}
                   <div className="p-3.5 rounded bg-slate-50 border border-slate-200 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <HeartHandshake className="w-4 h-4 text-slate-700" />
                         <span className="text-xs font-bold text-slate-900">
-                          Prise en Charge Assurance / Tiers-Payeur
+                          Prise en Charge Assurance &amp; Convention Entreprise (Tiers-Payeur)
                         </span>
                       </div>
                       <label className="flex items-center space-x-1.5 text-xs cursor-pointer font-bold">
@@ -2597,35 +2818,69 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <div>
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                              Organisme d'Assurance / Mutuelle
+                              Convention Tiers-Payeur / Assureur / Entreprise
                             </label>
                             <select
-                              value={insurancePartnerId || ''}
+                              value={selectedConventionId || insuranceName || ''}
                               onChange={(e) => {
-                                const val = e.target.value ? Number(e.target.value) : null;
-                                handleSelectInsurancePartner(val);
+                                const val = e.target.value;
+                                setSelectedConventionId(val);
+                                const foundConv = storedConventions.find((c) => c.id === val || c.name === val);
+                                if (foundConv) {
+                                  setInsuranceName(foundConv.name);
+                                  setInsuranceCoverageRate(foundConv.default_coverage_rate);
+                                } else {
+                                  const foundIns = insurancePartners.find((i) => String(i.id) === val || i.name === val);
+                                  if (foundIns) {
+                                    setInsurancePartnerId(foundIns.id);
+                                    setInsuranceName(foundIns.name);
+                                    setInsuranceCoverageRate(foundIns.default_coverage_rate || 80);
+                                  } else {
+                                    setInsuranceName(val);
+                                  }
+                                }
                               }}
-                              className="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-medium"
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-semibold text-slate-800"
                             >
-                              <option value="">Sélectionner une assurance...</option>
-                              {insurancePartners.map((ins) => (
-                                <option key={ins.id} value={ins.id}>
-                                  {ins.name} ({ins.default_coverage_rate || 80}%)
-                                </option>
-                              ))}
+                              <option value="">Sélectionner une convention...</option>
+                              <optgroup label="🏢 Sociétés &amp; Entreprises Conventionnées">
+                                {storedConventions
+                                  .filter((c) => c.type === 'enterprise')
+                                  .map((conv) => (
+                                    <option key={conv.id} value={conv.id}>
+                                      {conv.name} ({conv.default_coverage_rate}%) - {conv.sector || 'Entreprise'}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                              <optgroup label="🛡️ Compagnies d'Assurance &amp; Mutuelles">
+                                {storedConventions
+                                  .filter((c) => c.type === 'insurance')
+                                  .map((conv) => (
+                                    <option key={conv.id} value={conv.id}>
+                                      {conv.name} ({conv.default_coverage_rate}%)
+                                    </option>
+                                  ))}
+                                {insurancePartners
+                                  .filter((ip) => !storedConventions.some((c) => c.name === ip.name))
+                                  .map((ins) => (
+                                    <option key={`ins-p-${ins.id}`} value={ins.name}>
+                                      {ins.name} ({ins.default_coverage_rate || 80}%)
+                                    </option>
+                                  ))}
+                              </optgroup>
                             </select>
                           </div>
 
                           <div>
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                              N° de Police / Matricule Assuré
+                              N° Carte Assuré / Matricule Salarié
                             </label>
                             <input
                               type="text"
-                              placeholder="N° police"
+                              placeholder="Ex: MATR-48920 / POL-8472"
                               value={insurancePolicyNumber}
                               onChange={(e) => setInsurancePolicyNumber(e.target.value)}
-                              className="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-medium"
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-mono font-bold text-slate-900"
                             />
                           </div>
 
@@ -2634,20 +2889,26 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               Taux de Couverture Conventionné
                             </label>
                             <div className="flex items-center space-x-1">
-                              {[70, 80, 90, 100].map((rate) => (
-                                <button
-                                  key={rate}
-                                  type="button"
-                                  onClick={() => setInsuranceCoverageRate(rate)}
-                                  className={`flex-1 py-1 text-xs font-bold rounded border transition ${
-                                    insuranceCoverageRate === rate
-                                      ? 'bg-slate-900 text-white border-slate-900'
-                                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                                  }`}
-                                >
-                                  {rate}%
-                                </button>
-                              ))}
+                              {(() => {
+                                const currentConv = storedConventions.find(
+                                  (c) => c.id === selectedConventionId || c.name === insuranceName
+                                );
+                                const rates = currentConv?.allowed_rates || [30, 50, 70, 75, 80, 100];
+                                return rates.map((rate) => (
+                                  <button
+                                    key={rate}
+                                    type="button"
+                                    onClick={() => setInsuranceCoverageRate(rate)}
+                                    className={`flex-1 py-1 text-xs font-bold rounded border transition cursor-pointer ${
+                                      insuranceCoverageRate === rate
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {rate}%
+                                  </button>
+                                ));
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -3434,13 +3695,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 onClick={async () => {
                   if (moveToDelete) {
                     const profile = getUserBillingProfile(currentUser);
-                    if (moveToDelete.state === 'posted' && profile !== 'superviseur') {
-                      notify(
-                        "Action restreinte : Seul le Superviseur Caisse / Facture a le droit d'agir (modifier, supprimer ou annuler) sur les factures et encaissements validés.",
-                        'error',
-                        'Action Restreinte'
-                      );
+                    if (moveToDelete.state === 'posted') {
+                      if (profile !== 'superviseur') {
+                        notify(
+                          "Action restreinte : Seul le Superviseur Caisse / Facture a le droit de supprimer ou annuler une facture validée.",
+                          'error',
+                          'Action Restreinte'
+                        );
+                        setMoveToDelete(null);
+                        return;
+                      }
+                      // Supervisor must provide motif via modal
+                      const target = moveToDelete;
                       setMoveToDelete(null);
+                      setSupervisorCorrectionTarget(target);
                       return;
                     }
                     await onDeleteMove(moveToDelete.id);
@@ -3455,6 +3723,41 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* SUPERVISOR CORRECTION & AUDIT MODAL */}
+      {supervisorCorrectionTarget && (
+        <SupervisorCorrectionModal
+          isOpen={Boolean(supervisorCorrectionTarget)}
+          onClose={() => setSupervisorCorrectionTarget(null)}
+          supervisorUser={currentUser}
+          targetItem={{
+            type: 'invoice',
+            ref: supervisorCorrectionTarget.name || `#${supervisorCorrectionTarget.id}`,
+            amount: supervisorCorrectionTarget.amount_total,
+            partnerName: supervisorCorrectionTarget.patient_name || supervisorCorrectionTarget.partner?.name,
+          }}
+          onConfirm={async (action, reason) => {
+            logFinancialCorrection({
+              supervisorId: currentUser?.id || 1,
+              supervisorName: currentUser?.name || 'Superviseur Caisse',
+              targetType: 'invoice',
+              targetRef: supervisorCorrectionTarget.name || `#${supervisorCorrectionTarget.id}`,
+              action: action,
+              reason: reason,
+              oldAmount: supervisorCorrectionTarget.amount_total,
+              details: `Facture patient: ${supervisorCorrectionTarget.patient_name || supervisorCorrectionTarget.partner?.name || 'N/A'}`,
+            });
+
+            await onDeleteMove(supervisorCorrectionTarget.id);
+            notify(
+              `Facture ${supervisorCorrectionTarget.name || `#${supervisorCorrectionTarget.id}`} ${action === 'delete' ? 'supprimée' : 'annulée'} avec succès. Motif consigné au registre d'audit.`,
+              'success',
+              'Action Superviseur Validée'
+            );
+            setSupervisorCorrectionTarget(null);
+          }}
+        />
       )}
 
       {/* CREATION DOSSIER PATIENT MODAL (Inspired by Reference UI) */}

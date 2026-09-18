@@ -18,7 +18,7 @@ function getAllStylesHtml(): string {
 
 /**
  * Opens a clean, dedicated pop-up window for printing that is NEVER restricted
- * by iframe sandbox policies and includes full CSS styling.
+ * by iframe sandbox policies and automatically closes when print completes or cancels.
  */
 export function openPrintWindow(contentHtml: string, title = 'Impression', isThermal = false): boolean {
   try {
@@ -40,6 +40,10 @@ export function openPrintWindow(contentHtml: string, title = 'Impression', isThe
           <title>${title}</title>
           ${stylesHtml}
           <style>
+            @page {
+              size: auto;
+              margin: 0 !important;
+            }
             html, body {
               background: #ffffff !important;
               color: #0f172a !important;
@@ -57,8 +61,12 @@ export function openPrintWindow(contentHtml: string, title = 'Impression', isThe
               display: none !important;
             }
             @media print {
+              @page {
+                size: auto;
+                margin: 0 !important;
+              }
               html, body {
-                padding: ${isThermal ? '0' : '5mm'} !important;
+                padding: 0 !important;
                 margin: 0 !important;
                 background: #ffffff !important;
               }
@@ -67,14 +75,14 @@ export function openPrintWindow(contentHtml: string, title = 'Impression', isThe
               }
               ${
                 isThermal
-                  ? `@page { size: 50mm 30mm; margin: 0; }`
-                  : `@page { size: A4 portrait; margin: 5mm; }`
+                  ? `@page { size: 50mm 30mm; margin: 0 !important; }`
+                  : `@page { size: A4 portrait; margin: 0 !important; }`
               }
             }
           </style>
         </head>
         <body class="bg-white text-slate-900 p-4">
-          <div id="app-print-isolated-root" class="printable-area" style="max-width: 820px; margin: 0 auto; background: #ffffff; color: #000000; padding: 12px;">
+          <div id="app-print-isolated-root" class="printable-area" style="max-width: 820px; margin: 0 auto; background: #ffffff; color: #000000; padding: 12mm; box-sizing: border-box;">
             ${contentHtml}
           </div>
           <script>
@@ -86,7 +94,12 @@ export function openPrintWindow(contentHtml: string, title = 'Impression', isThe
                 } catch(e) {
                   console.warn('Print error in popup window:', e);
                 }
-              }, 350);
+              }, 200);
+            });
+            window.addEventListener('afterprint', function() {
+              setTimeout(function() {
+                try { window.close(); } catch(e){}
+              }, 150);
             });
           </script>
         </body>
@@ -124,7 +137,7 @@ export function printElement(
       // Extract content HTML
       const contentHtml = element.outerHTML || element.innerHTML;
 
-      // 1. Prepare isolated print root in current document.body
+      // 1. Prepare isolated print root in document.body
       let printRoot = document.getElementById('app-print-isolated-root');
       if (!printRoot) {
         printRoot = document.createElement('div');
@@ -134,13 +147,12 @@ export function printElement(
       }
       printRoot.innerHTML = contentHtml;
 
-      // Ensure any hidden classes inside the print root are unhidden for printing
       const hiddenElements = printRoot.querySelectorAll('.hidden');
       hiddenElements.forEach((el) => {
         el.classList.remove('hidden');
       });
 
-      // 2. Add or update print media stylesheet for main document
+      // 2. Add style tag for in-page fallback
       let styleTag = document.getElementById('app-print-style-isolated') as HTMLStyleElement | null;
       if (!styleTag) {
         styleTag = document.createElement('style');
@@ -149,6 +161,16 @@ export function printElement(
       }
       styleTag.innerHTML = `
         @media print {
+          @page {
+            size: auto;
+            margin: 0 !important;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
           body > *:not(#app-print-isolated-root) {
             display: none !important;
           }
@@ -163,7 +185,8 @@ export function printElement(
             top: 0 !important;
             width: 100% !important;
             margin: 0 !important;
-            padding: ${isThermal ? '0' : '10mm'} !important;
+            padding: ${isThermal ? '0' : '12mm'} !important;
+            box-sizing: border-box !important;
             background: #ffffff !important;
             color: #000000 !important;
             z-index: 99999999 !important;
@@ -176,8 +199,8 @@ export function printElement(
           }
           ${
             isThermal
-              ? `@page { size: 50mm 30mm; margin: 0; }`
-              : `@page { size: A4 portrait; margin: 10mm; }`
+              ? `@page { size: 50mm 30mm; margin: 0 !important; }`
+              : `@page { size: A4 portrait; margin: 0 !important; }`
           }
         }
         @media screen {
@@ -187,20 +210,21 @@ export function printElement(
         }
       `;
 
-      // 3. Show interactive print & preview modal
+      // 3. Show interactive preview modal
       showInteractivePrintModal(contentHtml, documentTitle, isThermal);
 
-      // 4. Trigger window.print() after a tiny tick so the DOM is ready
-      setTimeout(() => {
+      // 4. Directly trigger openPrintWindow for instant 1-click dedicated print window
+      const opened = openPrintWindow(contentHtml, documentTitle, isThermal);
+      if (!opened) {
         try {
           window.print();
-        } catch (nativeErr) {
-          console.warn('[PrintUtils] Native window.print() failed:', nativeErr);
+        } catch (e) {
+          console.warn('[PrintUtils] Fallback window.print failed:', e);
         }
-        document.title = originalTitle;
-        resolve();
-      }, 250);
+      }
 
+      document.title = originalTitle;
+      resolve();
     } catch (e) {
       console.error('[PrintUtils] Exception in printElement:', e);
       resolve();
@@ -245,14 +269,15 @@ function showInteractivePrintModal(contentHtml: string, title: string, isThermal
 
         <!-- Actions Footer -->
         <div style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-          <div style="font-size: 12px; color: #64748b; font-weight: 500;">
-            Document certifié conforme, prêt pour émission
+          <div style="font-size: 11px; color: #475569; font-weight: 500; display: flex; flex-direction: column; gap: 2px; max-width: 320px;">
+            <span style="font-weight: 700; color: #0284c7;">💡 Conseil d'impression :</span>
+            <span>Si l'impression est bloquée par l'iframe d'aperçu, ouvrez l'application dans un nouvel onglet (icône en haut à droite) ou copiez le texte ci-contre.</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <button id="app-print-modal-copy-btn" style="background: white; border: 1px solid #cbd5e1; color: #334155; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s;">
               Copier le texte
             </button>
-            <button id="app-print-modal-print-btn" style="background: #0f172a; color: white; border: none; padding: 8px 18px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+            <button id="app-print-modal-print-btn" style="background: #0f172a; color: white; border: none; padding: 8px 22px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
               Lancer l'Impression
             </button>
           </div>
@@ -263,7 +288,7 @@ function showInteractivePrintModal(contentHtml: string, title: string, isThermal
 
   document.body.appendChild(modal);
 
-  // Unhide any hidden classes inside the inner paper container
+  // Unhide any hidden classes inside inner paper container
   const innerPaper = document.getElementById('app-print-inner-paper');
   if (innerPaper) {
     innerPaper.querySelectorAll('.hidden').forEach((el) => el.classList.remove('hidden'));
@@ -274,19 +299,19 @@ function showInteractivePrintModal(contentHtml: string, title: string, isThermal
     modal.remove();
   });
 
-  // Bind direct print button
+  // Direct print button triggers openPrintWindow directly
   document.getElementById('app-print-modal-print-btn')?.addEventListener('click', () => {
     const success = openPrintWindow(contentHtml, title, isThermal);
     if (!success) {
       try {
         window.print();
       } catch (e) {
-        console.warn('Native print call failed:', e);
+        console.warn('Fallback window.print failed:', e);
       }
     }
   });
 
-  // Bind copy button
+  // Copy text button
   document.getElementById('app-print-modal-copy-btn')?.addEventListener('click', () => {
     const text = document.getElementById('app-print-inner-paper')?.innerText || '';
     if (navigator.clipboard) {

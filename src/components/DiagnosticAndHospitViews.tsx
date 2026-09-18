@@ -40,6 +40,7 @@ import {
 } from '../types';
 import { formatFCFA } from '../lib/formatters';
 import { printDocumentById } from '../lib/printUtils';
+import { SolvencyBadge } from './SolvencyBadge';
 
 interface DiagnosticHospitProps {
   currentView: AppView;
@@ -249,9 +250,7 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
                         {row.prescribing_doctor || 'Dr. Aboubacar Toure'}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          {row.invoice_id ? 'Réglé Caisse' : 'Prise en charge OK'}
-                        </span>
+                        <SolvencyBadge status={row.invoice_id ? 'paid_cash' : 'insurance_validated'} compact />
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button

@@ -46,6 +46,7 @@ import {
 } from '../types';
 import { ReferralModal, ExternalPrescriptionModal } from './ClinicalModals';
 import { InvoicePdfModal } from './InvoicePdfModal';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 interface ConsultationsViewProps {
   company: CompanySettings;
@@ -2241,7 +2242,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                       Diagnostic : <strong>{c.diagnosis || 'Non spécifié'}</strong> {c.diagnosis_code ? `(${c.diagnosis_code})` : ''} • Praticien : Dr. {c.doctor_name}
                     </p>
                     <p className="text-[11px] text-slate-400">
-                      Date : {new Date(c.consultation_date).toLocaleDateString()} • Circuit : {c.patient_choice === 'external' ? 'Externe (Ville)' : 'Interne (Hôpital)'}
+                      Date : {formatDateDDMMYYYY(c.consultation_date)} • Circuit : {c.patient_choice === 'external' ? 'Externe (Ville)' : 'Interne (Hôpital)'}
                     </p>
                   </div>
 
@@ -2312,7 +2313,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                         <div key={c.id} className="bg-white p-3 rounded-md border border-slate-200 space-y-1.5 mb-2 shadow-2xs">
                           <div className="flex justify-between font-medium border-b border-slate-100 pb-1 text-slate-900">
                             <span>{c.consultation_number}</span>
-                            <span className="text-slate-400 text-[11px]">{new Date(c.consultation_date).toLocaleDateString()}</span>
+                            <span className="text-slate-400 text-[11px]">{formatDateDDMMYYYY(c.consultation_date)}</span>
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-[11px]">
                             <div><span className="text-slate-500">Diagnostic :</span> <strong className="text-slate-800">{c.diagnosis || 'Non renseigné'}</strong></div>

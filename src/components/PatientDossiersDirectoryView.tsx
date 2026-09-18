@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ResPartner, AccountMove, CompanySettings, LabExamOrder } from '../types';
 import { decodeScannerInput, getNumericKey } from '../lib/scannerDecoder';
+import { formatDateTimeDDMMYYYY, formatDateDDMMYYYY } from '../utils/dateUtils';
 
 interface PatientDossiersDirectoryViewProps {
   partners: ResPartner[];
@@ -192,18 +193,8 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
   }, [activePatient, patientMoves, patientLabOrders]);
 
   const formatDate = (dateStr: string) => {
-    if (!dateStr) return 'N/A';
-    try {
-      return new Date(dateStr).toLocaleString('fr-FR', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateStr;
-    }
+    if (!dateStr) return '—';
+    return formatDateTimeDDMMYYYY(dateStr);
   };
 
   const formatCurrency = (amount: number) => {
@@ -212,42 +203,45 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
 
   return (
     <div className="space-y-6">
-      {/* Upper Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center space-x-4">
-          <div className="p-3 bg-slate-100 rounded-xl text-slate-800 border border-slate-200">
+      {/* Upper Stats Overview - 100% Human & Clean Design */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs flex items-center space-x-3.5">
+          <div className="p-2.5 bg-slate-100 rounded-lg text-slate-800 border border-slate-200 shrink-0">
             <FolderOpen className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Dossiers Patients</p>
-            <h4 className="text-xl font-black text-slate-900">{totalPatientsCount}</h4>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Dossiers</p>
+            <h4 className="text-xl font-black text-slate-900 mt-0.5">{totalPatientsCount}</h4>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center space-x-4">
-          <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600 border border-indigo-100">
-            <Activity className="w-5 h-5 animate-pulse" />
+
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs flex items-center space-x-3.5">
+          <div className="p-2.5 bg-slate-100 rounded-lg text-slate-800 border border-slate-200 shrink-0">
+            <Activity className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Analyses Enregistrées</p>
-            <h4 className="text-xl font-black text-slate-900">{totalLabOrdersCount}</h4>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Analyses Enregistrées</p>
+            <h4 className="text-xl font-black text-slate-900 mt-0.5">{totalLabOrdersCount}</h4>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center space-x-4">
-          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100">
+
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs flex items-center space-x-3.5">
+          <div className="p-2.5 bg-slate-100 rounded-lg text-slate-800 border border-slate-200 shrink-0">
             <Coins className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facturations Émises</p>
-            <h4 className="text-xl font-black text-slate-900">{totalInvoicesCount}</h4>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Facturations Émises</p>
+            <h4 className="text-xl font-black text-slate-900 mt-0.5">{totalInvoicesCount}</h4>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex items-center space-x-4">
-          <div className="p-3 bg-slate-100 rounded-xl text-slate-700 border border-slate-200">
-            <TrendingUp className="w-5 h-5 text-slate-700" />
+
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-2xs flex items-center space-x-3.5">
+          <div className="p-2.5 bg-slate-100 rounded-lg text-slate-800 border border-slate-200 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Qualité & Suivi Dossier</p>
-            <h4 className="text-sm font-bold text-slate-900">Historique 100% Synchronisé</h4>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Contrôle &amp; Traçabilité</p>
+            <h4 className="text-xs font-bold text-slate-800 mt-1">Conformité JJ/MM/AAAA</h4>
           </div>
         </div>
       </div>
@@ -407,31 +401,37 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
                 </div>
               </div>
 
-              {/* Timeline Filters and Content */}
-              <div className="flex border-b border-slate-100 px-5 bg-white py-2 gap-2">
+              {/* Timeline Filters and Content - 100% Human & Clean */}
+              <div className="flex border-b border-slate-200 px-5 bg-white py-2.5 gap-2 overflow-x-auto">
                 <button
                   onClick={() => setActiveHistoryTab('all')}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                    activeHistoryTab === 'all' ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                    activeHistoryTab === 'all'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
                   Tout l'Historique ({unifiedTimeline.length})
                 </button>
                 <button
                   onClick={() => setActiveHistoryTab('clinical')}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                    activeHistoryTab === 'clinical' ? 'bg-indigo-500 text-white' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                    activeHistoryTab === 'clinical'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
                   Analyses Cliniques ({patientLabOrders.length})
                 </button>
                 <button
                   onClick={() => setActiveHistoryTab('billing')}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
-                    activeHistoryTab === 'billing' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                    activeHistoryTab === 'billing'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
-                  Factures & Reçus ({patientMoves.length})
+                  Factures &amp; Reçus ({patientMoves.length})
                 </button>
               </div>
 

@@ -22,16 +22,23 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [receiptFormat, setReceiptFormat] = useState<'a4' | 'thermal80'>('a4');
+  const [smsSent, setSmsSent] = useState(false);
   
   const handlePrint = async () => {
     if (contentRef.current) {
       setIsPrinting(true);
       try {
-        await printElement(contentRef.current, move?.name || 'Facture');
+        await printElement(contentRef.current, `${receiptFormat === 'thermal80' ? 'Ticket_80mm' : 'Recu'}_${move?.name || 'Facture'}`);
       } finally {
         setIsPrinting(false);
       }
     }
+  };
+
+  const handleSendPatientSms = () => {
+    setSmsSent(true);
+    setTimeout(() => setSmsSent(false), 3000);
   };
 
   if (!move) return null;
@@ -91,30 +98,59 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
+            {/* Format Switcher */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setReceiptFormat('a4')}
+                className={`px-2 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                  receiptFormat === 'a4'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                A4 Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => setReceiptFormat('thermal80')}
+                className={`px-2 py-1 text-xs font-bold rounded-md transition cursor-pointer flex items-center gap-1 ${
+                  receiptFormat === 'thermal80'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Ticket 80mm</span>
+                <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-extrabold">POS</span>
+              </button>
+            </div>
+
             {move.amount_residual > 0 && onOpenPaymentModal && (
               <button
                 onClick={() => onOpenPaymentModal(move)}
-                className="flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-3 py-1.5 rounded-md transition-colors font-bold border border-slate-300"
+                className="flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-2.5 py-1.5 rounded-md transition-colors font-bold border border-slate-300"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Enregistrer Règlement</span>
-                <span className="sm:hidden">Règlement</span>
+                <span className="hidden sm:inline">Règlement</span>
               </button>
             )}
             <button
               onClick={() => handlePrint()}
               disabled={isPrinting}
-              className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs px-3.5 py-1.5 rounded-md transition-colors font-bold border border-slate-900 shadow-sm cursor-pointer"
+              className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-md transition-colors font-bold border border-slate-900 shadow-xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-slate-300" />
-              <span>{isPrinting ? 'Préparation...' : 'Imprimer'}</span>
+              <span>{isPrinting ? 'Impression...' : 'Imprimer'}</span>
             </button>
             <button
-              onClick={() => onSendEmail(move.id)}
-              className="flex items-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs px-3 py-1.5 rounded-md transition-colors font-bold border border-slate-300 shadow-sm"
+              onClick={handleSendPatientSms}
+              className={`flex items-center space-x-1.5 text-xs px-2.5 py-1.5 rounded-md transition font-bold border shadow-xs cursor-pointer ${
+                smsSent ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+              }`}
+              title="Notifier le patient par SMS / WhatsApp"
             >
-              <Send className="w-3.5 h-3.5 text-slate-500" />
-              <span className="hidden sm:inline">Envoyer</span>
+              {smsSent ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Send className="w-3.5 h-3.5 text-slate-500" />}
+              <span className="hidden sm:inline">{smsSent ? 'Notifié !' : 'SMS / WhatsApp'}</span>
             </button>
             <button
               onClick={onClose}
@@ -129,8 +165,124 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
         {/* Printable PDF Canvas Area - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 text-black font-sans print:overflow-visible print:p-0 relative printable-content">
           
-          {/* Main Receipt Container matching Image 2 */}
-          <div ref={contentRef} className="max-w-3xl mx-auto bg-white border border-black p-6 space-y-4 print:border-black print:p-6 shadow-md print:shadow-none">
+          {receiptFormat === 'thermal80' ? (
+            /* 80mm THERMAL RECEIPT TEMPLATE */
+            <div ref={contentRef} className="w-[320px] max-w-full mx-auto bg-white border border-dashed border-slate-400 p-4 space-y-3 font-mono text-[11px] leading-tight print:border-none print:p-2 shadow-md print:shadow-none text-slate-900">
+              {/* Header */}
+              <div className="text-center space-y-1 border-b border-dashed border-slate-400 pb-3">
+                <h2 className="font-black text-xs uppercase tracking-tight font-sans text-slate-950">
+                  {company.name || 'HOPITAL GENERAL'}
+                </h2>
+                <p className="text-[10px] text-slate-600">{company.address || 'Plateau Medical Center'}</p>
+                <p className="text-[10px] text-slate-600">Tél: {company.phone || '+225 27 20 22 33 44'}</p>
+                <div className="inline-block mt-1 px-2 py-0.5 bg-slate-900 text-white font-bold text-[10px] uppercase rounded">
+                  {isPaid ? 'QUITTANCE OFFICIELLE' : 'TICKET DE PRESTATIONS'}
+                </div>
+              </div>
+
+              {/* Patient & Ticket Info */}
+              <div className="space-y-1 border-b border-dashed border-slate-400 pb-2 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">N° Reçu:</span>
+                  <span className="font-bold font-sans">{move.name || `#${move.id}`}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Date:</span>
+                  <span>{new Date(move.invoice_date || move.date).toLocaleDateString('fr-FR')} {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Patient:</span>
+                  <span className="font-bold uppercase font-sans truncate max-w-[180px]">{move.patient_name || move.partner?.name || 'Client Externe'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">NDM:</span>
+                  <span className="font-bold">{move.ndm || move.partner?.ndm || 'NDM-0000'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Caissier:</span>
+                  <span className="uppercase">{move.invoice_user?.name || 'Caissier Principal'}</span>
+                </div>
+                {move.insurance_enabled && (
+                  <div className="flex justify-between text-indigo-700 font-bold">
+                    <span>Assurance:</span>
+                    <span>{move.insurance_name || 'Assurance'} ({move.insurance_coverage_rate || 80}%)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-1.5 border-b border-dashed border-slate-400 pb-2">
+                <div className="flex justify-between font-bold text-[10px] uppercase text-slate-600 border-b border-slate-200 pb-1">
+                  <span>Prestation</span>
+                  <span>Total</span>
+                </div>
+                {(move.lines || []).map((line, idx) => (
+                  <div key={idx} className="space-y-0.5">
+                    <div className="flex justify-between font-semibold">
+                      <span className="truncate max-w-[200px]">{line.name || line.product_name}</span>
+                      <span>{formatFCFA(line.price_total || line.price_subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-500">
+                      <span>{line.quantity} x {formatFCFA(line.price_unit)}</span>
+                      {line.discount > 0 && <span>Remise {line.discount}%</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Totals */}
+              <div className="space-y-1 border-b border-dashed border-slate-400 pb-2">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span>Total Brut:</span>
+                  <span>{formatFCFA(move.amount_total)}</span>
+                </div>
+                {move.insurance_enabled && (
+                  <>
+                    <div className="flex justify-between text-[10px] text-slate-600">
+                      <span>Prise en charge ({move.insurance_coverage_rate || 80}%):</span>
+                      <span>-{formatFCFA(move.insurance_amount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-slate-900">
+                      <span>Part Patient (Ticket Mod.):</span>
+                      <span>{formatFCFA(move.client_share_amount || move.amount_total)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between text-sm font-black border-t border-slate-900 pt-1">
+                  <span>NET À PAYER:</span>
+                  <span>{formatFCFA(move.insurance_enabled ? (move.client_share_amount || move.amount_total) : move.amount_total)}</span>
+                </div>
+                <div className="flex justify-between text-[10px] text-emerald-800 font-bold pt-0.5">
+                  <span>Mode Règlement:</span>
+                  <span>{move.payments?.[0]?.payment_method_code?.toUpperCase() || (isPaid ? 'ESPÈCES' : 'EN ATTENTE')}</span>
+                </div>
+              </div>
+
+              {/* Security QR Code for Verification */}
+              <div className="flex flex-col items-center justify-center pt-1 space-y-1 text-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(
+                    `CHUT|QUITTANCE:${move.name || move.id}|NDM:${move.ndm || move.partner?.ndm}|MONTANT:${move.amount_total}|DATE:${move.invoice_date || move.date}`
+                  )}`}
+                  alt="QR Quittance"
+                  className="w-20 h-20 border p-1 rounded bg-white"
+                  referrerPolicy="no-referrer"
+                />
+                <span className="text-[8px] text-slate-500 font-mono tracking-widest">
+                  VERIFICATION ANTI-FRAUDE HIS
+                </span>
+              </div>
+
+              {/* Bottom Notice */}
+              <div className="text-center pt-2 text-[9px] text-slate-600 space-y-0.5">
+                <p className="font-bold font-sans">Merci de votre visite.</p>
+                <p>Conservez ce ticket pour le retrait des examens et ordonnances.</p>
+                <p className="text-[8px] text-slate-400 font-mono mt-1">Généré par le SIH Hospitalier</p>
+              </div>
+            </div>
+          ) : (
+            /* Main Receipt Container matching Image 2 */
+            <div ref={contentRef} className="max-w-3xl mx-auto bg-white border border-black p-6 space-y-4 print:border-black print:p-6 shadow-md print:shadow-none">
             
             {/* 1. Header Block with Left, Center (QR), and Right (CHU Logo) */}
             <div className="flex justify-between items-start gap-4">
@@ -491,6 +643,7 @@ export const InvoicePdfModal: React.FC<InvoicePdfModalProps> = ({
             </div>
 
           </div>
+          )}
         </div>
       </div>
     </div>

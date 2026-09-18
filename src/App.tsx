@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, ShieldAlert, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AppNavigation, AppView } from './components/AppNavigation';
@@ -18,12 +18,26 @@ import { NotificationsView } from './components/NotificationsView';
 import { LogsAuditView } from './components/LogsAuditView';
 import { SchemaErdView } from './components/SchemaErdView';
 import { CaisseSessionsView } from './components/CaisseSessionsView';
+import {
+  MandatorySessionOpenModal,
+  ActiveSessionBar,
+  FinancialAuditTrailViewerModal,
+} from './components/CaisseSessionGuard';
+import {
+  isCashierOnlyProfile,
+  isSupervisorOrAdmin,
+  getActiveSessionForCashier,
+  saveAllSessions,
+  closeCashierSession,
+} from './utils/caisseSessionService';
 import { InvoicePdfModal } from './components/InvoicePdfModal';
 import { PatientDossierModal } from './components/PatientDossierModal';
 import { PatientDossiersDirectoryView } from './components/PatientDossiersDirectoryView';
 import { InsuranceClaimsView } from './components/InsuranceClaimsView';
 import { ConsultationsView } from './components/ConsultationsView';
 import { PatientJourneyView } from './components/PatientJourneyView';
+import { AlertsManagementView } from './components/AlertsManagementView';
+import { PharmacyView } from './components/PharmacyView';
 import {
   InfirmierDashboard,
   MedecinDashboard,
@@ -67,10 +81,23 @@ import {
   HospitDischargesTableView,
 } from './components/DiagnosticAndHospitViews';
 import {
+  AdminServicesManagementView,
   AdminRolesTableView,
   AdminPermissionsTableView,
   AdminMedicalSettingsTableView,
 } from './components/AdminModuleViews';
+import {
+  PediatrieDashboardView,
+  PediatrieQueueView,
+  PediatrieConsultationsView,
+  PediatrieVaccinationView,
+  PediatrieCroissanceView,
+  MaterniteDashboardView,
+  MaterniteCpnView,
+  MaterniteAccouchementView,
+  MaternitePartogrammeView,
+  MaternitePostpartumView,
+} from './components/PediatrieMaterniteViews';
 import { FlashInfoTicker } from './components/FlashInfoTicker';
 import { FlashAnnouncementsView, DEFAULT_FLASH_ANNOUNCEMENTS } from './components/FlashAnnouncementsView';
 import {
@@ -107,6 +134,7 @@ import {
   PartnerReduction,
   TillSession,
   MedicalConsultation,
+  AppNotification,
 } from './types';
 
 const safeFetchJson = async <T,>(url: string, fallback: T): Promise<T> => {
@@ -150,6 +178,96 @@ export default function App() {
   const [taxes, setTaxes] = useState<AccountTax[]>([]);
   const [payments, setPayments] = useState<AccountPayment[]>([]);
   const [notifications, setNotifications] = useState<EmailNotification[]>([]);
+  const [appNotifications, setAppNotifications] = useState<AppNotification[]>([
+    {
+      id: 'notif-1',
+      title: '🚨 ADMISSION URGENCE VITALE (NIVEAU 1)',
+      message: 'Mme YAO Amoin (NDM-1554) admise au Box Urgences 1 : SpO2 86%, PAS 210/110 mmHg. Avis médical immédiat requis !',
+      timestamp: '10:42',
+      category: 'urgency',
+      priority: 'critical',
+      read: false,
+      targetRole: 'Médecin',
+      patientName: 'Mme YAO Amoin',
+      patientNdm: 'NDM-1554',
+      actionView: 'urgences_tableau',
+    },
+    {
+      id: 'notif-2',
+      title: '⚠️ RÉSULTAT LABORATOIRE CRITIQUE (VALEUR PANIQUE)',
+      message: 'Troponine I ultra-sensible Positive à 12.4 ng/mL pour M. COULIBALY Sekou (NDM-1022). ECG & Réanimation informés.',
+      timestamp: '10:35',
+      category: 'lab',
+      priority: 'critical',
+      read: false,
+      targetRole: 'Médecin',
+      patientName: 'M. COULIBALY Sekou',
+      patientNdm: 'NDM-1022',
+      actionView: 'lab_results',
+    },
+    {
+      id: 'notif-3',
+      title: '🧪 NOUVEAU BON DE BIOLOGIE PRESCRIT',
+      message: 'Bilan Hépatique & Ionogramme complet prescrit par Dr. Koné pour M. TRAORÉ Dramane (LAB-2026-0089). Prélèvement prêt.',
+      timestamp: '10:20',
+      category: 'lab',
+      priority: 'high',
+      read: false,
+      targetRole: 'Biologiste',
+      patientName: 'M. TRAORÉ Dramane',
+      patientNdm: 'NDM-0892',
+      actionView: 'lab_sampling',
+    },
+    {
+      id: 'notif-4',
+      title: '💊 NOUVELLE ORDONNANCE À SERVIR',
+      message: 'Ordonnance enregistrée pour Mme BAMBA Fatou : Amoxicilline 1g, Paracétamol 1g, Spasfon. Attente confirmation caisse.',
+      timestamp: '10:15',
+      category: 'pharmacy',
+      priority: 'normal',
+      read: true,
+      targetRole: 'Pharmacien',
+      patientName: 'Mme BAMBA Fatou',
+      patientNdm: 'NDM-1102',
+      actionView: 'pharmacy_dispensing',
+    },
+    {
+      id: 'notif-5',
+      title: '💳 PAIEMENT CAISSE VALIDÉ (TICKET #204)',
+      message: 'Facture FAC/2026/0042 réglée en Espèces (15 000 FCFA). Prestations d\'analyses et délivrance ordonnance autorisées.',
+      timestamp: '09:50',
+      category: 'caisse',
+      priority: 'normal',
+      read: true,
+      targetRole: 'Pharmacien',
+      patientName: 'M. KONAN Koffi',
+      patientNdm: 'NDM-0450',
+      actionView: 'payments',
+    },
+    {
+      id: 'notif-6',
+      title: '📑 CLÔTURE DE SESSION TRANSMISE AU SUPERVISEUR',
+      message: 'Session Guichet 1 (SESSION00793) fermée par le caissier Mohamed Mandé. Total encaissé : 485 000 FCFA. Transit coffre initialisé.',
+      timestamp: '09:10',
+      category: 'supervisor',
+      priority: 'high',
+      read: false,
+      targetRole: 'Superviseur',
+      actionView: 'superviseur_sessions',
+    },
+  ]);
+
+  const handleMarkAppNotificationAsRead = (id: string) => {
+    setAppNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const handleMarkAllAppNotificationsAsRead = () => {
+    setAppNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const handleClearAllAppNotifications = () => {
+    setAppNotifications([]);
+  };
   const [partnerReductions, setPartnerReductions] = useState<PartnerReduction[]>([]);
   const [labOrders, setLabOrders] = useState<LabExamOrder[]>([]);
   const [tillSessions, setTillSessions] = useState<TillSession[]>([]);
@@ -437,6 +555,9 @@ export default function App() {
       setPartnerReductions(safeReductions);
       setLabOrders(safeLabOrders);
       setTillSessions(safeTillSessions);
+      if (safeTillSessions.length > 0) {
+        saveAllSessions(safeTillSessions);
+      }
       setConsultations(safeConsultations);
       setAnalytics(analyticsRes);
       setUoms(safeUoms);
@@ -706,11 +827,27 @@ export default function App() {
   }, [isLoading, partners, moves]);
 
   // Active user till session
-  const activeUserSession = tillSessions.find(
-    (s) =>
-      (s.cashier_id === currentUser?.id || s.cashier_name === currentUser?.name) &&
-      s.state === 'in_progress'
-  );
+  const activeUserSession = useMemo(() => {
+    if (!currentUser) return null;
+    const currentName = (currentUser.name || '').toLowerCase().trim();
+    const currentLogin = (currentUser.login || '').toLowerCase().trim();
+
+    // 1. First check server-synced tillSessions
+    const serverActive = tillSessions.find((s) => {
+      if (s.state !== 'in_progress') return false;
+      if (s.cashier_id === currentUser.id) return true;
+      const sName = (s.cashier_name || '').toLowerCase().trim();
+      if (sName === currentName || sName === currentLogin) return true;
+      if (currentLogin === 'caissier' && (s.cashier_id === 3 || sName.includes('amadou') || sName.includes('caissier'))) return true;
+      if (currentLogin === 'caisse_facture' && (s.cashier_id === 4 || sName.includes('awa') || sName.includes('facture'))) return true;
+      return false;
+    });
+
+    if (serverActive) return serverActive;
+
+    // 2. Fallback to local session registry
+    return getActiveSessionForCashier(currentUser);
+  }, [tillSessions, currentUser]);
 
   // Invoice Handlers
   const handleSaveMove = async (moveData: any): Promise<AccountMove | null> => {
@@ -1211,6 +1348,7 @@ export default function App() {
   }
 
   const hasActiveSession = Boolean(activeUserSession);
+  const isCashierProfile = isCashierOnlyProfile(currentUser);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col selection:bg-slate-900 selection:text-white relative overflow-x-hidden">
@@ -1368,6 +1506,10 @@ export default function App() {
               setPdfMove(m);
             }}
             showToast={showToast}
+            appNotifications={appNotifications}
+            onMarkNotificationAsRead={handleMarkAppNotificationAsRead}
+            onMarkAllNotificationsAsRead={handleMarkAllAppNotificationsAsRead}
+            onClearAllNotifications={handleClearAllAppNotifications}
           />
         );
       })()}
@@ -1386,7 +1528,55 @@ export default function App() {
             </p>
           </div>
         ) : (
-          <AnimatePresence mode="wait">
+          <>
+            {/* Active Cashier Session Banner */}
+            {activeUserSession && (
+              <div className="mb-4">
+                <ActiveSessionBar
+                  session={activeUserSession}
+                  onInitiateClose={() => {
+                    setCurrentView('caisse_sessions');
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Mandatory Cashier Session Opening Modal */}
+            <MandatorySessionOpenModal
+              isOpen={Boolean(isCashierProfile && !activeUserSession && !isLoading && isAuthenticated)}
+              currentUser={currentUser}
+              onSessionOpened={async (createdSession) => {
+                try {
+                  const res = await fetch('/api/till-sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      cashier_id: createdSession.cashier_id,
+                      cashier_name: createdSession.cashier_name,
+                      till_name: createdSession.till_name,
+                      opening_balance: createdSession.opening_balance,
+                      notes: createdSession.notes,
+                    }),
+                  });
+                  if (res.ok) {
+                    const serverSession = await res.json();
+                    if (serverSession && serverSession.id) {
+                      setTillSessions((prev) => {
+                        const updated = [serverSession, ...prev.filter((s) => s.id !== serverSession.id)];
+                        saveAllSessions(updated);
+                        return updated;
+                      });
+                    }
+                  }
+                } catch (err) {
+                  console.warn('Till session save error:', err);
+                }
+                await fetchAllData();
+                showToast(`Session ${createdSession.session_code} ouverte avec succès !`, 'success');
+              }}
+            />
+
+            <AnimatePresence mode="wait">
             <motion.div
               key={currentView}
               initial={{ opacity: 0, y: 6 }}
@@ -1730,6 +1920,8 @@ export default function App() {
                 onNavigateToLab={() => setCurrentView('lab_sampling')}
                 onNavigateToSoins={() => setCurrentView('infirmier_care')}
                 onShowToast={showToast}
+                hasActiveSession={hasActiveSession}
+                onNavigateToSessions={() => setCurrentView('caisse_sessions')}
               />
             )}
 
@@ -1784,6 +1976,7 @@ export default function App() {
                 company={company}
                 currentUser={currentUser}
                 onNavigateToView={(v) => setCurrentView(v)}
+                onRefreshData={fetchAllData}
               />
             )}
 
@@ -1875,6 +2068,18 @@ export default function App() {
               />
             )}
 
+            {currentView === 'admin_services' && (
+              <AdminServicesManagementView
+                currentView={currentView}
+                users={users}
+                groups={groups}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onSaveCompany={handleSaveCompany}
+                onShowToast={showToast}
+              />
+            )}
+
             {currentView === 'admin_roles' && (
               <AdminRolesTableView
                 currentView={currentView}
@@ -1882,6 +2087,8 @@ export default function App() {
                 groups={groups}
                 company={company}
                 onNavigateToView={(v) => setCurrentView(v)}
+                onSaveCompany={handleSaveCompany}
+                onShowToast={showToast}
               />
             )}
 
@@ -1892,6 +2099,8 @@ export default function App() {
                 groups={groups}
                 company={company}
                 onNavigateToView={(v) => setCurrentView(v)}
+                onSaveCompany={handleSaveCompany}
+                onShowToast={showToast}
               />
             )}
 
@@ -1909,6 +2118,8 @@ export default function App() {
                 groups={groups}
                 company={company}
                 onNavigateToView={(v) => setCurrentView(v)}
+                onSaveCompany={handleSaveCompany}
+                onShowToast={showToast}
               />
             )}
 
@@ -1934,6 +2145,28 @@ export default function App() {
                     m.invoice_date_due < new Date().toISOString().split('T')[0]
                 )}
                 onSendReminder={handleSendReminder}
+              />
+            )}
+
+            {currentView === 'alert_settings' && (
+              <AlertsManagementView
+                currentUser={currentUser}
+                onShowToast={showToast}
+                onAddTestNotification={(notif) => {
+                  const newNotif: AppNotification = {
+                    id: `notif-test-${Date.now()}`,
+                    title: notif.title || 'Alerte Système',
+                    message: notif.message || 'Notification de test',
+                    category: notif.category || 'urgency',
+                    priority: notif.priority || 'normal',
+                    timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                    read: false,
+                    patientName: notif.patientName,
+                    patientNdm: notif.patientNdm,
+                    actionView: notif.actionView,
+                  };
+                  setAppNotifications((prev) => [newNotif, ...prev]);
+                }}
               />
             )}
 
@@ -2016,10 +2249,35 @@ export default function App() {
               />
             )}
 
-            {currentView === 'pharmacy_dispensing' && (
-              <PharmacyDispensingView
-                partners={partners}
+            {(currentView === 'pharmacy_dispensing' ||
+              currentView === 'pharmacy_stock' ||
+              currentView === 'pharmacy_orders' ||
+              currentView === 'pharmacy_expired' ||
+              currentView === 'pharmacy_narcotics' ||
+              currentView === 'pharmacy_sales' ||
+              currentView === 'pharmacy_settings') && (
+              <PharmacyView
                 currentUser={currentUser}
+                partners={partners}
+                products={products}
+                currentSubView={currentView}
+                onNavigateToView={setCurrentView}
+                onShowToast={showToast}
+                onAddNotification={(notif) => {
+                  const newNotif: AppNotification = {
+                    id: `notif-pharm-${Date.now()}`,
+                    title: notif.title || 'Notification Pharmacie',
+                    message: notif.message || 'Information pharmacie',
+                    category: 'pharmacy',
+                    priority: notif.priority || 'normal',
+                    timestamp: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                    read: false,
+                    patientName: notif.patientName,
+                    patientNdm: notif.patientNdm,
+                    actionView: notif.actionView || 'pharmacy_dispensing',
+                  };
+                  setAppNotifications((prev) => [newNotif, ...prev]);
+                }}
               />
             )}
 
@@ -2067,11 +2325,8 @@ export default function App() {
                 company={company}
                 currentUser={currentUser}
                 onNavigateToView={(v) => setCurrentView(v)}
-                onNewInvoice={() => {
-                  setMoveTypeFilter('out_invoice');
-                  setCurrentView('invoices');
-                }}
-                onNewPayment={handleNavigateToNewPayment}
+                onRefreshData={fetchAllData}
+                onShowToast={showToast}
               />
             )}
 
@@ -2326,8 +2581,121 @@ export default function App() {
                 onNavigateToView={(v) => setCurrentView(v)}
               />
             )}
+
+            {/* Pôle Pédiatrie & Santé Infantile */}
+            {currentView === 'pediatrie_dashboard' && (
+              <PediatrieDashboardView
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'pediatrie_queue' && (
+              <PediatrieQueueView
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onRefreshData={fetchAllData}
+                onShowToast={showToast}
+              />
+            )}
+
+            {currentView === 'pediatrie_consultations' && (
+              <PediatrieConsultationsView
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onRefreshData={fetchAllData}
+                onShowToast={showToast}
+                onCreateInvoice={async (partnerId, items, note) => {
+                  setMoveTypeFilter('out_invoice');
+                  setCurrentView('invoices');
+                }}
+              />
+            )}
+
+            {currentView === 'pediatrie_vaccination' && (
+              <PediatrieVaccinationView
+                partners={partners}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onShowToast={showToast}
+              />
+            )}
+
+            {currentView === 'pediatrie_croissance' && (
+              <PediatrieCroissanceView
+                partners={partners}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onShowToast={showToast}
+              />
+            )}
+
+            {/* Pôle Maternité & Obstétrique */}
+            {currentView === 'maternite_dashboard' && (
+              <MaterniteDashboardView
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+              />
+            )}
+
+            {currentView === 'maternite_cpn' && (
+              <MaterniteCpnView
+                partners={partners}
+                consultations={consultations}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onRefreshData={fetchAllData}
+                onShowToast={showToast}
+              />
+            )}
+
+            {currentView === 'maternite_accouchements' && (
+              <MaterniteAccouchementView
+                partners={partners}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onShowToast={showToast}
+              />
+            )}
+
+            {currentView === 'maternite_partogramme' && (
+              <MaternitePartogrammeView
+                partners={partners}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onShowToast={showToast}
+              />
+            )}
+
+            {currentView === 'maternite_postpartum' && (
+              <MaternitePostpartumView
+                partners={partners}
+                currentUser={currentUser}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onShowToast={showToast}
+              />
+            )}
             </motion.div>
           </AnimatePresence>
+          </>
         )}
       </main>
 
@@ -2359,8 +2727,13 @@ export default function App() {
           patient={lookupPatient}
           moves={moves}
           labOrders={labOrders}
+          consultations={consultations}
           company={company}
           onOpenPdf={(move) => setPdfMove(move)}
+          onNavigateToView={(view) => {
+            setIsLookupOpen(false);
+            setCurrentView(view);
+          }}
         />
       )}
 

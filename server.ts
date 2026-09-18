@@ -4806,10 +4806,7 @@ app.post('/api/till-sessions', (req: Request, res: Response) => {
         (targetCashierName !== '' && s.cashier_name.trim().toLowerCase() === targetCashierName))
   );
   if (activeExisting) {
-    return res.status(400).json({
-      error: `Une session de caisse (${activeExisting.session_code} - ${activeExisting.till_name}) est déjà OUVERTE pour le profil "${cashier_name || 'cet agent'}". Vous devez obligatoirement la clôturer avant de pouvoir ouvrir une nouvelle session.`,
-      active_session: activeExisting,
-    });
+    return res.status(200).json(activeExisting);
   }
 
   const newCode = `SESSION${String(nextTillSessionSeq++).padStart(5, '0')}`;

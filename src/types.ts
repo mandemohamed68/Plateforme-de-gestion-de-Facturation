@@ -29,6 +29,110 @@ export interface FlashAnnouncement {
   target_profiles?: string[]; // ['all'] or ['facture', 'caisse', 'labo', 'comptabilite', 'direction', 'admin']
 }
 
+export interface HospitalServiceConfig {
+  id: string; // e.g. 'pediatrie', 'maternite', 'hospitalisation', 'medecine_generale', 'specialiste', 'urgences', 'laboratoire', 'imagerie', 'caisse_facturation', 'pharmacie'
+  name: string; // e.g. 'Pédiatrie & Néonatologie'
+  code: string; // e.g. 'PED'
+  category: 'clinical' | 'diagnostic' | 'inpatient' | 'financial' | 'pharmacy';
+  description: string;
+  enabled: boolean;
+  icon: string; // e.g. 'Baby', 'Heart', 'Bed', 'Stethoscope', 'Microscope', etc.
+  head_doctor?: string;
+  location?: string;
+  capacity_beds?: number;
+}
+
+export interface VaccinationRecord {
+  id: string;
+  patient_id: number;
+  patient_name: string;
+  vaccine_code: string; // BCG, VPO, PENTA, ROR, VAA, etc.
+  vaccine_name: string;
+  dose_number: number; // 1, 2, 3, Rappel
+  target_age_weeks: number; // e.g. 0 (naissance), 6, 10, 14, 36 (9 mois)
+  status: 'administered' | 'due' | 'overdue' | 'contraindicated';
+  date_administered?: string;
+  date_scheduled?: string;
+  lot_number?: string;
+  administered_by?: string;
+  is_pev_free?: boolean;
+  notes?: string;
+}
+
+export interface GrowthRecord {
+  id: string;
+  patient_id: number;
+  patient_name: string;
+  date: string;
+  age_months: number;
+  weight_kg: number;
+  height_cm: number;
+  head_circumference_cm?: number;
+  muac_cm?: number; // Périmètre brachial (dépistage malnutrition)
+  z_score_weight_age?: number;
+  z_score_height_age?: number;
+  z_score_weight_height?: number;
+  nutritional_status: 'normal' | 'moderate_malnutrition' | 'severe_malnutrition' | 'overweight';
+  recorded_by?: string;
+}
+
+export interface CpnRecord {
+  id: string;
+  patient_id: number;
+  patient_name: string;
+  cpn_number: number; // 1, 2, 3, 4, 5+
+  date: string;
+  ddr?: string; // Date des Dernières Règles
+  dpa?: string; // Date Prévue d'Accouchement
+  gestational_age_weeks: number; // Terme en Semaines d'Aménorrhée
+  fundal_height_cm?: number; // Hauteur Utérine (cm)
+  fetal_heart_rate?: number; // Bruits du Cœur Fœtal (bpm)
+  fetal_movement?: boolean;
+  fetal_presentation?: 'cephalique' | 'siege' | 'transverse' | 'indeterminee';
+  blood_pressure_sys?: number;
+  blood_pressure_dia?: number;
+  maternal_weight_kg?: number;
+  glycosuria?: 'negatif' | 'trace' | '+' | '++' | '+++';
+  proteinuria?: 'negatif' | 'trace' | '+' | '++' | '+++';
+  vat_administered?: boolean; // Vaccin Antitétanique
+  iron_folic_acid_prescribed?: boolean;
+  malaria_tpi_administered?: boolean; // Traitement Préventif Intermittent (SP)
+  ultrasound_done?: boolean;
+  hiv_status?: 'negatif' | 'positif' | 'en_attente' | 'refuse';
+  syphilis_status?: 'negatif' | 'positif' | 'non_fait';
+  high_risk_pregnancy?: boolean;
+  risk_factors?: string[];
+  doctor_notes?: string;
+  next_appointment_date?: string;
+}
+
+export interface DeliveryRecord {
+  id: string;
+  mother_id: number;
+  mother_name: string;
+  delivery_date: string; // ISO
+  delivery_type: 'eutocique' | 'dystocique' | 'cesarienne';
+  gestational_age_weeks: number;
+  newborn_gender: 'M' | 'F';
+  birth_weight_g: number;
+  birth_length_cm: number;
+  head_circumference_cm: number;
+  apgar_1min: number;
+  apgar_5min: number;
+  apgar_10min?: number;
+  resuscitation_needed?: boolean;
+  episiotomy?: boolean;
+  perineal_tear_degree?: number; // 0, 1, 2, 3, 4
+  blood_loss_ml?: number;
+  postpartum_hemorrhage?: boolean;
+  midwife_doctor_name: string;
+  baby_status: 'vivant_bien_portant' | 'soins_neonatals' | 'mort_ne';
+  vitamin_k1_administered?: boolean;
+  eye_prophylaxis_done?: boolean;
+  early_breastfeeding?: boolean;
+  notes?: string;
+}
+
 export interface CompanySettings {
   name: string;
   slogan: string;
@@ -59,6 +163,10 @@ export interface CompanySettings {
   enabled_payment_methods?: string[]; // e.g. ['cash', 'wave', 'orange_money', 'moov_money', 'card', 'check', 'transfer', 'insurance']
   payment_method_items?: PaymentMethodItem[]; // Custom payment methods CRUD list
   
+  // Hospital Services Modularity Configuration (Back-Office / Admin)
+  enabled_hospital_services?: string[]; // list of active service IDs e.g. ['pediatrie', 'maternite', 'hospitalisation', 'medecine_generale', 'specialiste', 'urgences', 'laboratoire', 'imagerie', 'caisse_facturation', 'pharmacie']
+  hospital_services_config?: HospitalServiceConfig[]; // Full services configuration list
+
   // Watermark Settings
   show_watermark?: boolean; // Toggling watermark on/off
   watermark_text?: string; // e.g. "LABORATOIRE - DOCUMENT OFFICIEL"
@@ -98,6 +206,68 @@ export interface CompanySettings {
   invoice_title_paid?: string;
   invoice_title_posted?: string;
   invoice_title_draft?: string;
+}
+
+export interface PatientFieldConfig {
+  id: string; // e.g. 'last_name', 'first_name', 'gender', 'birth_date', 'phone', 'contact_person_name', 'blood_group', 'allergies', etc.
+  label: string;
+  category: 'identity' | 'contact' | 'emergency' | 'clinical' | 'administrative';
+  category_label: string;
+  status: 'mandatory' | 'optional' | 'hidden'; // 'mandatory' (Obligatoire), 'optional' (Optionnel), 'hidden' (Masqué)
+  description?: string;
+  is_core?: boolean; // Cannot be hidden if core
+}
+
+export interface HospitalConsultationType {
+  id: string;
+  code: string;
+  name: string;
+  pole: 'generaliste' | 'pediatrie' | 'maternite' | 'specialiste' | 'infirmier' | 'urgences';
+  pole_name: string;
+  price: number;
+  description?: string;
+  duration_minutes?: number;
+  active: boolean;
+  is_custom?: boolean;
+}
+
+export interface EnterpriseConvention {
+  id: string;
+  code: string; // ex: CONV-SIR-2026, CONV-AXA-80
+  name: string; // ex: Société Ivoirienne de Raffinage (SIR), SUNU Assurances
+  type: 'enterprise' | 'insurance' | 'mutuelle' | 'ipm';
+  type_label: string;
+  default_coverage_rate: number; // e.g. 80
+  allowed_rates: number[]; // [30, 50, 70, 75, 80, 100]
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  address?: string;
+  city?: string;
+  notes?: string;
+  active: boolean;
+}
+
+export interface BordereauLineItem {
+  id: number;
+  invoice_id: number;
+  invoice_number: string;
+  invoice_date: string;
+  patient_ndm: string;
+  patient_name: string;
+  patient_phone?: string;
+  patient_age?: number;
+  patient_gender?: string;
+  policy_number: string; // N° Matricule / N° Carte / N° Bon
+  beneficiary_status?: string; // Salarié direct, Conjoint, Enfant
+  medical_service?: string;
+  prestations_detail: string;
+  total_amount: number;
+  client_share_amount: number;
+  insurance_coverage_rate: number;
+  insurance_claim_amount: number;
+  remaining_due: number;
+  payment_state: 'not_paid' | 'paid' | 'partial';
 }
 
 export interface ResGroup {
@@ -554,6 +724,20 @@ export interface NotificationQueueEntry {
   date_envoi?: string;
 }
 
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  category: 'urgency' | 'lab' | 'pharmacy' | 'caisse' | 'supervisor' | 'consultation';
+  priority: 'low' | 'normal' | 'high' | 'critical';
+  read: boolean;
+  targetRole?: string; // e.g. 'Médecin', 'Infirmier', 'Pharmacien', 'Biologiste', 'Superviseur', 'Caissier'
+  patientName?: string;
+  patientNdm?: string;
+  actionView?: AppView;
+}
+
 export type AppView =
   | 'dashboard'
   | 'consultations'
@@ -571,6 +755,7 @@ export type AppView =
   | 'company'
   | 'flash_announcements'
   | 'notifications'
+  | 'alert_settings'
   | 'logs_audit'
   | 'schema'
   // Scénarios Hospitaliers (S01 à S50) selon specification_hopital.txt:
@@ -587,6 +772,12 @@ export type AppView =
   | 'surgery_theater'
   | 'imaging_pacs'
   | 'pharmacy_dispensing'
+  | 'pharmacy_stock'
+  | 'pharmacy_orders'
+  | 'pharmacy_expired'
+  | 'pharmacy_narcotics'
+  | 'pharmacy_sales'
+  | 'pharmacy_settings'
   | 'sterilization_log'
   | 'quality_vigilance'
   | 'hr_management'
@@ -667,14 +858,29 @@ export type AppView =
   | 'hospit_transfers'
   | 'hospit_monitoring'
   | 'hospit_discharges'
+  // Profile 12: Pédiatrie & Néonatologie
+  | 'pediatrie_dashboard'
+  | 'pediatrie_queue'
+  | 'pediatrie_consultations'
+  | 'pediatrie_vaccination'
+  | 'pediatrie_croissance'
+  // Profile 13: Maternité & Obstétrique
+  | 'maternite_dashboard'
+  | 'maternite_cpn'
+  | 'maternite_accouchements'
+  | 'maternite_partogramme'
+  | 'maternite_postpartum'
   // Profile 11: Administration
   | 'admin_dashboard'
+  | 'admin_services'
   | 'admin_users'
   | 'admin_roles'
   | 'admin_permissions'
   | 'admin_company'
   | 'admin_pricing'
   | 'admin_medical_settings'
+  | 'admin_patient_fields'
+  | 'admin_conventions'
   | 'admin_reports'
   | 'admin_audit'
   // Navigation Groups (Hierarchical)
@@ -685,6 +891,8 @@ export type AppView =
   | 'infirmier_group'
   | 'medecin_group'
   | 'specialiste_group'
+  | 'pediatrie_group'
+  | 'maternite_group'
   | 'labo_group'
   | 'imagerie_group'
   | 'hospitalisation_module'

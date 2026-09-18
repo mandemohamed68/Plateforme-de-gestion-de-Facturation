@@ -25,9 +25,10 @@ import {
   Mail,
   BadgePercent
 } from 'lucide-react';
-import { AccountMove, ResPartner, CompanySettings, ResUser } from '../types';
+import { AccountMove, ResPartner, CompanySettings, ResUser, EnterpriseConvention } from '../types';
 import { formatFCFA } from '../lib/formatters';
 import { printDocumentById } from '../lib/printUtils';
+import { getStoredConventions } from '../data/conventionsData';
 
 interface InsuranceClaimsViewProps {
   moves: AccountMove[];
@@ -51,7 +52,17 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
   onRegisterPayment,
   onNavigateToInvoices,
 }) => {
-  // 1. Insurance & Filter State
+  // 1. Conventions & Insurance Filter State
+  const [storedConventions, setStoredConventions] = useState<EnterpriseConvention[]>(() => getStoredConventions());
+
+  React.useEffect(() => {
+    const handleConvUpdate = () => {
+      setStoredConventions(getStoredConventions());
+    };
+    window.addEventListener('app_conventions_updated', handleConvUpdate);
+    return () => window.removeEventListener('app_conventions_updated', handleConvUpdate);
+  }, []);
+
   const [selectedInsuranceName, setSelectedInsuranceName] = useState<string>('SUNU Assurances Santé');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('this_month');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
@@ -68,7 +79,7 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
   const [transferDate, setTransferDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState<boolean>(false);
 
-  // 2. Discover all Unique Insurance Partners and Organismes
+  // 2. Discover all Unique Insurance Partners, Enterprise Conventions and Organismes
   const insurancePartners = useMemo(() => {
     // 1. Explicit insurance partners in database
     const explicitInsurances = (partners || []).filter(
@@ -80,8 +91,15 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
         (p.name || '').toLowerCase().includes('mutuelle')
     );
 
-    // 2. Also discover any unique insurance_name found in moves or patients
+    // 2. Known names map
     const knownNames = new Set<string>(explicitInsurances.map((p) => p.name));
+
+    // 3. Stored conventions (Enterprises & Insurances)
+    storedConventions.forEach((c) => {
+      if (c.name && !knownNames.has(c.name)) {
+        knownNames.add(c.name);
+      }
+    });
 
     (moves || []).forEach((m) => {
       if (m.insurance_name && !knownNames.has(m.insurance_name)) {
@@ -100,18 +118,20 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b, 'fr-FR'))
       .map((name) => {
-        const matched = explicitInsurances.find((p) => p.name === name);
+        const matchedPartner = explicitInsurances.find((p) => p.name === name);
+        const matchedConv = storedConventions.find((c) => c.name === name);
         return {
-          id: matched?.id || name,
+          id: matchedConv?.id || matchedPartner?.id || name,
           name,
-          convention_code: matched?.convention_code || null,
-          coverage_rate: matched?.default_coverage_rate ?? 80,
-          phone: matched?.phone || null,
-          email: matched?.email || null,
-          city: matched?.city || 'Abidjan',
+          convention_code: matchedConv?.code || matchedPartner?.convention_code || null,
+          coverage_rate: matchedConv?.default_coverage_rate ?? matchedPartner?.default_coverage_rate ?? 80,
+          phone: matchedConv?.contact_phone || matchedPartner?.phone || null,
+          email: matchedConv?.contact_email || matchedPartner?.email || null,
+          city: matchedConv?.city || matchedPartner?.city || 'Abidjan',
+          type: matchedConv?.type || 'insurance',
         };
       });
-  }, [partners, moves]);
+  }, [partners, moves, storedConventions]);
 
   // Selected Insurance Partner details
   const selectedPartnerDetails = useMemo(() => {

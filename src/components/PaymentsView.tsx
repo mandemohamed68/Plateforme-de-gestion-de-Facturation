@@ -19,12 +19,17 @@ import {
   Receipt,
   Smartphone,
   Check,
-  AlertCircle
+  AlertCircle,
+  Shield,
+  Trash2,
 } from 'lucide-react';
 import { AccountPayment, AccountMove, ResPartner, ResUser, CompanySettings } from '../types';
 import { formatFCFA, getUserBillingProfile } from '../lib/formatters';
 import { PaginationControls } from './PaginationControls';
 import { printElement } from '../lib/printUtils';
+import { SupervisorCorrectionModal } from './CaisseSessionGuard';
+import { logFinancialCorrection, isSupervisorOrAdmin } from '../utils/caisseSessionService';
+import { formatDateTimeDDMMYYYY } from '../utils/dateUtils';
 
 interface PaymentsViewProps {
   payments: AccountPayment[];
@@ -43,6 +48,8 @@ interface PaymentsViewProps {
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
   selectedPaymentForReceiptPrint?: AccountPayment | null;
   onClearSelectedPaymentForReceiptPrint?: () => void;
+  hasActiveSession?: boolean;
+  onNavigateToSessions?: () => void;
 }
 
 const PAYMENT_METHODS = [
@@ -72,7 +79,13 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   onShowToast,
   selectedPaymentForReceiptPrint,
   onClearSelectedPaymentForReceiptPrint,
+  hasActiveSession,
+  onNavigateToSessions,
 }) => {
+  const profile = getUserBillingProfile(currentUser);
+  const isSupervisor = profile === 'superviseur';
+  const isCashier = profile === 'caisse' || profile === 'facture_caisse' || isSupervisor;
+
   const [isModalOpen, setIsModalOpen] = useState(!!selectedMoveForPayment || !!autoOpenModal);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,6 +112,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   // Post-payment receipt & orientation modal
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [paymentForCorrection, setPaymentForCorrection] = useState<AccountPayment | null>(null);
   const [lastReceiptData, setLastReceiptData] = useState<{
     invoice: AccountMove | null;
     amountPaid: number;
@@ -137,6 +151,15 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   React.useEffect(() => {
     if (selectedMoveForPayment) {
+      if (!hasActiveSession && !isSupervisor) {
+        if (onShowToast) {
+          onShowToast("Ouverture de session requise pour enregistrer un règlement.", 'warning');
+        }
+        if (onNavigateToSessions) {
+          onNavigateToSessions();
+        }
+        return;
+      }
       setMoveId(selectedMoveForPayment.id);
       setAmount(selectedMoveForPayment.amount_residual);
       setTenderedAmount(selectedMoveForPayment.amount_residual);
@@ -144,7 +167,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     } else if (autoOpenModal) {
       handleOpenModal();
     }
-  }, [selectedMoveForPayment, autoOpenModal]);
+  }, [selectedMoveForPayment, autoOpenModal, hasActiveSession]);
 
   const handleClose = () => {
     setIsModalOpen(false);
@@ -155,6 +178,15 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   };
 
   const handleOpenModal = () => {
+    if (!hasActiveSession && !isSupervisor) {
+      if (onShowToast) {
+        onShowToast("Ouverture de session requise pour enregistrer un règlement.", 'warning');
+      }
+      if (onNavigateToSessions) {
+        onNavigateToSessions();
+      }
+      return;
+    }
     const uncollectedMove = moves.find((m) => m.state === 'posted' && m.amount_residual > 0);
     if (uncollectedMove) {
       setMoveId(uncollectedMove.id);
@@ -227,12 +259,14 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   const totalPaymentsAmount = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
 
-  const profile = getUserBillingProfile(currentUser);
-  const isSupervisor = profile === 'superviseur';
-  const isCashier = profile === 'caisse' || profile === 'facture_caisse' || isSupervisor;
-
   const filteredPayments = payments
     .filter((p) => {
+      // Respect user compartment boundaries (standard cashiers can only see their own collections)
+      if (!isSupervisor) {
+        const isOwnPayment = Number(p.user_id) === Number(currentUser?.id);
+        if (!isOwnPayment) return false;
+      }
+
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -386,7 +420,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                     <td className="py-2.5 px-3 font-bold font-mono text-slate-900 truncate" title={p.name || `PAY/2026/000${p.id}`}>
                       {p.name || `PAY/2026/000${p.id}`}
                       <div className="text-[10px] text-slate-400 font-normal">
-                        {(p.payment_date || p.created_at || '').replace('T', ' ').substring(0, 16)}
+                        {formatDateTimeDDMMYYYY(p.payment_date || p.created_at)}
                       </div>
                     </td>
                     <td className="py-2.5 px-3 font-bold text-slate-900 font-mono hidden sm:table-cell truncate" title={p.move_name || `#${p.move_id}`}>
@@ -408,13 +442,33 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                       <div className="text-[10px] text-emerald-600 font-normal">Lettré &amp; Encaissé</div>
                     </td>
                     <td className="py-2.5 px-3 text-center">
-                      <button
-                        onClick={() => handlePrintExistingPayment(p)}
-                        className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg border border-slate-200 inline-flex items-center justify-center transition cursor-pointer"
-                        title="Imprimer le Reçu"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => handlePrintExistingPayment(p)}
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg border border-slate-200 inline-flex items-center justify-center transition cursor-pointer"
+                          title="Imprimer le Reçu"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const canAct = isSupervisorOrAdmin(currentUser) || getUserBillingProfile(currentUser) === 'superviseur';
+                            if (!canAct) {
+                              onShowToast?.(
+                                "Action restreinte : Seul le profil Superviseur est autorisé à modifier, corriger ou annuler un encaissement.",
+                                'error',
+                                'Privilège Superviseur Requis'
+                              );
+                              return;
+                            }
+                            setPaymentForCorrection(p);
+                          }}
+                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 rounded-lg border border-rose-200 inline-flex items-center justify-center transition cursor-pointer"
+                          title="Corriger ou annuler ce règlement (Superviseur avec motif)"
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -633,33 +687,17 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       {/* POST-PAYMENT RECEIPT & PATIENT ORIENTATION MODAL ("LA SUITE") */}
       {showReceiptModal && lastReceiptData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="bg-white text-slate-900 px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
-                  <Check className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">
-                    Encaissement Effectué avec Succès
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Reçu n° {lastReceiptData.receiptNumber} généré • Traçabilité R02 enregistrée
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowReceiptModal(false);
-                  handleClose();
-                }}
-                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 text-xs">
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 p-5 space-y-4 text-xs">
+            <button
+              onClick={() => {
+                setShowReceiptModal(false);
+                handleClose();
+              }}
+              className="absolute top-3 right-3 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer z-10"
+              title="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
               {/* PRINTABLE RECEIPT TICKET */}
               <div
                 ref={receiptPrintRef}
@@ -794,9 +832,45 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   Terminer / Retour Caisse
                 </button>
               </div>
-            </div>
           </div>
         </div>
+      )}
+
+      {/* SUPERVISOR AUDIT & CORRECTION MODAL */}
+      {paymentForCorrection && (
+        <SupervisorCorrectionModal
+          isOpen={Boolean(paymentForCorrection)}
+          onClose={() => setPaymentForCorrection(null)}
+          supervisorUser={currentUser}
+          targetItem={{
+            type: 'payment',
+            ref: paymentForCorrection.name || `PAY/2026/000${paymentForCorrection.id}`,
+            amount: paymentForCorrection.amount,
+            partnerName: paymentForCorrection.partner_name,
+          }}
+          onConfirm={async (action, reason) => {
+            logFinancialCorrection({
+              supervisorId: currentUser?.id || 1,
+              supervisorName: currentUser?.name || 'Superviseur Caisse',
+              targetType: 'payment',
+              targetRef: paymentForCorrection.name || `PAY/2026/000${paymentForCorrection.id}`,
+              action: action,
+              reason: reason,
+              oldAmount: paymentForCorrection.amount,
+              details: `Règlement patient: ${paymentForCorrection.partner_name || 'N/A'} (Mode: ${paymentForCorrection.journal_name || paymentForCorrection.payment_method_line_id})`,
+            });
+
+            onShowToast?.(
+              `Règlement ${paymentForCorrection.name || `#${paymentForCorrection.id}`} ${action === 'delete' ? 'supprimé' : 'annulé'} avec succès par le Superviseur. Motif archivé.`,
+              'success',
+              'Correction Validée'
+            );
+            setPaymentForCorrection(null);
+            if (onFinishAndReturnToSession) {
+              onFinishAndReturnToSession();
+            }
+          }}
+        />
       )}
     </div>
   );

@@ -32,14 +32,20 @@ import {
   Shield,
   ArrowLeftRight,
   Search,
+  Baby,
+  Sliders,
+  Compass,
+  Zap,
+  Bell,
 } from 'lucide-react';
-import { ResUser, CompanySettings, ResGroup, AppView, ResPartner, AccountMove } from '../types';
+import { ResUser, CompanySettings, ResGroup, AppView, ResPartner, AccountMove, AppNotification } from '../types';
 import { getAppTheme } from '../lib/theme';
 import { getUserBillingProfile, getUserMissionDescription } from '../lib/formatters';
 import { decodeScannerInput } from '../lib/scannerDecoder';
 import { getAllowedViews } from '../utils/navigation';
 import { FlashInfoTicker } from './FlashInfoTicker';
 import { OmniboxModal } from './OmniboxModal';
+import { InAppNotificationCenter } from './InAppNotificationCenter';
 
 export type { AppView };
 export { getAllowedViews };
@@ -94,6 +100,10 @@ interface AppNavigationProps {
   onSelectPatient?: (patient: ResPartner) => void;
   onSelectMove?: (move: AccountMove) => void;
   showToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  appNotifications?: AppNotification[];
+  onMarkNotificationAsRead?: (id: string) => void;
+  onMarkAllNotificationsAsRead?: () => void;
+  onClearAllNotifications?: () => void;
 }
 
 export const AppNavigation: React.FC<AppNavigationProps> = ({
@@ -121,6 +131,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
   onSelectPatient,
   onSelectMove,
   showToast,
+  appNotifications = [],
+  onMarkNotificationAsRead = () => {},
+  onMarkAllNotificationsAsRead = () => {},
+  onClearAllNotifications = () => {},
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showQuickActionMenu, setShowQuickActionMenu] = useState(false);
@@ -141,7 +155,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     'ACCUEIL': true,
     'FACTURATION': true,
     'MÉDICAL': true,
+    'PÉDIATRIE': true,
+    'MATERNITÉ': true,
     'EXAMENS': true,
+    'PHARMACIE & STOCK': true,
     'HOSPITALISATION': true,
     'ADMINISTRATION': true,
     'superviseur_group': true,
@@ -151,8 +168,11 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     'infirmier_group': true,
     'medecin_group': true,
     'specialiste_group': true,
+    'pediatrie_group': true,
+    'maternite_group': true,
     'labo_group': true,
     'imagerie_group': true,
+    'pharmacy_group': true,
   });
 
   const toggleMenu = (title: string) => {
@@ -168,11 +188,49 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
   const roleLower = (currentUser?.role || '').toLowerCase();
   const loginLower = (currentUser?.login || '').toLowerCase();
 
-  // Seuls les profils caisse et caisse & facture doivent ouvrir et fermer une session
+  // Helper to verify if a modular service is activated in hospital settings (default = true for all)
+  const isServiceActive = (serviceId: string): boolean => {
+    if (!company) return true;
+    if (company.enabled_hospital_services && Array.isArray(company.enabled_hospital_services) && company.enabled_hospital_services.length > 0) {
+      return company.enabled_hospital_services.includes(serviceId);
+    }
+    if (company.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
+      const s = company.hospital_services_config.find(item => item.id === serviceId);
+      if (s) return s.enabled;
+    }
+    const local = localStorage.getItem('app_enabled_services_ids');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.includes(serviceId);
+      } catch (e) {}
+    }
+    return true;
+  };
+
+  const isSupervisorOrAdmin =
+    loginLower === 'mandemohamed68@gmail.com' ||
+    loginLower === 'super_admin' ||
+    loginLower === 'admin' ||
+    roleLower.includes('super admin') ||
+    roleLower.includes('supervis') ||
+    roleLower.includes('directeur') ||
+    roleLower.includes('administrateur') ||
+    roleLower.includes('universel');
+
+  // Seuls les profils caisse, facture et caisse & facture doivent ouvrir et fermer une session
   const isSessionRequiredProfile =
-    loginLower === 'caissier' ||
-    loginLower === 'caisse_facture' ||
-    (roleLower.includes('caiss') && !roleLower.includes('supervis'));
+    !isSupervisorOrAdmin && (
+      loginLower === 'caissier' ||
+      loginLower === 'caisse_facture' ||
+      loginLower === 'facturier' ||
+      roleLower.includes('caiss') ||
+      roleLower.includes('factur') ||
+      roleLower.includes('polyvalent') ||
+      profile === 'caisse' ||
+      profile === 'facture' ||
+      profile === 'facture_caisse'
+    );
 
   const isLockedOutWithoutSession = isSessionRequiredProfile && !hasActiveSession;
 
@@ -184,6 +242,12 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     }
     setSidebarOpen(false);
   };
+
+  const unreadNotifBadge = appNotifications.filter(n => !n.read).length;
+  const pendingPharmNotifsCount = appNotifications.filter(n => n.category === 'pharmacy' && !n.read).length || 2;
+  const pendingLabNotifsCount = appNotifications.filter(n => n.category === 'lab' && !n.read).length || 3;
+  const pendingUrgencyNotifsCount = appNotifications.filter(n => n.category === 'urgency' && !n.read).length || 2;
+  const pharmacyBadgeTotal = pendingPharmNotifsCount + 3;
 
   // 1. Categories definition according to the hierarchical structure requested
   const categories: NavCategoryConfig[] = [
@@ -202,7 +266,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           id: 'patient_journey',
           label: 'Suivi Optimal - Parcours 360°',
           icon: Heart,
-          description: 'Suivi de l\'arrivée à la sortie du patient'
+          description: 'Suivi de l\'arrivée à la sortie du patient',
+          badge: 3
         },
         {
           id: 'scenarios_s01_s50',
@@ -288,9 +353,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           label: 'Infirmier',
           icon: Activity,
           description: 'Espace infirmier',
+          badge: pendingUrgencyNotifsCount,
           children: [
             { id: 'infirmier_dashboard', label: 'Tableau de bord' },
-            { id: 'infirmier_queue', label: 'Patients en attente' },
+            { id: 'infirmier_queue', label: 'Patients en attente', badge: pendingUrgencyNotifsCount },
             { id: 'infirmier_vitals', label: 'Triage & Constantes' },
             { id: 'infirmier_prescriptions', label: 'Prescriptions Infirmières' },
             { id: 'infirmier_referred', label: 'Patients Référés / Orientés' },
@@ -302,9 +368,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           label: 'Médecin',
           icon: UserCheck,
           description: 'Espace médecin',
+          badge: 3,
           children: [
             { id: 'medecin_dashboard', label: 'Tableau de bord' },
-            { id: 'medecin_queue', label: 'Patients en attente' },
+            { id: 'medecin_queue', label: 'Patients en attente', badge: 3 },
             { id: 'medecin_consultations', label: 'Consultations' },
             { id: 'medecin_dossiers', label: 'Dossiers médicaux' },
             { id: 'medecin_prescriptions', label: 'Prescriptions' },
@@ -327,6 +394,44 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       ]
     },
     {
+      title: 'PÉDIATRIE',
+      icon: Baby,
+      items: [
+        {
+          id: 'pediatrie_group',
+          label: 'Pôle Pédiatrique',
+          icon: Baby,
+          description: 'Santé infantile et néonatalogie',
+          children: [
+            { id: 'pediatrie_dashboard', label: 'Tableau de bord' },
+            { id: 'pediatrie_queue', label: 'File d\'attente pédiatrique' },
+            { id: 'pediatrie_consultations', label: 'Consultations Pédiatriques' },
+            { id: 'pediatrie_vaccination', label: 'Vaccination & PEV' },
+            { id: 'pediatrie_croissance', label: 'Courbes de Croissance OMS' },
+          ]
+        }
+      ]
+    },
+    {
+      title: 'MATERNITÉ',
+      icon: Heart,
+      items: [
+        {
+          id: 'maternite_group',
+          label: 'Pôle Maternité',
+          icon: Heart,
+          description: 'Obstétrique et santé de la femme',
+          children: [
+            { id: 'maternite_dashboard', label: 'Tableau de bord' },
+            { id: 'maternite_cpn', label: 'Consultations Prénatales (CPN)' },
+            { id: 'maternite_accouchements', label: 'Registre des Accouchements' },
+            { id: 'maternite_partogramme', label: 'Partogramme & Travail' },
+            { id: 'maternite_postpartum', label: 'Suivi Post-Partum' },
+          ]
+        }
+      ]
+    },
+    {
       title: 'EXAMENS',
       icon: Microscope,
       items: [
@@ -335,13 +440,14 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           label: 'Laboratoire',
           icon: FlaskConical,
           description: 'Analyses médicales',
+          badge: pendingLabNotifsCount,
           children: [
             { id: 'labo_dashboard', label: 'Tableau de bord' },
-            { id: 'labo_queue', label: 'Patients en attente' },
-            { id: 'labo_sampling', label: 'Prélèvements' },
+            { id: 'labo_queue', label: 'Patients en attente', badge: pendingLabNotifsCount },
+            { id: 'labo_sampling', label: 'Prélèvements', badge: 2 },
             { id: 'labo_in_progress', label: 'Examens en cours' },
             { id: 'labo_results', label: 'Résultats' },
-            { id: 'labo_validation', label: 'Validation' },
+            { id: 'labo_validation', label: 'Validation', badge: 1 },
             { id: 'labo_catalog', label: 'Catalogue des examens' },
           ]
         },
@@ -350,9 +456,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           label: 'Imagerie',
           icon: Microscope,
           description: 'Radiologie & PACS',
+          badge: 2,
           children: [
             { id: 'imagerie_dashboard', label: 'Tableau de bord' },
-            { id: 'imagerie_queue', label: 'Patients en attente' },
+            { id: 'imagerie_queue', label: 'Patients en attente', badge: 2 },
             { id: 'imagerie_scheduled', label: 'Examens programmés' },
             { id: 'imagerie_completed', label: 'Examens réalisés' },
             { id: 'imagerie_reports', label: 'Comptes rendus' },
@@ -360,6 +467,28 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'imagerie_prescriptions', label: 'Prescriptions d’examens' },
           ]
         },
+      ]
+    },
+    {
+      title: 'PHARMACIE & STOCK',
+      icon: Pill,
+      items: [
+        {
+          id: 'pharmacy_group',
+          label: 'Pharmacie Hospitalière',
+          icon: FlaskConical,
+          description: 'Dispensation, ordonnances & stock',
+          badge: pharmacyBadgeTotal,
+          children: [
+            { id: 'pharmacy_dispensing', label: '1. Ordonnances & Dispensation', badge: pendingPharmNotifsCount },
+            { id: 'pharmacy_stock', label: '2. Stock & Catalogue Médicaments', badge: 2 },
+            { id: 'pharmacy_orders', label: '3. Commandes & Réquisitions', badge: 1 },
+            { id: 'pharmacy_expired', label: '4. Périmés & Alertes', badge: 1 },
+            { id: 'pharmacy_narcotics', label: '5. Registre des Stupéfiants' },
+            { id: 'pharmacy_sales', label: '6. Ventes Directes Comptoir' },
+            { id: 'pharmacy_settings', label: '7. Configuration Admin' },
+          ]
+        }
       ]
     },
     {
@@ -382,24 +511,35 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       requiredModule: 'admin_module',
       items: [
         { id: 'admin_dashboard', label: 'Tableau de bord', icon: BarChart3, description: 'Pilotage administratif' },
+        { id: 'alert_settings', label: 'Gestion des Alertes', icon: Bell, description: 'Paramètres & canaux de notification' },
+        { id: 'admin_services', label: 'Modules & Services', icon: Sliders, description: 'Activation / désactivation des modules' },
         { id: 'admin_users', label: 'Utilisateurs', icon: Users, description: 'Gestion personnel' },
         { id: 'admin_roles', label: 'Rôles & profils', icon: ShieldCheck, description: 'Rôles & profils' },
-        { id: 'admin_permissions', label: 'Permissions', icon: Lock, description: 'Matrice des permissions' },
+        { id: 'admin_permissions', label: 'Permissions (RBAC)', icon: Lock, description: 'Matrice dynamique des droits' },
         { id: 'admin_company', label: 'Établissement', icon: Settings, description: 'Infos structure' },
         { id: 'admin_pricing', label: 'Tarifs & prestations', icon: CreditCard, description: 'Catalogue tarifs' },
-        { id: 'admin_medical_settings', label: 'Paramètres médicaux', icon: Stethoscope, description: 'Paramètres médicaux' },
+        { id: 'admin_medical_settings', label: 'Paramètres cliniques', icon: Stethoscope, description: 'Unités de soins & seuils vitaux' },
         { id: 'admin_reports', label: 'Rapports', icon: FileText, description: 'Rapports d\'activité' },
         { id: 'admin_audit', label: 'Journal & sécurité', icon: ShieldCheck, description: 'Logs audit' },
       ]
     }
   ];
 
-  // Modified: check if view is allowed OR if any child is allowed
+  // Check if view is allowed OR if any child is allowed
   const isViewAllowed = (id: string) => {
     return allowedViews.includes(id as AppView);
   };
 
+  const isCategoryModuleActive = (title: string): boolean => {
+    if (title === 'PÉDIATRIE') return isServiceActive('pediatrie');
+    if (title === 'MATERNITÉ') return isServiceActive('maternite');
+    if (title === 'HOSPITALISATION') return isServiceActive('hospitalisation');
+    if (title === 'EXAMENS') return isServiceActive('laboratoire') || isServiceActive('imagerie');
+    return true;
+  };
+
   const visibleCategories = categories
+    .filter((cat) => isCategoryModuleActive(cat.title))
     .filter((cat) => !cat.requiredModule || isViewAllowed(cat.requiredModule))
     .map((cat) => ({
       ...cat,
@@ -699,10 +839,20 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                                 const isChildActive = currentView === child.id;
                                 if (!allowedViews.includes(child.id as AppView)) return null;
 
+                                const isChildLockedBySession = isLockedOutWithoutSession && child.id !== 'caisse_sessions';
+
                                 return (
                                   <button
                                     key={`child-${item.id}-${child.id}-${childIdx}-${child.label.replace(/\s+/g, '')}`}
                                     onClick={() => {
+                                      if (isChildLockedBySession) {
+                                        if (showToast) {
+                                          showToast("Ouverture de vacation requise pour déverrouiller vos opérations.", 'warning');
+                                        }
+                                        setCurrentView('caisse_sessions');
+                                        setSidebarOpen(false);
+                                        return;
+                                      }
                                       setCurrentView(child.id as AppView);
                                       if (child.onClick) {
                                         child.onClick();
@@ -723,6 +873,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                                     className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center justify-between ${
                                       isChildActive 
                                         ? 'font-bold border shadow-xs' 
+                                        : isChildLockedBySession
+                                        ? 'opacity-30 cursor-not-allowed'
                                         : theme.isDarkSidebar
                                         ? 'hover:bg-white/10 opacity-85 hover:opacity-100'
                                         : 'hover:bg-slate-100 opacity-85 hover:opacity-100'
@@ -961,6 +1113,24 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                 Ctrl K
               </kbd>
             </button>
+
+            {/* Interservice Matching & Care Pathway Shortcut */}
+            <button
+              id="btn-header-patient-journey"
+              onClick={() => setCurrentView('patient_journey')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer shadow-2xs border ${
+                currentView === 'patient_journey'
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-200'
+              }`}
+              title="Filière de Soins & Matching Interservice"
+            >
+              <Compass className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden xl:inline text-[11px]">Filière & Matching</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-indigo-600 text-white">
+                360°
+              </span>
+            </button>
           </div>
 
           {/* Right: Quick actions and user switcher button */}
@@ -973,6 +1143,19 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             >
               <Search className="w-4 h-4" />
             </button>
+
+            {/* In-App Inter-Service Notification Center */}
+            <InAppNotificationCenter
+              notifications={appNotifications}
+              onMarkAsRead={onMarkNotificationAsRead}
+              onMarkAllAsRead={onMarkAllNotificationsAsRead}
+              onClearAll={onClearAllNotifications}
+              onNavigateToView={(view) => {
+                setCurrentView(view);
+                setSidebarOpen(false);
+              }}
+              currentUser={currentUser}
+            />
 
             {/* Profile Pill Button in Top Bar */}
             <div className="relative">

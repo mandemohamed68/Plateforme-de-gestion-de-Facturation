@@ -208,13 +208,13 @@ export const InfirmierQueueTableView: React.FC<ClinicalViewProps> = ({
       </div>
 
       {calledPatient && (
-        <div className="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between text-xs font-bold transition animate-in fade-in">
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-xl flex items-center justify-between text-xs font-bold transition animate-in fade-in">
           <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-            <Volume2 className="w-4 h-4 text-emerald-400" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+            <Volume2 className="w-4 h-4 text-emerald-700" />
             <span>Appel sonore émis au guichet : <strong>{calledPatient}</strong></span>
           </div>
-          <span className="text-[11px] font-mono text-slate-300">Box Infirmier 1 • Immédiat</span>
+          <span className="text-[11px] font-mono text-emerald-800 bg-emerald-100/60 px-2 py-0.5 rounded border border-emerald-200">Box Infirmier 1 • Immédiat</span>
         </div>
       )}
 

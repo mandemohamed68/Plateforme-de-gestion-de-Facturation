@@ -83,7 +83,13 @@ export const ALL_NAVIGATION_MENUS = [
   { id: 'lab_grouped_results', label: 'Saisie Groupée', category: 'EXAMENS' },
   { id: 'products', label: 'Catalogue & Tarifs', category: 'EXAMENS' },
   { id: 'imaging_pacs', label: 'Imagerie Médicale', category: 'EXAMENS' },
-  { id: 'pharmacy_dispensing', label: 'Pharmacie', category: 'EXAMENS' },
+  { id: 'pharmacy_dispensing', label: 'Pharmacie - Dispensation', category: 'EXAMENS' },
+  { id: 'pharmacy_stock', label: 'Pharmacie - Stock & Produits', category: 'EXAMENS' },
+  { id: 'pharmacy_orders', label: 'Pharmacie - Commandes', category: 'EXAMENS' },
+  { id: 'pharmacy_expired', label: 'Pharmacie - Périmés & Alertes', category: 'EXAMENS' },
+  { id: 'pharmacy_narcotics', label: 'Pharmacie - Registre Stupéfiants', category: 'EXAMENS' },
+  { id: 'pharmacy_sales', label: 'Pharmacie - Ventes Directes', category: 'EXAMENS' },
+  { id: 'pharmacy_settings', label: 'Pharmacie - Config Admin', category: 'EXAMENS' },
   { id: 'sterilization_log', label: 'Stérilisation', category: 'EXAMENS' },
 
   // 5. HOSPITALISATION
@@ -1100,16 +1106,16 @@ export const UsersView: React.FC<UsersViewProps> = ({
       {isRoleModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95">
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
+            <div className="bg-white border-b border-slate-200 text-slate-900 p-4 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
-                <Shield className="w-4 h-4 text-slate-300" />
-                <h3 className="text-sm font-bold">
+                <Shield className="w-4 h-4 text-slate-700" />
+                <h3 className="text-sm font-bold text-slate-900">
                   {editingGroup ? 'Modifier le Rôle Métier' : 'Nouveau Profil de Rôle'}
                 </h3>
               </div>
               <button
                 onClick={() => setIsRoleModalOpen(false)}
-                className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition"
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>

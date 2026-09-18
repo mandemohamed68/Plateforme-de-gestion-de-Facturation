@@ -113,6 +113,19 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'hospit_transfers',
         'hospit_monitoring',
         'hospit_discharges',
+        'pediatrie_group',
+        'pediatrie_dashboard',
+        'pediatrie_queue',
+        'pediatrie_consultations',
+        'pediatrie_vaccination',
+        'pediatrie_croissance',
+        'maternite_group',
+        'maternite_dashboard',
+        'maternite_cpn',
+        'maternite_accouchements',
+        'maternite_partogramme',
+        'maternite_postpartum',
+        'admin_services',
         'admin_dashboard',
         'admin_users',
         'admin_roles',
@@ -148,6 +161,12 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'surgery_theater',
         'imaging_pacs',
         'pharmacy_dispensing',
+        'pharmacy_stock',
+        'pharmacy_orders',
+        'pharmacy_expired',
+        'pharmacy_narcotics',
+        'pharmacy_sales',
+        'pharmacy_settings',
         'sterilization_log',
         'quality_vigilance',
         'hr_management'
@@ -280,6 +299,51 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       ];
     }
 
+    // 6b. Pédiatrie & Santé Infantile
+    if (
+      login === 'pediatre' ||
+      role.includes('pediat') ||
+      department.includes('pediat') ||
+      role.includes('enfant')
+    ) {
+      return [
+        'dashboard',
+        'patient_journey',
+        'pediatrie_group',
+        'pediatrie_dashboard',
+        'pediatrie_queue',
+        'pediatrie_consultations',
+        'pediatrie_vaccination',
+        'pediatrie_croissance',
+        'consultations',
+        'patient_dossiers',
+        'partners'
+      ];
+    }
+
+    // 6c. Maternité & Obstétrique
+    if (
+      login === 'sage_femme' ||
+      role.includes('sage') ||
+      role.includes('mater') ||
+      role.includes('gynec') ||
+      department.includes('mater')
+    ) {
+      return [
+        'dashboard',
+        'patient_journey',
+        'maternite_group',
+        'maternite_dashboard',
+        'maternite_cpn',
+        'maternite_accouchements',
+        'maternite_partogramme',
+        'maternite_postpartum',
+        'consultations',
+        'patient_dossiers',
+        'partners'
+      ];
+    }
+
     // 7. Gestionnaire Hospitalisation - 7 items
     if (
       login === 'hospitalisation' ||
@@ -400,6 +464,18 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     }
     if ((result.includes('company') || user?.permissions?.includes('can_manage_settings') || user?.permissions?.includes('all')) && !result.includes('flash_announcements')) {
       result.push('flash_announcements');
+    }
+    if (!result.includes('alert_settings')) {
+      result.push('alert_settings');
+    }
+    if (!result.includes('notifications')) {
+      result.push('notifications');
+    }
+    if (result.includes('pharmacy_dispensing') || result.includes('company') || user?.role?.toLowerCase().includes('admin') || user?.role?.toLowerCase().includes('pharmac')) {
+      const pharmViews: AppView[] = ['pharmacy_dispensing', 'pharmacy_stock', 'pharmacy_orders', 'pharmacy_expired', 'pharmacy_narcotics', 'pharmacy_sales', 'pharmacy_settings'];
+      pharmViews.forEach(pv => {
+        if (!result.includes(pv)) result.push(pv);
+      });
     }
     return result;
   }

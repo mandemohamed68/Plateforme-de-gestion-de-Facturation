@@ -803,20 +803,20 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in duration-150">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white text-slate-900">
           <div>
-            <h2 className="text-base font-black flex items-center gap-2">
-              <FileText className="w-5 h-5 text-teal-400" />
-              Prescription Médicale & Ordonnance
+            <h2 className="text-base font-black flex items-center gap-2 text-slate-900">
+              <FileText className="w-5 h-5 text-teal-600" />
+              Prescription Médicale &amp; Ordonnance
             </h2>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Patient : <strong className="text-white">{consultation.patient_name}</strong> ({consultation.patient_ndm || `NDM-${consultation.partner_id}`}) • Réf : {consultation.consultation_number}
+            <p className="text-xs text-slate-500 mt-0.5">
+              Patient : <strong className="text-slate-900">{consultation.patient_name}</strong> ({consultation.patient_ndm || `NDM-${consultation.partner_id}`}) • Réf : {consultation.consultation_number}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab(activeTab === 'edit' ? 'print' : 'edit')}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-slate-700"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-teal-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-slate-300"
             >
               {activeTab === 'edit' ? (
                 <>
@@ -830,7 +830,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                 </>
               )}
             </button>
-            <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
+            <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1354,15 +1354,15 @@ export const ReferralModal: React.FC<ReferralModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white text-slate-900">
           <div className="flex items-center space-x-2">
-            <Send className="w-5 h-5 text-teal-400" />
+            <Send className="w-5 h-5 text-teal-600" />
             <div>
-              <h2 className="text-sm font-bold tracking-tight">Transfert &amp; Orientation Clinique</h2>
-              <p className="text-[10px] text-slate-300">Référer le patient au niveau de compétence supérieur</p>
+              <h2 className="text-sm font-bold tracking-tight text-slate-900">Transfert &amp; Orientation Clinique</h2>
+              <p className="text-[10px] text-slate-500">Référer le patient au niveau de compétence supérieur</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-300 hover:text-white">
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1564,25 +1564,25 @@ export const ExternalPrescriptionModal: React.FC<ExternalPrescriptionModalProps>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in duration-150">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white text-slate-900">
           <div>
-            <h2 className="text-base font-bold flex items-center gap-2">
-              <Printer className="w-5 h-5 text-slate-300" />
+            <h2 className="text-base font-bold flex items-center gap-2 text-slate-900">
+              <Printer className="w-5 h-5 text-slate-600" />
               Bulletin d&apos;Examen &amp; Ordonnance Externe
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               Circuit Externe (Délivrance et exécution en ville)
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => printDocumentById('external-prescription-printable-area', `Prescription_${consultation.patient_name.replace(/\s+/g, '_')}`)}
-              className="px-3 py-1.5 bg-white text-slate-900 hover:bg-slate-100 rounded-md text-xs font-semibold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-md text-xs font-semibold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-700" />
+              <Printer className="w-3.5 h-3.5 text-slate-200" />
               <span>Imprimer le document</span>
             </button>
-            <button onClick={onClose} className="p-1 text-slate-400 hover:text-white cursor-pointer">
+            <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>

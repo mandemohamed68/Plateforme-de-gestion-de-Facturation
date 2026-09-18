@@ -138,13 +138,13 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
       {selectedNotif && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
           <div className="bg-white rounded-md shadow-xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95">
-            <div className="bg-slate-900 text-white p-3.5 flex items-center justify-between">
-              <span className="font-bold text-xs uppercase tracking-wider text-slate-200">
+            <div className="bg-white border-b border-slate-200 text-slate-900 p-3.5 flex items-center justify-between">
+              <span className="font-bold text-xs uppercase tracking-wider text-slate-800">
                 Aperçu du Message Transmis
               </span>
               <button
                 onClick={() => setSelectedNotif(null)}
-                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>

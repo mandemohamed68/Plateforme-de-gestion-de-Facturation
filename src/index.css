@@ -12,6 +12,16 @@
 }
 
 @media print {
+  @page {
+    size: auto;
+    margin: 0 !important;
+  }
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
   body > *:not(#app-print-isolated-root) {
     display: none !important;
   }
@@ -23,7 +33,8 @@
     width: 100% !important;
     height: auto !important;
     margin: 0 !important;
-    padding: 12px !important;
+    padding: 12mm !important;
+    box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
     z-index: 99999999 !important;
