@@ -62,6 +62,64 @@ export function getCurrentDateDDMMYYYY(): string {
 /**
  * Get current date and time in JJ/MM/AAAA à HH:mm
  */
-export function getCurrentDateTimeDDMMYYYY(): string {
-  return formatDateTimeDDMMYYYY(new Date());
+export function getCurrentDateTimeDDMMYYYY(includeAtSeparator = true): string {
+  return formatDateTimeDDMMYYYY(new Date(), includeAtSeparator);
+}
+
+/**
+ * Get local ISO date string (YYYY-MM-DD) based on user's current local timezone
+ */
+export function getLocalISODate(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Robustly check if a date corresponds to today in the user's local timezone.
+ * Handles ISO strings (YYYY-MM-DD...), French format (DD/MM/YYYY...), timestamps and Date objects.
+ */
+export function isDateToday(dateInput: string | number | Date | null | undefined): boolean {
+  if (!dateInput) return false;
+
+  const today = new Date();
+  const todayDay = today.getDate();
+  const todayMonth = today.getMonth();
+  const todayYear = today.getFullYear();
+
+  // If already string with DD/MM/YYYY format
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    // Match DD/MM/YYYY
+    const ddmmyyyyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (ddmmyyyyMatch) {
+      const d = parseInt(ddmmyyyyMatch[1], 10);
+      const m = parseInt(ddmmyyyyMatch[2], 10) - 1;
+      const y = parseInt(ddmmyyyyMatch[3], 10);
+      return d === todayDay && m === todayMonth && y === todayYear;
+    }
+
+    // Match YYYY-MM-DD
+    const yyyymmddMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (yyyymmddMatch) {
+      const y = parseInt(yyyymmddMatch[1], 10);
+      const m = parseInt(yyyymmddMatch[2], 10) - 1;
+      const d = parseInt(yyyymmddMatch[3], 10);
+      return d === todayDay && m === todayMonth && y === todayYear;
+    }
+  }
+
+  // General Date parsing
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return false;
+    return (
+      d.getDate() === todayDay &&
+      d.getMonth() === todayMonth &&
+      d.getFullYear() === todayYear
+    );
+  } catch {
+    return false;
+  }
 }

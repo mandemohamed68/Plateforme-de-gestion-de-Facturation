@@ -43,6 +43,7 @@ import { getAppTheme } from '../lib/theme';
 import { getUserBillingProfile, getUserMissionDescription } from '../lib/formatters';
 import { decodeScannerInput } from '../lib/scannerDecoder';
 import { getAllowedViews } from '../utils/navigation';
+import { isSupervisorOrAdmin as isSupervisorOrAdminCheck } from '../utils/caisseSessionService';
 import { FlashInfoTicker } from './FlashInfoTicker';
 import { OmniboxModal } from './OmniboxModal';
 import { InAppNotificationCenter } from './InAppNotificationCenter';
@@ -209,14 +210,16 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
   };
 
   const isSupervisorOrAdmin =
+    isSupervisorOrAdminCheck(currentUser) ||
     loginLower === 'mandemohamed68@gmail.com' ||
-    loginLower === 'super_admin' ||
-    loginLower === 'admin' ||
-    roleLower.includes('super admin') ||
+    loginLower.includes('admin') ||
+    loginLower.includes('supervis') ||
+    roleLower.includes('admin') ||
     roleLower.includes('supervis') ||
-    roleLower.includes('directeur') ||
-    roleLower.includes('administrateur') ||
-    roleLower.includes('universel');
+    roleLower.includes('direct') ||
+    roleLower.includes('universel') ||
+    (currentUser?.group_ids || []).includes(1) ||
+    (currentUser?.group_ids || []).includes(5);
 
   // Seuls les profils caisse, facture et caisse & facture doivent ouvrir et fermer une session
   const isSessionRequiredProfile =
@@ -760,10 +763,11 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                     {cat.items.map((item, itemIdx) => {
                       const Icon = item.icon;
                       const isActive = currentView === item.id;
+                      const hasChildren = Boolean(item.children && item.children.length > 0);
                       const isItemLockedBySession =
-                        (isLockedOutWithoutSession && item.id !== 'caisse_sessions') ||
-                        (!isSupervisorOrAdmin && !hasActiveSession && (item.id === 'caisse_group' || item.id === 'caisse_facture_group'));
-                      const hasChildren = item.children && item.children.length > 0;
+                        !hasChildren &&
+                        ((isLockedOutWithoutSession && item.id !== 'caisse_sessions' && item.id !== 'caisse_facture_sessions') ||
+                        (!isSupervisorOrAdmin && !hasActiveSession && (item.id === 'caisse_group' || item.id === 'caisse_facture_group')));
                       const isGroupExpanded = expandedMenus[item.id as string];
 
                       return (
@@ -771,16 +775,16 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                           <button
                             id={`nav-${item.id}`}
                             onClick={() => {
+                              if (hasChildren) {
+                                toggleMenu(item.id as string);
+                                return;
+                              }
                               if (isItemLockedBySession) {
                                 if (showToast) {
                                   showToast("Ouverture de vacation requise pour déverrouiller vos opérations.", 'warning');
                                 }
                                 setCurrentView('caisse_sessions');
                                 setSidebarOpen(false);
-                                return;
-                              }
-                              if (hasChildren) {
-                                toggleMenu(item.id as string);
                                 return;
                               }
                               if (item.onClick) {
@@ -830,20 +834,17 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                             ) : null}
                           </button>
 
-                          {hasChildren && isGroupExpanded && !isItemLockedBySession && (
+                          {hasChildren && isGroupExpanded && (
                             <div className="ml-6 space-y-0.5 mt-0.5 border-l border-slate-200/30 pl-2">
                               {item.children?.map((child, childIdx) => {
-                                // Add a unique identifier based on label to prevent active state overlap
-                                // If a child has an onClick, it shouldn't be highlighted as active just because its parent 'id' matches the current view, UNLESS we specifically track sub-views. For now, let's keep it simple: it's active if it doesn't have a special onClick, OR if we want to visually unify, we can just highlight the main one.
-                                // Actually, let's use the label to distinguish.
-                                // But since we don't have sub-routing, all of them route to `child.id` (e.g. 'invoices').
-                                // We'll make only the first one (or the one without specific filters) show as active, or we just let them act as buttons without staying "active".
                                 const isChildActive = currentView === child.id;
                                 if (!allowedViews.includes(child.id as AppView)) return null;
 
+                                const isSessionOp = child.id === 'caisse_sessions' || child.id === 'caisse_facture_sessions';
                                 const isChildLockedBySession =
-                                  (isLockedOutWithoutSession && child.id !== 'caisse_sessions') ||
-                                  (!isSupervisorOrAdmin && !hasActiveSession && (item.id === 'caisse_group' || item.id === 'caisse_facture_group'));
+                                  !isSessionOp &&
+                                  (isLockedOutWithoutSession ||
+                                  (!isSupervisorOrAdmin && !hasActiveSession && (item.id === 'caisse_group' || item.id === 'caisse_facture_group')));
 
                                 return (
                                   <button

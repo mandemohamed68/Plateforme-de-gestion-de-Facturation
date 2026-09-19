@@ -1089,7 +1089,7 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
       {/* SECTION 7: MODAL LETTRAGE VIREMENT ASSURANCE */}
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <CreditCard className="w-5 h-5 text-slate-900" />

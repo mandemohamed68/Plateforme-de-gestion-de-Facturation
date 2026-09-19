@@ -610,8 +610,8 @@ export const PediatrieVaccinationView: React.FC<ModuleProps> = ({
       {/* Administer Vaccine Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in duration-150">
-            <div className="px-6 py-4 bg-white border-b border-slate-200 text-slate-900 flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in duration-150 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-white border-b border-slate-200 text-slate-900 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-600" />
                 <h3 className="text-sm font-bold text-slate-900">Enregistrer une Dose Vaccinale</h3>
@@ -621,7 +621,7 @@ export const PediatrieVaccinationView: React.FC<ModuleProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAdministerVaccine} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleAdministerVaccine} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <span className="text-slate-500 block">Patient :</span>
                 <strong className="text-slate-900 text-sm">{currentPatient.name}</strong>
@@ -1263,8 +1263,8 @@ export const MaterniteCpnView: React.FC<ModuleProps> = ({
       {/* New CPN Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150">
-            <div className="px-6 py-4 bg-white border-b border-slate-200 text-slate-900 flex items-center justify-between">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-white border-b border-slate-200 text-slate-900 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
                 <Heart className="w-5 h-5 text-rose-500" />
                 <h3 className="text-sm font-bold text-slate-900">Nouvelle Consultation Prénatale (CPN)</h3>
@@ -1274,7 +1274,7 @@ export const MaterniteCpnView: React.FC<ModuleProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleAddCpn} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleAddCpn} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Nom de la Gestante *</label>
                 <input

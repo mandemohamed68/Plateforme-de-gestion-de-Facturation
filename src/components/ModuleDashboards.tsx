@@ -1232,7 +1232,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
   const [isOpeningSession, setIsOpeningSession] = useState(false);
   const [showGuideBanner, setShowGuideBanner] = useState(true);
 
-  const isSupervisor = currentUser?.role?.toLowerCase().includes('superv') || currentUser?.role?.toLowerCase().includes('admin') || currentUser?.role?.toLowerCase().includes('direct') || currentUser?.login?.toLowerCase().includes('admin') || currentUser?.login === 'mandemohamed68@gmail.com';
+  const isSupervisor = isSupervisorOrAdmin(currentUser);
 
   // Fallback patient names and prestations for demo payments to guarantee rich display
   const fallbackPatientData: Record<number, { name: string; ndm: string; service: string }> = {

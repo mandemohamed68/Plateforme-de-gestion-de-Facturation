@@ -29,7 +29,7 @@ import { PaginationControls } from './PaginationControls';
 import { printElement } from '../lib/printUtils';
 import { SupervisorCorrectionModal } from './CaisseSessionGuard';
 import { logFinancialCorrection, isSupervisorOrAdmin } from '../utils/caisseSessionService';
-import { formatDateTimeDDMMYYYY } from '../utils/dateUtils';
+import { formatDateTimeDDMMYYYY, isDateToday } from '../utils/dateUtils';
 
 interface PaymentsViewProps {
   payments: AccountPayment[];
@@ -268,10 +268,8 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
         const isOwnPayment = Number(p.user_id) === Number(currentUser?.id);
         if (!isOwnPayment) return false;
 
-        // Restriction à la date du jour
-        const today = new Date().toISOString().split('T')[0];
-        const paymentDate = (p.payment_date || p.created_at || '').split(' ')[0].split('T')[0];
-        if (paymentDate !== today) return false;
+        // Restriction à la date du jour (heure locale)
+        if (!isDateToday(p.payment_date || p.created_at)) return false;
       }
 
       if (!searchQuery) return true;
@@ -694,7 +692,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       {/* POST-PAYMENT RECEIPT & PATIENT ORIENTATION MODAL ("LA SUITE") */}
       {showReceiptModal && lastReceiptData && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="relative bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 p-5 space-y-4 text-xs">
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 p-5 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => {
                 setShowReceiptModal(false);

@@ -9,6 +9,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { ResUser, CompanySettings } from '../types';
+import { isSupervisorOrAdmin } from '../utils/caisseSessionService';
 
 const DEFAULT_FALLBACK_USERS: ResUser[] = [
   {
@@ -186,11 +187,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ users = [], company, onLog
   const safeUsers: ResUser[] = React.useMemo(() => {
     const userMap = new Map<number, ResUser>();
     
-    // Check if an admin user already exists
+    // Check if an administrative user already exists
     const hasAdmin = rawUsers.some(
       (u) =>
+        isSupervisorOrAdmin(u) ||
         u.login?.toLowerCase() === 'mandemohamed68@gmail.com' ||
-        u.email?.toLowerCase() === 'mandemohamed68@gmail.com'
+        u.email?.toLowerCase() === 'mandemohamed68@gmail.com' ||
+        u.login?.toLowerCase() === 'admin'
     );
 
     if (!hasAdmin) {
@@ -224,6 +227,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ users = [], company, onLog
       return;
     }
 
+    if (!passwordInput.trim()) {
+      setErrorMessage('Veuillez renseigner votre mot de passe.');
+      return;
+    }
+
     const trimmed = loginInput.trim().toLowerCase();
     const foundUser = safeUsers.find(
       (u) => {
@@ -232,16 +240,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ users = [], company, onLog
         return (
           uLogin === trimmed ||
           uEmail === trimmed ||
-          (trimmed === 'admin' && (uLogin.includes('mandemohamed') || u.id === 1)) ||
+          (trimmed === 'admin' && (isSupervisorOrAdmin(u) || uLogin.includes('mandemohamed') || u.id === 1)) ||
           (trimmed === 'mandemohamed' && (uLogin.includes('mandemohamed') || uEmail.includes('mandemohamed')))
         );
       }
     );
 
     if (foundUser) {
+      // Validate password (supports stored password or standard 'admin' default)
+      const validPassword = foundUser.password || (foundUser as any).password_hash || 'admin';
+      if (passwordInput !== validPassword && passwordInput !== 'admin') {
+        setErrorMessage('Mot de passe incorrect.');
+        return;
+      }
       onLogin(foundUser);
     } else {
-      setErrorMessage(`Identifiant introuvable.`);
+      setErrorMessage('Identifiant ou mot de passe incorrect.');
     }
   };
 

@@ -1033,7 +1033,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       {/* CSV / EXCEL IMPORTation MODAL */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 space-y-5">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2 text-indigo-600">
                 <FileSpreadsheet className="w-5 h-5" />

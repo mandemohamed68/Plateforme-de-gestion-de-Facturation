@@ -1919,8 +1919,8 @@ export const PharmacyView: React.FC<PharmacyViewProps> = ({
       {/* --- MODAL 1: ADD DRUG --- */}
       {showAddDrugModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50 shrink-0">
               <h3 className="font-black text-slate-900 text-sm">Ajouter un Médicament au Stock</h3>
               <button
                 onClick={() => setShowAddDrugModal(false)}
@@ -1929,7 +1929,7 @@ export const PharmacyView: React.FC<PharmacyViewProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleAddDrugSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleAddDrugSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Dénomination Commune Internationale (DCI) *</label>
@@ -2073,8 +2073,8 @@ export const PharmacyView: React.FC<PharmacyViewProps> = ({
       {/* --- MODAL 2: NEW REQUISITION --- */}
       {showRequisitionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50 shrink-0">
               <h3 className="font-black text-slate-900 text-sm">Émettre un Bon de Réquisition Service</h3>
               <button
                 onClick={() => setShowRequisitionModal(false)}
@@ -2083,7 +2083,7 @@ export const PharmacyView: React.FC<PharmacyViewProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateRequisitionSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleCreateRequisitionSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Service Demandeur</label>
                 <select
@@ -2407,8 +2407,8 @@ export const PharmacyView: React.FC<PharmacyViewProps> = ({
       {/* --- MODAL 5: OTC RECEIPT --- */}
       {showReceiptModal && selectedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-sm w-full overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-sm w-full overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50 shrink-0">
               <h3 className="font-black text-slate-900 text-sm">Impression Reçu de Caisse</h3>
               <button
                 onClick={() => setShowReceiptModal(false)}
@@ -2417,7 +2417,7 @@ export const PharmacyView: React.FC<PharmacyViewProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {/* Receipt Body styled like a high-fidelity thermal receipt */}
               <div
                 id="printable-otc-receipt"

@@ -979,8 +979,8 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
       {/* REDUCTION CREATE / EDIT MODAL */}
       {isRedModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-2xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-md max-w-md w-full shadow-lg border border-slate-200 animate-in fade-in zoom-in-95">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 rounded-t-md">
+          <div className="bg-white rounded-md max-w-md w-full shadow-lg border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 rounded-t-md shrink-0">
               <h3 className="text-sm font-bold text-slate-900">
                 {editingReduction ? 'Modifier la Règle de Réduction' : 'Nouvelle Règle de Réduction Partenaire'}
               </h3>
@@ -993,7 +993,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveRedSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSaveRedSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block">
                   Structure / Type de Patient Partenaire *

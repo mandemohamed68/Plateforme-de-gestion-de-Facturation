@@ -1412,21 +1412,24 @@ export default function App() {
               const loginLower = (currentUser?.login || '').toLowerCase();
               const emailLower = (currentUser?.email || '').toLowerCase();
 
-              const isSupervisorOrAdmin =
+              const isSupervisorOrAdminUser =
+                isSupervisorOrAdmin(currentUser) ||
                 roleLower.includes('supervis') ||
                 roleLower.includes('admin') ||
-                roleLower.includes('directeur') ||
+                roleLower.includes('direct') ||
                 roleLower.includes('biolog') ||
                 roleLower.includes('technic') ||
-                loginLower === 'admin' ||
-                loginLower === 'superviseur' ||
+                roleLower.includes('universel') ||
+                loginLower.includes('admin') ||
+                loginLower.includes('supervis') ||
+                emailLower === 'mandemohamed68@gmail.com' ||
                 (currentUser?.group_ids || []).includes(1) ||
                 (currentUser?.group_ids || []).includes(5);
 
-              // Seuls les profils caisse, facture et caisse & facture doivent ouvrir et fermer une session
+              // Seuls les profils opérationnels de caisse, facture et caisse & facture doivent ouvrir et fermer une session
               const profile = getUserBillingProfile(currentUser);
               const isSessionReq =
-                !isSupervisorOrAdmin &&
+                !isSupervisorOrAdminUser &&
                 (roleLower.includes('caiss') ||
                   roleLower.includes('factur') ||
                   roleLower.includes('polyvalent') ||
@@ -1439,7 +1442,7 @@ export default function App() {
                   profile === 'facture_caisse');
 
               const isCaisseOrPolyvalentView = view.startsWith('caisse_') && view !== 'caisse_sessions';
-              if ((isSessionReq || isCaisseOrPolyvalentView) && !hasActiveSession && view !== 'caisse_sessions') {
+              if (!isSupervisorOrAdminUser && (isSessionReq || isCaisseOrPolyvalentView) && !hasActiveSession && view !== 'caisse_sessions') {
                 showToast('Ouverture de session requise pour accéder aux fonctionnalités de caisse', 'error');
                 setCurrentView('caisse_sessions');
                 return;

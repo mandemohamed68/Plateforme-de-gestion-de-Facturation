@@ -64,14 +64,19 @@ export function isSupervisorOrAdmin(user: ResUser | null): boolean {
   if (!user) return false;
   const role = (user.role || '').toLowerCase().trim();
   const login = (user.login || '').toLowerCase().trim();
+  const email = (user.email || '').toLowerCase().trim();
 
   return (
-    role.includes('superviseur') ||
+    role.includes('supervis') ||
     role.includes('admin') ||
-    role.includes('directeur') ||
-    login.includes('superviseur') ||
+    role.includes('direct') ||
+    role.includes('universel') ||
+    login.includes('supervis') ||
     login.includes('admin') ||
-    (user.group_ids || []).includes(1) // Admin group
+    login === 'mandemohamed68@gmail.com' ||
+    email === 'mandemohamed68@gmail.com' ||
+    (user.group_ids || []).includes(1) || // Admin group
+    (user.group_ids || []).includes(5)   // Direction/Billing supervisor group
   );
 }
 
