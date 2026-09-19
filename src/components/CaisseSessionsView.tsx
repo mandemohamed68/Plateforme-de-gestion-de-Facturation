@@ -2026,30 +2026,78 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
 
               {/* BILLETAGE ACCORDION IN CLOSE MODAL */}
               {showBilletageInClose && (
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                  <div className="text-[11px] font-bold text-slate-700">Décompte rapide des billets/pièces :</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CASH_DENOMINATIONS.slice(0, 6).map((d) => (
-                      <div
-                        key={d.value}
-                        className="flex items-center justify-between bg-white p-2 rounded-md border border-slate-200 text-xs"
-                      >
-                        <span className="font-medium text-slate-700 text-[11px]">{d.label}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={billetageCounts[d.value] || ''}
-                          onChange={(e) =>
-                            setBilletageCounts({
-                              ...billetageCounts,
-                              [d.value]: Math.max(0, parseInt(e.target.value) || 0),
-                            })
-                          }
-                          placeholder="0"
-                          className="w-12 px-1.5 py-0.5 border border-slate-300 rounded text-center font-bold text-xs"
-                        />
-                      </div>
-                    ))}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3 animate-in fade-in-50 duration-150">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Coins className="w-3.5 h-3.5 text-slate-600" />
+                      Grille de Billetage Physique :
+                    </span>
+                    <span className="text-xs font-mono font-bold text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+                      Total Billetage : {formatFCFA(computedBilletageTotal)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                    {CASH_DENOMINATIONS.map((d) => {
+                      const qty = billetageCounts[d.value] || 0;
+                      const subtotal = d.value * qty;
+                      return (
+                        <div
+                          key={d.value}
+                          className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs shadow-2xs hover:border-slate-300 transition"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-[11px]">{d.label}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              = {formatFCFA(subtotal)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400">Qté :</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={billetageCounts[d.value] || ''}
+                              onChange={(e) => {
+                                const newQty = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                const nextCounts = { ...billetageCounts, [d.value]: newQty };
+                                setBilletageCounts(nextCounts);
+                                const newSum = Object.entries(nextCounts).reduce(
+                                  (s, [val, q]) => s + Number(val) * (Number(q) || 0),
+                                  0
+                                );
+                                setActualCashInput(String(newSum));
+                              }}
+                              placeholder="0"
+                              className="w-14 px-2 py-1 bg-slate-50 border border-slate-300 rounded text-center font-bold text-xs focus:ring-1 focus:ring-slate-900"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBilletageCounts({});
+                        setActualCashInput('0');
+                      }}
+                      className="text-[11px] text-slate-500 hover:text-rose-600 font-medium cursor-pointer"
+                    >
+                      Effacer la grille
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActualCashInput(String(computedBilletageTotal));
+                        notify(`Montant physique appliqué : ${formatFCFA(computedBilletageTotal)}`, 'info');
+                      }}
+                      className="px-2.5 py-1 bg-slate-900 text-white rounded-md text-[11px] font-bold hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      Appliquer au montant ({formatFCFA(computedBilletageTotal)})
+                    </button>
                   </div>
                 </div>
               )}
@@ -2188,6 +2236,23 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
                   </span>
                 </div>
               </div>
+
+              {sessionToPrint.billetage && Object.values(sessionToPrint.billetage).some((v) => Number(v) > 0) && (
+                <div className="border-t border-dashed border-slate-300 pt-2 space-y-1 text-[9px]">
+                  <div className="font-bold uppercase tracking-wider text-slate-700">Détail du Billetage Physique :</div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                    {CASH_DENOMINATIONS.filter((d) => (sessionToPrint.billetage?.[d.value] || 0) > 0).map((d) => {
+                      const qty = sessionToPrint.billetage![d.value];
+                      return (
+                        <div key={d.value} className="flex justify-between">
+                          <span>{d.label} × {qty} :</span>
+                          <span className="font-mono">{formatFCFA(d.value * qty)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 grid grid-cols-2 gap-4 text-center text-[10px] border-t border-slate-200">
                 <div className="border-t border-slate-300 pt-1">Signature du Caissier</div>

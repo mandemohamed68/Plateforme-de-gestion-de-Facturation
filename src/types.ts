@@ -592,6 +592,8 @@ export interface LabParameterResult {
   unit: string;
   reference_range: string;
   is_abnormal?: boolean;
+  is_critical?: boolean;
+  critical_alert?: string;
   notes?: string;
   source?: 'manuelle' | 'automate';
   automate_statut?: string;

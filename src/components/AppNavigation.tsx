@@ -515,6 +515,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       items: [
         { id: 'admin_dashboard', label: 'Tableau de bord', icon: BarChart3, description: 'Pilotage administratif' },
         { id: 'alert_settings', label: 'Gestion des Alertes', icon: Bell, description: 'Paramètres & canaux de notification' },
+        { id: 'flash_announcements', label: 'Annonces & Flash Info', icon: Megaphone, description: 'Bandeaux défilants & messages d\'urgence' },
         { id: 'admin_services', label: 'Modules & Services', icon: Sliders, description: 'Activation / désactivation des modules' },
         { id: 'admin_users', label: 'Utilisateurs', icon: Users, description: 'Gestion personnel' },
         { id: 'admin_roles', label: 'Rôles & profils', icon: ShieldCheck, description: 'Rôles & profils' },
@@ -1048,7 +1049,11 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
         className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-xs lg:pl-64 transition-all"
       >
         {/* Global Flash Info Ticker rendered at the absolute top of the header ("tout en haut") */}
-        <FlashInfoTicker company={company} currentUser={currentUser} />
+        <FlashInfoTicker
+          company={company}
+          currentUser={currentUser}
+          onNavigateToView={(v) => setCurrentView(v)}
+        />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
           {/* Left: Mobile hamburger & Active view title */}

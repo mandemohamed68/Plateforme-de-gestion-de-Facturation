@@ -1,18 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, ChevronLeft, ChevronRight, Pause, Play, X, AlertTriangle, Info, Sparkles, Target, SlidersHorizontal } from 'lucide-react';
-import { CompanySettings, FlashAnnouncement, ResUser } from '../types';
+import { Megaphone, ChevronLeft, ChevronRight, Pause, Play, X, AlertTriangle, Info, Sparkles, Target, SlidersHorizontal, Settings } from 'lucide-react';
+import { CompanySettings, FlashAnnouncement, ResUser, AppView } from '../types';
 import { getUserBillingProfile } from '../lib/formatters';
 
 interface FlashInfoTickerProps {
   company: CompanySettings;
   currentUser?: ResUser | null;
+  onNavigateToView?: (view: AppView) => void;
 }
 
-export const FlashInfoTicker: React.FC<FlashInfoTickerProps> = ({ company, currentUser }) => {
+export const FlashInfoTicker: React.FC<FlashInfoTickerProps> = ({ company, currentUser, onNavigateToView }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [tickerMode, setTickerMode] = useState<'marquee' | 'slide'>('marquee');
+
+  const canManage = Boolean(
+    currentUser && (
+      (currentUser.role || '').toLowerCase().includes('admin') ||
+      (currentUser.role || '').toLowerCase().includes('supervis') ||
+      (currentUser.role || '').toLowerCase().includes('direct') ||
+      (currentUser.login || '').toLowerCase().includes('admin') ||
+      (currentUser.group_ids || []).includes(1) ||
+      (currentUser.group_ids || []).includes(5)
+    )
+  );
 
   // Filter announcements by active status AND targeted user profiles
   const isTargetedForUser = (announcement: FlashAnnouncement) => {
@@ -249,6 +261,17 @@ export const FlashInfoTicker: React.FC<FlashInfoTickerProps> = ({ company, curre
               title="Suivant"
             >
               <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {canManage && onNavigateToView && (
+            <button
+              type="button"
+              onClick={() => onNavigateToView('flash_announcements')}
+              className="p-1 hover:bg-amber-200/90 rounded text-amber-900 transition-colors cursor-pointer border border-amber-300 bg-white/90"
+              title="Gérer les annonces & le bandeau Flash Info"
+            >
+              <Settings className="w-3.5 h-3.5 text-amber-800" />
             </button>
           )}
 

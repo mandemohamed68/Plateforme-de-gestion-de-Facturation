@@ -79,6 +79,33 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
     (currentUser?.role || '').toLowerCase().includes('médecin') ||
     currentUser?.login === 'admin';
 
+  // Panic / Critical values checker (Alertes biologiques vitales)
+  const checkPanicValue = (paramName: string, valueStr: string): { isCritical: boolean; message?: string } => {
+    const name = (paramName || '').toLowerCase();
+    const val = parseFloat((valueStr || '').replace(',', '.'));
+    if (isNaN(val)) return { isCritical: false };
+
+    if (name.includes('glyc') || name.includes('glucose')) {
+      if (val < 0.50 && val > 0) return { isCritical: true, message: 'Hypoglycémie critique (< 0.50 g/L)' };
+      if (val > 3.00) return { isCritical: true, message: 'Hyperglycémie majeure (> 3.00 g/L)' };
+    }
+    if (name.includes('kali') || name.includes('potassium')) {
+      if (val < 2.8 && val > 0) return { isCritical: true, message: 'Hypokaliémie sévère (< 2.8 mmol/L)' };
+      if (val > 6.0) return { isCritical: true, message: 'Hyperkaliémie critique (> 6.0 mmol/L)' };
+    }
+    if (name.includes('hémoglobine') || name.includes('hemoglobine') || name.includes('hb')) {
+      if (val < 7.0 && val > 0) return { isCritical: true, message: 'Anémie sévère décompensée (< 7.0 g/dL)' };
+    }
+    if (name.includes('plaquette')) {
+      if (val < 30000 && val > 0) return { isCritical: true, message: 'Thrombopénie critique (< 30 000 /mm³)' };
+    }
+    if (name.includes('créat') || name.includes('creat')) {
+      if (val > 45 && val < 500) return { isCritical: true, message: 'Insuffisance rénale aiguë (> 45 mg/L)' };
+      if (val > 350) return { isCritical: true, message: 'Insuffisance rénale sévère (> 350 µmol/L)' };
+    }
+    return { isCritical: false };
+  };
+
   // KPIs
   const totalCount = labOrders.length;
   const pendingCount = labOrders.filter((o) => o.status === 'pending_sampling' || o.status === 'in_progress').length;
@@ -142,6 +169,13 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
         if (!isNaN(valNum) && parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
           copy[idx].is_abnormal = valNum < parts[0] || valNum > parts[1];
         }
+      }
+      // Check for panic / critical vital thresholds
+      const panic = checkPanicValue(copy[idx].name, newVal);
+      copy[idx].is_critical = panic.isCritical;
+      copy[idx].critical_alert = panic.message;
+      if (panic.isCritical) {
+        copy[idx].is_abnormal = true;
       }
       return copy;
     });
@@ -403,9 +437,10 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
                 {filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((order) => {
+                  const hasCritical = order.parameters?.some((p) => p.is_critical || checkPanicValue(p.name, p.value).isCritical);
                   const hasAbnormal = order.parameters?.some((p) => p.is_abnormal);
                   return (
-                    <tr key={order.id} className="hover:bg-slate-50/70 transition">
+                    <tr key={order.id} className={`transition ${hasCritical ? 'bg-rose-50/40 hover:bg-rose-50/70' : 'hover:bg-slate-50/70'}`}>
                       <td className="py-2.5 px-3 font-mono truncate">
                         <div className="font-bold text-slate-900 truncate" title={order.order_number}>{order.order_number}</div>
                         <div className="text-[10px] text-slate-500 truncate">{order.sampling_date?.replace('T', ' ').substring(0, 16)}</div>
@@ -419,14 +454,20 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                       </td>
 
                       <td className="py-2.5 px-3 hidden sm:table-cell truncate">
-                        <div className="font-bold text-slate-800 truncate" title={order.exam_names.join(', ')}>
-                          {order.exam_names.join(', ')}
+                        <div className="font-bold text-slate-800 truncate flex items-center gap-1.5" title={order.exam_names.join(', ')}>
+                          <span>{order.exam_names.join(', ')}</span>
+                          {hasCritical && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-600 text-white uppercase tracking-wider animate-pulse">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              Urgence Vitale
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-slate-500 flex items-center space-x-1 mt-0.5 truncate">
                           <span className="font-medium text-slate-700 truncate">{order.department}</span>
                           <span>•</span>
                           <span>{order.parameters?.length || 0} param.</span>
-                          {hasAbnormal && (
+                          {hasAbnormal && !hasCritical && (
                             <span className="text-rose-600 font-bold ml-1 truncate">
                               • Hors normes
                             </span>
@@ -562,50 +603,75 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {parametersState.map((param, idx) => (
-                        <tr
-                          key={param.id || idx}
-                          className={param.is_abnormal ? 'bg-rose-50/50' : 'hover:bg-slate-50'}
-                        >
-                          <td className="py-2 px-3 font-semibold text-slate-900">
-                            {param.name}
-                          </td>
-                          <td className="py-2 px-3">
-                            <input
-                              type="text"
-                              value={param.value}
-                              onChange={(e) => handleParamValueChange(idx, e.target.value)}
-                              placeholder="Valeur du résultat"
-                              className={`w-full px-2.5 py-1 border rounded text-xs font-bold ${
-                                param.is_abnormal
-                                  ? 'border-rose-400 bg-rose-50 text-rose-900 focus:ring-rose-500'
-                                  : 'border-slate-300 bg-white text-slate-900 focus:ring-slate-900'
-                              } focus:outline-none focus:ring-1`}
-                            />
-                          </td>
-                          <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
-                            {param.unit}
-                          </td>
-                          <td className="py-2 px-3 text-slate-600 text-[11px]">
-                            {param.reference_range}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleParamAbnormal(idx)}
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 transition ${
-                                param.is_abnormal
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              }`}
-                              title="Cliquer pour basculer l'alerte"
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full ${param.is_abnormal ? 'bg-rose-600' : 'bg-emerald-600'}`} />
-                              <span>{param.is_abnormal ? 'Anormal' : 'Normal'}</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {parametersState.map((param, idx) => {
+                        const panic = checkPanicValue(param.name, param.value);
+                        const isCrit = param.is_critical || panic.isCritical;
+                        const alertMsg = param.critical_alert || panic.message;
+
+                        return (
+                          <tr
+                            key={param.id || idx}
+                            className={isCrit ? 'bg-rose-100/60' : param.is_abnormal ? 'bg-rose-50/50' : 'hover:bg-slate-50'}
+                          >
+                            <td className="py-2 px-3 font-semibold text-slate-900">
+                              <div>{param.name}</div>
+                              {isCrit && (
+                                <div className="text-[10px] font-bold text-rose-700 flex items-center gap-1 mt-0.5">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                                  <span>{alertMsg || 'Valeur critique / Urgence vitale'}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                value={param.value}
+                                onChange={(e) => handleParamValueChange(idx, e.target.value)}
+                                placeholder="Valeur du résultat"
+                                className={`w-full px-2.5 py-1 border rounded text-xs font-bold ${
+                                  isCrit
+                                    ? 'border-rose-500 bg-rose-50 text-rose-900 focus:ring-rose-500 ring-1 ring-rose-400'
+                                    : param.is_abnormal
+                                    ? 'border-rose-400 bg-rose-50 text-rose-900 focus:ring-rose-500'
+                                    : 'border-slate-300 bg-white text-slate-900 focus:ring-slate-900'
+                                } focus:outline-none`}
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
+                              {param.unit}
+                            </td>
+                            <td className="py-2 px-3 text-slate-600 text-[11px]">
+                              {param.reference_range}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleParamAbnormal(idx)}
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1.5 transition ${
+                                  isCrit
+                                    ? 'bg-rose-600 text-white shadow-xs animate-pulse'
+                                    : param.is_abnormal
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                }`}
+                                title="Cliquer pour basculer l'alerte"
+                              >
+                                {isCrit ? (
+                                  <>
+                                    <AlertTriangle className="w-2.5 h-2.5" />
+                                    <span>CRITIQUE</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${param.is_abnormal ? 'bg-rose-600' : 'bg-emerald-600'}`} />
+                                    <span>{param.is_abnormal ? 'Anormal' : 'Normal'}</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -905,27 +971,45 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-800">
-                    {selectedOrderForPrint.parameters?.map((p, idx) => (
-                      <tr key={idx} className={p.is_abnormal ? 'bg-rose-50/50' : ''}>
-                        <td className="py-2 px-3 font-semibold text-slate-900">{p.name}</td>
-                        <td
-                          className={`py-2 px-3 text-right font-mono font-bold ${
-                            p.is_abnormal ? 'text-rose-600' : 'text-slate-900'
-                          }`}
-                        >
-                          {p.value || '--'}
-                        </td>
-                        <td className="py-2 px-3 font-mono text-[11px] text-slate-500">{p.unit}</td>
-                        <td className="py-2 px-3 text-slate-600 text-[11px]">{p.reference_range}</td>
-                        <td className="py-2 px-3 text-center text-[10px] font-bold">
-                          {p.is_abnormal ? (
-                            <span className="text-rose-600 font-bold">● ANORMAL</span>
-                          ) : (
-                            <span className="text-emerald-700">Normal</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {selectedOrderForPrint.parameters?.map((p, idx) => {
+                      const panic = checkPanicValue(p.name, p.value);
+                      const isCrit = p.is_critical || panic.isCritical;
+                      const alertMsg = p.critical_alert || panic.message;
+
+                      return (
+                        <tr key={idx} className={isCrit ? 'bg-rose-100/60' : p.is_abnormal ? 'bg-rose-50/50' : ''}>
+                          <td className="py-2 px-3 font-semibold text-slate-900">
+                            <div>{p.name}</div>
+                            {isCrit && (
+                              <div className="text-[10px] font-bold text-rose-700 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                <span>{alertMsg || 'Alerte critique vitale'}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td
+                            className={`py-2 px-3 text-right font-mono font-bold ${
+                              isCrit ? 'text-rose-700 text-sm' : p.is_abnormal ? 'text-rose-600' : 'text-slate-900'
+                            }`}
+                          >
+                            {p.value || '--'}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[11px] text-slate-500">{p.unit}</td>
+                          <td className="py-2 px-3 text-slate-600 text-[11px]">{p.reference_range}</td>
+                          <td className="py-2 px-3 text-center text-[10px] font-bold">
+                            {isCrit ? (
+                              <span className="text-white bg-rose-600 px-2 py-0.5 rounded font-black">
+                                ● CRITIQUE
+                              </span>
+                            ) : p.is_abnormal ? (
+                              <span className="text-rose-600 font-bold">● ANORMAL</span>
+                            ) : (
+                              <span className="text-emerald-700">Normal</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

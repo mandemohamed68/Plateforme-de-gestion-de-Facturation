@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -5075,16 +5076,24 @@ registerFhirRoutes(app, dbContext);
 
 // Server Initialization
 async function startServer() {
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
 
-  if (process.env.NODE_ENV !== 'production') {
+  // In production (or when dist build exists and not explicitly in development mode), serve static production build
+  const isProduction = process.env.NODE_ENV === 'production' || (hasDist && process.env.NODE_ENV !== 'development');
+
+  if (!isProduction) {
+    if (!process.env.NODE_ENV) {
+      process.env.NODE_ENV = 'development';
+    }
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    process.env.NODE_ENV = 'production';
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -5092,7 +5101,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Facturation Pro] Server running on http://localhost:${PORT}`);
+    console.log(`[Facturation Pro] Server running on http://0.0.0.0:${PORT} in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
   });
 }
 

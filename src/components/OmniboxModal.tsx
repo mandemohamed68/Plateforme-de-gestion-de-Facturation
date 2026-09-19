@@ -15,7 +15,8 @@ import {
   Activity,
   Calendar,
   Layers,
-  ChevronRight
+  ChevronRight,
+  Megaphone
 } from 'lucide-react';
 import { ResPartner, AccountMove, AppView, CompanySettings, ResUser } from '../types';
 import { formatFCFA } from '../lib/formatters';
@@ -121,6 +122,15 @@ export const OmniboxModal: React.FC<OmniboxModalProps> = ({
         icon: Activity,
         category: 'Action Rapide',
         action: () => onNavigateToView('care_plans'),
+      },
+      {
+        id: 'qa-flash-announcements',
+        type: 'action' as const,
+        title: 'Annonces & Flash Info',
+        subtitle: 'Bandeau défilant d\'urgence et diffusions globales',
+        icon: Megaphone,
+        category: 'Action Rapide',
+        action: () => onNavigateToView('flash_announcements'),
       },
     ];
 

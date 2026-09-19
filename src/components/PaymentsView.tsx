@@ -20,6 +20,7 @@ import {
   Smartphone,
   Check,
   AlertCircle,
+  AlertTriangle,
   Shield,
   Trash2,
 } from 'lucide-react';
@@ -110,16 +111,29 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   // Search invoice filter within modal
   const [invoiceSearchText, setInvoiceSearchText] = useState('');
 
+  // Mixed / Multi-payment state
+  const [isMixedPayment, setIsMixedPayment] = useState(false);
+  const [mixedCashPart, setMixedCashPart] = useState<number>(0);
+  const [mixedMobilePart, setMixedMobilePart] = useState<number>(0);
+  const [mixedMobileOperator, setMixedMobileOperator] = useState<string>('Wave');
+  const [mixedMobileRef, setMixedMobileRef] = useState<string>('');
+
   // Post-payment receipt & orientation modal
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [paymentForCorrection, setPaymentForCorrection] = useState<AccountPayment | null>(null);
   const [lastReceiptData, setLastReceiptData] = useState<{
     invoice: AccountMove | null;
     amountPaid: number;
+    tenderedAmount?: number;
     changeGiven: number;
     paymentMethodLabel: string;
     receiptNumber: string;
     date: string;
+    isMixed?: boolean;
+    mixedCash?: number;
+    mixedMobile?: number;
+    mixedOperator?: string;
+    mixedRef?: string;
   } | null>(null);
 
   const receiptPrintRef = useRef<HTMLDivElement>(null);
@@ -200,13 +214,22 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     setMoveId(id);
     const m = moves.find((item) => item.id === id);
     if (m) {
-      setAmount(m.amount_residual);
-      setTenderedAmount(m.amount_residual);
+      const res = m.amount_residual;
+      setAmount(res);
+      setTenderedAmount(res);
+      if (isMixedPayment) {
+        const half = Math.floor(res / 2);
+        setMixedCashPart(half);
+        setMixedMobilePart(res - half);
+        setTenderedAmount(half);
+      }
     }
   };
 
   const selectedMethod = PAYMENT_METHODS.find((m) => m.code === paymentMethodCode) || PAYMENT_METHODS[0];
-  const changeToReturn = paymentMethodCode === 'cash' ? Math.max(0, (tenderedAmount || 0) - (amount || 0)) : 0;
+  const effectiveCashAmount = isMixedPayment ? (mixedCashPart || 0) : (amount || 0);
+  const changeToReturn = (paymentMethodCode === 'cash' || isMixedPayment) ? Math.max(0, (tenderedAmount || 0) - effectiveCashAmount) : 0;
+  const cashShortfall = (paymentMethodCode === 'cash' || isMixedPayment) ? Math.max(0, effectiveCashAmount - (tenderedAmount || 0)) : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,16 +238,34 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       return;
     }
 
+    if (isMixedPayment) {
+      if ((mixedCashPart || 0) + (mixedMobilePart || 0) !== amount) {
+        if (onShowToast) onShowToast(`La somme Espèces (${formatFCFA(mixedCashPart)}) + Mobile (${formatFCFA(mixedMobilePart)}) doit être égale à ${formatFCFA(amount)}`, 'warning');
+        return;
+      }
+      if ((tenderedAmount || 0) < mixedCashPart) {
+        if (onShowToast) onShowToast(`Espèces remises (${formatFCFA(tenderedAmount)}) insuffisantes pour la part espèces (${formatFCFA(mixedCashPart)})`, 'warning');
+        return;
+      }
+    } else if (paymentMethodCode === 'cash' && (tenderedAmount || 0) < amount) {
+      if (onShowToast) onShowToast(`Montant remis (${formatFCFA(tenderedAmount)}) insuffisant pour régler ${formatFCFA(amount)}`, 'warning');
+      return;
+    }
+
     const currentSelectedMove = moves.find((m) => m.id === moveId) || selectedMoveForPayment;
+
+    const methodLabel = isMixedPayment
+      ? `Mixte (${formatFCFA(mixedCashPart)} Espèces + ${formatFCFA(mixedMobilePart)} ${mixedMobileOperator})`
+      : selectedMethod.label;
 
     try {
       await onRegisterPayment({
         move_id: moveId,
         amount: Number(amount),
         payment_date: paymentDate,
-        journal_id: selectedMethod.journalId,
-        payment_method_code: paymentMethodCode,
-        payment_method_name: selectedMethod.label,
+        journal_id: isMixedPayment ? 2 : selectedMethod.journalId,
+        payment_method_code: isMixedPayment ? 'mixed' : paymentMethodCode,
+        payment_method_name: methodLabel,
         patient_name: currentSelectedMove?.patient_name || currentSelectedMove?.partner?.name,
         ndm_number: currentSelectedMove?.ndm,
       });
@@ -234,10 +275,16 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       setLastReceiptData({
         invoice: currentSelectedMove || null,
         amountPaid: Number(amount),
+        tenderedAmount: (paymentMethodCode === 'cash' || isMixedPayment) ? tenderedAmount : undefined,
         changeGiven: changeToReturn,
-        paymentMethodLabel: selectedMethod.label,
+        paymentMethodLabel: methodLabel,
         receiptNumber: receiptNo,
         date: new Date().toLocaleString('fr-FR'),
+        isMixed: isMixedPayment,
+        mixedCash: mixedCashPart,
+        mixedMobile: mixedMobilePart,
+        mixedOperator: mixedMobileOperator,
+        mixedRef: mixedMobileRef,
       });
 
       setIsModalOpen(false);
@@ -571,42 +618,138 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 )}
               </div>
 
-              {/* Payment Methods Grid */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-700 text-[11px] uppercase tracking-wider block">
-                  Mode de Règlement
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {PAYMENT_METHODS.map((method) => {
-                    const Icon = method.icon;
-                    const isSelected = paymentMethodCode === method.code;
-                    return (
-                      <button
-                        key={method.code}
-                        type="button"
-                        onClick={() => {
-                          setPaymentMethodCode(method.code);
-                          setJournalId(method.journalId);
-                        }}
-                        className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Icon className={`w-4 h-4 mb-1.5 ${isSelected ? 'text-white' : 'text-slate-500'}`} />
-                        <span className="font-bold text-[11px] leading-tight">{method.label}</span>
-                      </button>
-                    );
-                  })}
+              {/* Payment Mode Selection & Mixed Toggle */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 text-[11px] uppercase tracking-wider block">
+                    Mode de Règlement
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !isMixedPayment;
+                      setIsMixedPayment(next);
+                      if (next) {
+                        const half = Math.floor(amount / 2);
+                        setMixedCashPart(half);
+                        setMixedMobilePart(amount - half);
+                        setTenderedAmount(half);
+                      } else {
+                        setTenderedAmount(amount);
+                      }
+                    }}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer flex items-center gap-1.5 ${
+                      isMixedPayment
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>{isMixedPayment ? 'Règlement Mixte Activé' : 'Activer Règlement Mixte (Espèces + Mobile)'}</span>
+                  </button>
                 </div>
+
+                {!isMixedPayment ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {PAYMENT_METHODS.map((method) => {
+                      const Icon = method.icon;
+                      const isSelected = paymentMethodCode === method.code;
+                      return (
+                        <button
+                          key={method.code}
+                          type="button"
+                          onClick={() => {
+                            setPaymentMethodCode(method.code);
+                            setJournalId(method.journalId);
+                          }}
+                          className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Icon className={`w-4 h-4 mb-1.5 ${isSelected ? 'text-white' : 'text-slate-500'}`} />
+                          <span className="font-bold text-[11px] leading-tight">{method.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                    <div className="text-[11px] font-bold text-slate-800 flex items-center justify-between">
+                      <span>Ventilation du Règlement Mixte :</span>
+                      <span className={`font-mono text-xs font-black ${
+                        (mixedCashPart + mixedMobilePart === amount) ? 'text-emerald-700' : 'text-rose-600'
+                      }`}>
+                        Total ventilé : {formatFCFA(mixedCashPart + mixedMobilePart)} / {formatFCFA(amount)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Part 1: Cash */}
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5">
+                        <span className="font-bold text-[11px] text-slate-700 block">
+                          Partie 1 : Espèces (FCFA)
+                        </span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max={amount}
+                          value={mixedCashPart || ''}
+                          onChange={(e) => {
+                            const cashVal = Math.max(0, Number(e.target.value));
+                            setMixedCashPart(cashVal);
+                            const rem = Math.max(0, amount - cashVal);
+                            setMixedMobilePart(rem);
+                            setTenderedAmount(cashVal);
+                          }}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono font-bold text-sm text-slate-900"
+                        />
+                      </div>
+
+                      {/* Part 2: Mobile Money */}
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[11px] text-slate-700 block">
+                            Partie 2 : Mobile Money
+                          </span>
+                          <select
+                            value={mixedMobileOperator}
+                            onChange={(e) => setMixedMobileOperator(e.target.value)}
+                            className="text-[11px] font-bold bg-slate-100 border border-slate-300 rounded px-1.5 py-0.5"
+                          >
+                            <option value="Wave">Wave</option>
+                            <option value="Orange Money">Orange Money</option>
+                            <option value="Moov Money">Moov Money</option>
+                            <option value="MTN MoMo">MTN MoMo</option>
+                          </select>
+                        </div>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={mixedMobilePart || ''}
+                          onChange={(e) => {
+                            const mobVal = Math.max(0, Number(e.target.value));
+                            setMixedMobilePart(mobVal);
+                            const rem = Math.max(0, amount - mobVal);
+                            setMixedCashPart(rem);
+                            setTenderedAmount(rem);
+                          }}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono font-bold text-sm text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Amount & Change Calculation */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 text-[11px] uppercase tracking-wider block">
-                    Montant à Encaisser (FCFA) <span className="text-rose-500">*</span>
+                    Montant Total à Encaisser (FCFA) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -617,7 +760,12 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       setAmount(val);
-                      if (paymentMethodCode === 'cash' && tenderedAmount < val) {
+                      if (isMixedPayment) {
+                        const half = Math.floor(val / 2);
+                        setMixedCashPart(half);
+                        setMixedMobilePart(val - half);
+                        setTenderedAmount(half);
+                      } else if (paymentMethodCode === 'cash') {
                         setTenderedAmount(val);
                       }
                     }}
@@ -625,10 +773,10 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   />
                 </div>
 
-                {paymentMethodCode === 'cash' ? (
+                {(paymentMethodCode === 'cash' || isMixedPayment) ? (
                   <div className="space-y-1">
                     <label className="font-bold text-slate-700 text-[11px] uppercase tracking-wider block">
-                      Montant Versé par le Patient (FCFA)
+                      Espèces Remises par le Patient (FCFA)
                     </label>
                     <input
                       type="number"
@@ -654,16 +802,83 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                 )}
               </div>
 
-              {/* Change calculation pill */}
-              {paymentMethodCode === 'cash' && (
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span className="font-bold text-emerald-900 text-xs">Monnaie à rendre au patient :</span>
+              {/* QUICK CASH TENDER BUTTONS */}
+              {(paymentMethodCode === 'cash' || isMixedPayment) && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">Boutons rapides versement :</span>
+                    <span className="text-slate-700 font-bold">Dû en espèces : {formatFCFA(effectiveCashAmount)}</span>
                   </div>
-                  <span className="font-mono font-black text-emerald-800 text-base">
-                    {formatFCFA(changeToReturn)}
-                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setTenderedAmount(effectiveCashAmount)}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold transition cursor-pointer border border-slate-200"
+                    >
+                      Exact ({formatFCFA(effectiveCashAmount)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTenderedAmount(effectiveCashAmount + 500)}
+                      className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[11px] font-semibold transition cursor-pointer border border-slate-200"
+                    >
+                      +500
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTenderedAmount(effectiveCashAmount + 1000)}
+                      className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[11px] font-semibold transition cursor-pointer border border-slate-200"
+                    >
+                      +1 000
+                    </button>
+                    {[2000, 5000, 10000, 20000].map((denom) => (
+                      <button
+                        key={denom}
+                        type="button"
+                        onClick={() => setTenderedAmount(denom)}
+                        className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[11px] font-semibold transition cursor-pointer border border-slate-200"
+                      >
+                        {formatFCFA(denom)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* REAL-TIME CHANGE CALCULATION & VALIDATION */}
+              {(paymentMethodCode === 'cash' || isMixedPayment) && (
+                <div>
+                  {cashShortfall > 0 ? (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <span className="font-bold text-amber-900">Montant versé insuffisant :</span>
+                      </div>
+                      <span className="font-mono font-black text-amber-800 text-sm">
+                        Manque {formatFCFA(cashShortfall)}
+                      </span>
+                    </div>
+                  ) : changeToReturn === 0 ? (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-slate-600" />
+                        <span className="font-bold text-slate-800">Compte exact :</span>
+                      </div>
+                      <span className="font-mono font-bold text-slate-600 text-sm">
+                        0 FCFA à rendre
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs animate-in fade-in-50 duration-150">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span className="font-bold text-emerald-900">Monnaie à rendre au patient :</span>
+                      </div>
+                      <span className="font-mono font-black text-emerald-800 text-base">
+                        {formatFCFA(changeToReturn)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -730,8 +945,19 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                     <span>MONTANT ENCAISSÉ :</span>
                     <span>{formatFCFA(lastReceiptData.amountPaid)}</span>
                   </div>
+                  {lastReceiptData.isMixed && (
+                    <div className="text-[10px] text-slate-600 bg-slate-100 p-1 rounded">
+                      Ventilation : {formatFCFA(lastReceiptData.mixedCash || 0)} Espèces + {formatFCFA(lastReceiptData.mixedMobile || 0)} {lastReceiptData.mixedOperator || 'Mobile'}
+                    </div>
+                  )}
+                  {lastReceiptData.tenderedAmount && (
+                    <div className="flex justify-between text-[11px] text-slate-600 font-medium">
+                      <span>Espèces Remises :</span>
+                      <span>{formatFCFA(lastReceiptData.tenderedAmount)}</span>
+                    </div>
+                  )}
                   {lastReceiptData.changeGiven > 0 && (
-                    <div className="flex justify-between text-[11px] text-emerald-700 font-semibold">
+                    <div className="flex justify-between text-[11px] text-emerald-700 font-bold">
                       <span>Monnaie Rendue :</span>
                       <span>{formatFCFA(lastReceiptData.changeGiven)}</span>
                     </div>
