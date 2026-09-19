@@ -481,3 +481,64 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
   }
   return ['caisse_sessions', 'invoices', 'payments', 'partners', 'patient_dossiers', 'flash_announcements'];
 }
+
+/**
+ * Maps any AppView to its required hospital service code (if modular).
+ */
+export function getServiceIdForView(view: string): string | null {
+  if (view.startsWith('pediatrie_')) return 'pediatrie';
+  if (view.startsWith('maternite_')) return 'maternite';
+  if (view.startsWith('hospit_') || view === 'bed_management') return 'hospitalisation';
+  if (view.startsWith('labo_') || view.startsWith('lab_')) return 'laboratoire';
+  if (view.startsWith('imagerie_') || view === 'imaging_pacs') return 'imagerie';
+  if (view.startsWith('pharmacy_')) return 'pharmacie';
+  if (
+    view.startsWith('caisse_') ||
+    view.startsWith('factures_') ||
+    view.startsWith('superviseur_') ||
+    view === 'invoices' ||
+    view === 'payments' ||
+    view === 'caisse_sessions' ||
+    view === 'insurance_claims'
+  ) {
+    return 'caisse_facturation';
+  }
+  if (view.startsWith('medecin_') || view === 'consultations' || view === 'patient_dossiers') return 'medecine_generale';
+  if (view.startsWith('specialiste_')) return 'specialiste';
+  if (view.startsWith('infirmier_')) return 'urgences';
+  return null;
+}
+
+/**
+ * Checks if a specific hospital service is currently enabled in settings.
+ */
+export function isServiceActive(serviceId: string, company?: CompanySettings | null): boolean {
+  if (!company) return true;
+  if (company.enabled_hospital_services && Array.isArray(company.enabled_hospital_services)) {
+    return company.enabled_hospital_services.includes(serviceId);
+  }
+  if (company.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
+    const s = company.hospital_services_config.find((item) => item.id === serviceId);
+    if (s) return Boolean(s.enabled);
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const local = localStorage.getItem('app_enabled_services_ids');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed)) return parsed.includes(serviceId);
+      }
+    } catch (e) {}
+  }
+  return true;
+}
+
+/**
+ * Checks if the given view is enabled in the current company configuration.
+ */
+export function isViewServiceActive(view: string, company?: CompanySettings | null): boolean {
+  const srvId = getServiceIdForView(view);
+  if (!srvId) return true;
+  return isServiceActive(srvId, company);
+}
+

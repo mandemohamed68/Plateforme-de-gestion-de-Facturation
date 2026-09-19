@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Clock, ShieldAlert, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AppNavigation, AppView } from './components/AppNavigation';
 import { getUserBillingProfile } from './lib/formatters';
-import { getAllowedViews } from './utils/navigation';
+import { getAllowedViews, isViewServiceActive, getServiceIdForView } from './utils/navigation';
+import { DEFAULT_HOSPITAL_SERVICES } from './data/defaultHospitalServices';
 import { LoginView } from './components/LoginView';
 import { CompanySettingsView } from './components/CompanySettingsView';
 import { DashboardView } from './components/DashboardView';
@@ -312,6 +313,8 @@ export default function App() {
     flash_news_enabled: true,
     flash_news_speed: 10,
     flash_announcements: DEFAULT_FLASH_ANNOUNCEMENTS,
+    hospital_services_config: DEFAULT_HOSPITAL_SERVICES,
+    enabled_hospital_services: DEFAULT_HOSPITAL_SERVICES.map((s) => s.id),
   });
 
   // User & Auth State with localStorage persistence
@@ -569,7 +572,20 @@ export default function App() {
       setSchemaSql(schemaRes?.rawSql || schemaRes?.raw_sql || '');
       setSchemaTables(Array.isArray(schemaRes?.tables) ? schemaRes.tables : []);
       if (companyRes && companyRes.name) {
-        setCompany(companyRes);
+        setCompany((prev) => ({
+          ...prev,
+          ...companyRes,
+          hospital_services_config:
+            companyRes.hospital_services_config && companyRes.hospital_services_config.length > 0
+              ? companyRes.hospital_services_config
+              : prev.hospital_services_config || DEFAULT_HOSPITAL_SERVICES,
+          enabled_hospital_services:
+            companyRes.enabled_hospital_services && Array.isArray(companyRes.enabled_hospital_services)
+              ? companyRes.enabled_hospital_services
+              : (companyRes.hospital_services_config && companyRes.hospital_services_config.length > 0
+                  ? companyRes.hospital_services_config.filter((s: any) => s.enabled).map((s: any) => s.id)
+                  : prev.enabled_hospital_services || DEFAULT_HOSPITAL_SERVICES.map((s) => s.id)),
+        }));
       }
 
       // Resilient Dual-Store: local mirror & automatic recovery if container restarted
@@ -1272,21 +1288,44 @@ export default function App() {
 
   const handleSaveCompany = async (updated: CompanySettings) => {
     try {
+      const payload: CompanySettings = {
+        ...company,
+        ...updated,
+        hospital_services_config: updated.hospital_services_config || company.hospital_services_config || DEFAULT_HOSPITAL_SERVICES,
+        enabled_hospital_services:
+          updated.enabled_hospital_services ||
+          company.enabled_hospital_services ||
+          (updated.hospital_services_config ? updated.hospital_services_config.filter((s) => s.enabled).map((s) => s.id) : DEFAULT_HOSPITAL_SERVICES.map((s) => s.id)),
+      };
+
+      // Optimistically update local state & localStorage so UI immediately responds without waiting or crashing
+      setCompany(payload);
+      if (payload.hospital_services_config) {
+        try {
+          localStorage.setItem('app_hospital_services_config', JSON.stringify(payload.hospital_services_config));
+          localStorage.setItem('app_enabled_services_ids', JSON.stringify(payload.enabled_hospital_services || []));
+        } catch (e) {}
+      }
+
       const res = await fetch('/api/company', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const saved = await res.json();
-        setCompany(saved);
-        showToast('Identité de marque & paramètres enregistrés !');
-        await fetchAllData();
+        setCompany((prev) => ({
+          ...prev,
+          ...saved,
+          hospital_services_config: saved.hospital_services_config || payload.hospital_services_config,
+          enabled_hospital_services: saved.enabled_hospital_services || payload.enabled_hospital_services,
+        }));
+        showToast('Configuration et modules enregistrés avec succès !', 'success');
       } else {
         showToast('Erreur enregistrement entreprise', 'error');
       }
     } catch (e) {
-      showToast('Erreur réseau', 'error');
+      showToast('Erreur réseau lors de la sauvegarde', 'error');
     }
   };
 
@@ -2726,6 +2765,35 @@ export default function App() {
                 onNavigateToView={(v) => setCurrentView(v)}
                 onShowToast={showToast}
               />
+            )}
+
+            {/* Disabled Service Fallback View */}
+            {!isViewServiceActive(currentView, company) && (
+              <div className="flex flex-col items-center justify-center min-h-[55vh] text-center p-8 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-sm max-w-xl mx-auto my-8">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mb-4 ring-8 ring-amber-50/50">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                  Module Hospitalier Temporairement Désactivé
+                </h2>
+                <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm leading-relaxed">
+                  Ce service a été désactivé dans la configuration de l'établissement. Vous pouvez le réactiver à tout moment depuis le menu d'administration des modules.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => setCurrentView('dashboard')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm"
+                  >
+                    Tableau de bord général
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('admin_services')}
+                    className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-sm font-semibold transition-all"
+                  >
+                    Gérer les modules (Admin)
+                  </button>
+                </div>
+              </div>
             )}
             </motion.div>
           </AnimatePresence>

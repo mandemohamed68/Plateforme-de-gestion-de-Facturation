@@ -42,7 +42,7 @@ import { ResUser, CompanySettings, ResGroup, AppView, ResPartner, AccountMove, A
 import { getAppTheme } from '../lib/theme';
 import { getUserBillingProfile, getUserMissionDescription } from '../lib/formatters';
 import { decodeScannerInput } from '../lib/scannerDecoder';
-import { getAllowedViews } from '../utils/navigation';
+import { getAllowedViews, isServiceActive as checkServiceActive, isViewServiceActive, getServiceIdForView } from '../utils/navigation';
 import { isSupervisorOrAdmin as isSupervisorOrAdminCheck } from '../utils/caisseSessionService';
 import { FlashInfoTicker } from './FlashInfoTicker';
 import { OmniboxModal } from './OmniboxModal';
@@ -191,22 +191,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
 
   // Helper to verify if a modular service is activated in hospital settings (default = true for all)
   const isServiceActive = (serviceId: string): boolean => {
-    if (!company) return true;
-    if (company.enabled_hospital_services && Array.isArray(company.enabled_hospital_services) && company.enabled_hospital_services.length > 0) {
-      return company.enabled_hospital_services.includes(serviceId);
-    }
-    if (company.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
-      const s = company.hospital_services_config.find(item => item.id === serviceId);
-      if (s) return s.enabled;
-    }
-    const local = localStorage.getItem('app_enabled_services_ids');
-    if (local) {
-      try {
-        const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed.includes(serviceId);
-      } catch (e) {}
-    }
-    return true;
+    return checkServiceActive(serviceId, company);
   };
 
   const isSupervisorOrAdmin =
@@ -539,6 +524,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     if (title === 'MATERNITÉ') return isServiceActive('maternite');
     if (title === 'HOSPITALISATION') return isServiceActive('hospitalisation');
     if (title === 'EXAMENS') return isServiceActive('laboratoire') || isServiceActive('imagerie');
+    if (title === 'PHARMACIE & STOCK') return isServiceActive('pharmacie');
+    if (title === 'FACTURATION') return isServiceActive('caisse_facturation');
+    if (title === 'MÉDICAL') return isServiceActive('medecine_generale') || isServiceActive('specialiste') || isServiceActive('urgences');
     return true;
   };
 
@@ -548,9 +536,12 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     .map((cat) => ({
       ...cat,
       items: cat.items
+        .filter((item) => isViewServiceActive(item.id as string, company))
         .map((item) => {
           if (item.children) {
-            const visibleChildren = item.children.filter((child) => isViewAllowed(child.id as string));
+            const visibleChildren = item.children
+              .filter((child) => isViewAllowed(child.id as string))
+              .filter((child) => isViewServiceActive(child.id as string, company));
             return {
               ...item,
               children: visibleChildren,

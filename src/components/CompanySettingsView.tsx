@@ -197,7 +197,12 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
     if (e) e.preventDefault();
     setIsSaving(true);
     try {
-      await onSaveCompany(formData);
+      await onSaveCompany({
+        ...company,
+        ...formData,
+        hospital_services_config: formData.hospital_services_config || company.hospital_services_config,
+        enabled_hospital_services: formData.enabled_hospital_services || company.enabled_hospital_services,
+      });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 4000);
     } finally {

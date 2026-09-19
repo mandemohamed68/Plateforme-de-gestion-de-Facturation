@@ -24,6 +24,7 @@ import {
 } from './server/seedData';
 import { registerHospitalScenariosRoutes } from './server/hospitalScenariosEngine';
 import { registerFhirRoutes } from './server/fhirRoutes';
+import { DEFAULT_HOSPITAL_SERVICES } from './src/data/defaultHospitalServices';
 import {
   ResCountry,
   ResCurrency,
@@ -111,6 +112,8 @@ const defaultCompany: CompanySettings = {
   lab_turnaround_default: "2 heures à 24 heures selon la spécialité",
   invoice_footer: "Document délivré à titre de quittance médicale officielle. Facture exonérée de TVA sur les prestations d'analyses médicales.",
   default_page_size: 50,
+  hospital_services_config: DEFAULT_HOSPITAL_SERVICES,
+  enabled_hospital_services: DEFAULT_HOSPITAL_SERVICES.map((s) => s.id),
 };
 
 let dbCompany: CompanySettings = { ...defaultCompany };
@@ -402,7 +405,22 @@ function loadDb() {
 
     if (raw) {
       const store = JSON.parse(raw);
-      if (store.dbCompany) dbCompany = store.dbCompany;
+      if (store.dbCompany) {
+        dbCompany = {
+          ...defaultCompany,
+          ...store.dbCompany,
+          hospital_services_config:
+            store.dbCompany.hospital_services_config && store.dbCompany.hospital_services_config.length > 0
+              ? store.dbCompany.hospital_services_config
+              : DEFAULT_HOSPITAL_SERVICES,
+          enabled_hospital_services:
+            store.dbCompany.enabled_hospital_services && Array.isArray(store.dbCompany.enabled_hospital_services)
+              ? store.dbCompany.enabled_hospital_services
+              : (store.dbCompany.hospital_services_config && store.dbCompany.hospital_services_config.length > 0
+                  ? store.dbCompany.hospital_services_config.filter((s: any) => s.enabled).map((s: any) => s.id)
+                  : DEFAULT_HOSPITAL_SERVICES.map((s) => s.id)),
+        };
+      }
       if (store.dbCountries) dbCountries = store.dbCountries;
       if (store.dbCurrencies) dbCurrencies = store.dbCurrencies;
       if (store.dbUoms) dbUoms = store.dbUoms;

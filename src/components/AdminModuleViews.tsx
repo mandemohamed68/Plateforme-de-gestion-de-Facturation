@@ -81,16 +81,24 @@ export const AdminServicesManagementView: React.FC<AdminViewsProps> = ({
   onShowToast
 }) => {
   const [services, setServices] = useState<HospitalServiceConfig[]>(() => {
+    if (company.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
+      return company.hospital_services_config;
+    }
     const saved = localStorage.getItem('app_hospital_services_config');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return company.hospital_services_config && company.hospital_services_config.length > 0
-      ? company.hospital_services_config
-      : DEFAULT_HOSPITAL_SERVICES;
+    return DEFAULT_HOSPITAL_SERVICES;
   });
+
+  useEffect(() => {
+    if (company?.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
+      setServices(company.hospital_services_config);
+    }
+  }, [company?.hospital_services_config]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'clinical' | 'diagnostic' | 'inpatient' | 'financial' | 'pharmacy'>('all');
@@ -102,9 +110,13 @@ export const AdminServicesManagementView: React.FC<AdminViewsProps> = ({
   // Sync back to parent/localStorage when modified
   const saveServices = (newServices: HospitalServiceConfig[]) => {
     setServices(newServices);
-    localStorage.setItem('app_hospital_services_config', JSON.stringify(newServices));
     const enabledIds = newServices.filter((s) => s.enabled).map((s) => s.id);
-    localStorage.setItem('app_enabled_services_ids', JSON.stringify(enabledIds));
+    try {
+      localStorage.setItem('app_hospital_services_config', JSON.stringify(newServices));
+      localStorage.setItem('app_enabled_services_ids', JSON.stringify(enabledIds));
+    } catch (e) {
+      console.warn('localStorage error:', e);
+    }
 
     if (onSaveCompany) {
       onSaveCompany({
