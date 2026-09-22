@@ -472,12 +472,12 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Compass className="w-5 h-5 text-indigo-600" />
-              <h1 className="text-lg font-black tracking-tight text-slate-900">
-                Filières de Soins & Matching Interservice
+              <Compass className="w-5 h-5 text-slate-700" />
+              <h1 className="text-lg font-bold tracking-tight text-slate-900">
+                Filières de Soins &amp; Matching Interservice
               </h1>
-              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                Parcours 360° Optimal
+              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                Parcours 360°
               </span>
             </div>
             <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
@@ -508,8 +508,8 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
         {/* Global Tab Navigation */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap gap-2">
           {[
-            { id: 'matching', label: `1. Matrice d'Aiguillage Interservice (${interserviceQueue.length})`, icon: Zap },
-            { id: 'filieres', label: '2. Filières de Soins Standardisées', icon: Layers },
+            { id: 'matching', label: `1. Matrice d'Aiguillage (${interserviceQueue.length})`, icon: Zap },
+            { id: 'filieres', label: '2. Filières de Soins', icon: Layers },
             { id: 'chrono', label: '3. Chrono-Parcours & Fiche Suiveuse', icon: Timer },
             { id: 'kpis', label: '4. KPIs Délais Interservice (TAT)', icon: TrendingUp }
           ].map(tab => {
@@ -519,7 +519,7 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   isActive
                     ? 'bg-slate-900 text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -538,8 +538,8 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                <Users className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Users className="w-4 h-4 text-slate-700" />
                 File Active des Patients en Attente de Transfert Interservice
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
@@ -560,9 +560,9 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                 <button
                   key={f.id}
                   onClick={() => setMatchingFilter(f.id as any)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer ${
                     matchingFilter === f.id
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-slate-900 text-white'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                   }`}
                 >
@@ -576,8 +576,8 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
           <div className="grid grid-cols-1 gap-3">
             {filteredQueue.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-200 p-6">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <h4 className="text-xs font-black uppercase text-slate-800">Aucun patient en attente dans ce filtre</h4>
+                <CheckCircle2 className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                <h4 className="text-xs font-bold uppercase text-slate-800">Aucun patient en attente dans ce filtre</h4>
                 <p className="text-[11px] text-slate-500 mt-1">Tous les transferts interservice ont été honorés pour ce poste de travail.</p>
               </div>
             ) : (
@@ -591,34 +591,34 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                     {/* Patient & Route */}
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2 flex-wrap">
-                        <span className="text-xs font-black text-slate-900">{item.name}</span>
-                        <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-slate-900">{item.name}</span>
+                        <span className="text-[10px] font-mono font-semibold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
                           {item.ndm}
                         </span>
                         <span className="text-[10px] text-slate-500">
                           ({item.gender === 'M' ? 'H' : 'F'}, {item.age} ans)
                         </span>
-                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded border uppercase ${item.priorityColor}`}>
+                        <span className={`text-[9px] font-semibold px-2 py-0.5 rounded border uppercase ${item.priorityColor}`}>
                           {item.priority}
                         </span>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border ${
-                          item.solvencyStatus.includes('Soldé') ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+                        <span className={`text-[9px] font-semibold px-2 py-0.5 rounded border ${
+                          item.solvencyStatus.includes('Soldé') ? 'bg-slate-100 text-slate-800 border-slate-200' : 'bg-amber-50 text-amber-800 border-amber-200'
                         }`}>
                           {item.solvencyStatus}
                         </span>
                       </div>
 
                       {/* Dynamic Interservice Route */}
-                      <div className="flex items-center space-x-2 text-xs font-bold pt-1">
-                        <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                      <div className="flex items-center space-x-2 text-xs font-semibold pt-1">
+                        <span className="text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
                           {item.sourceService}
                         </span>
-                        <ArrowRight className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span className="text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-[11px] font-black">
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="text-slate-900 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-bold">
                           {item.targetService}
                         </span>
                         <span className="text-[10px] text-slate-400 font-normal flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Attente : <strong className="text-slate-700 font-bold">{item.waitTimeMin} min</strong>
+                          <Clock className="w-3 h-3" /> Attente : <strong className="text-slate-700 font-semibold">{item.waitTimeMin} min</strong>
                         </span>
                       </div>
 
@@ -634,9 +634,9 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                         type="button"
                         onClick={() => playDeskBeep(item.targetService)}
                         title="Émettre un bip sonore au poste de travail récepteur"
-                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer border border-slate-200"
+                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 transition cursor-pointer border border-slate-200"
                       >
-                        <BellRing className="w-3.5 h-3.5 text-amber-600" />
+                        <BellRing className="w-3.5 h-3.5 text-slate-600" />
                         <span>Bip Poste</span>
                       </button>
 
@@ -645,9 +645,9 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                         type="button"
                         onClick={() => handleSmsNotification(item.name, item.targetService)}
                         title="Alerter le patient par SMS/WhatsApp"
-                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer border border-slate-200"
+                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 transition cursor-pointer border border-slate-200"
                       >
-                        <Send className="w-3.5 h-3.5 text-indigo-600" />
+                        <Send className="w-3.5 h-3.5 text-slate-600" />
                         <span>SMS Patient</span>
                       </button>
 
@@ -655,9 +655,9 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                       <button
                         type="button"
                         onClick={() => handleExecuteTransfer(item)}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
                       >
-                        <span>Aiguiller & Ouvrir</span>
+                        <span>Aiguiller &amp; Ouvrir</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -686,135 +686,135 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
             {/* Filière 1: Urgences Vitales */}
-            <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex justify-between items-start">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-rose-100 text-rose-800 rounded-xl">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-slate-100 text-rose-700 rounded-lg">
                     <Flame className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase text-rose-950">Filière Urgences Vitales</h4>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-rose-600 text-white rounded">CCMU 1-2 • STAT</span>
+                    <h4 className="text-xs font-bold uppercase text-slate-900">Urgences Vitales</h4>
+                    <span className="text-[9px] font-semibold uppercase px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 rounded">CCMU 1-2 • STAT</span>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Prise en charge immédiate au déchoquage. Régularisation administrative et financière différée. Alerte réanimation simultanée.
+                Prise en charge immédiate au déchoquage. Régularisation administrative différée. Alerte réanimation simultanée.
               </p>
               <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-2" />
-                  <span>1. Admission Déchoquage & Triage Immédiat</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>1. Admission Déchoquage &amp; Triage Immédiat</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-2" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
                   <span>2. Bilan Biologique Urgent (NFS, Gaz, Troponine)</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-2" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
                   <span>3. Transfert Lit Réanimation / Soins Intensifs</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateToView('bed_management')}
-                className="w-full mt-2 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-xs font-bold transition border border-rose-200 flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <span>Activer Protocole Urgence</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
             </div>
 
             {/* Filière 2: Ambulatoire */}
-            <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex justify-between items-start">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-slate-100 text-emerald-700 rounded-lg">
                     <Stethoscope className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase text-emerald-950">Filière Ambulatoire</h4>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-600 text-white rounded">Consultation Externe</span>
+                    <h4 className="text-xs font-bold uppercase text-slate-900">Ambulatoire</h4>
+                    <span className="text-[9px] font-semibold uppercase px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded">Consultation Externe</span>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Parcours ambulatoire fluide pour consultations de médecine générale ou spécialisée avec délivrance immédiate de traitement.
+                Parcours ambulatoire fluide pour consultations de médecine générale ou spécialisée avec délivrance immédiate.
               </p>
               <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
-                  <span>1. Accueil NDM & Quittance Caisse</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>1. Accueil NDM &amp; Quittance Caisse</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
-                  <span>2. Constantes Vitales & Triage</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>2. Constantes Vitales &amp; Triage</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
-                  <span>3. Consultation Praticien & Ordonnance</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>3. Consultation Praticien &amp; Ordonnance</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateToView('consultations')}
-                className="w-full mt-2 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold transition border border-emerald-200 flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <span>Accéder aux Consultations</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
             </div>
 
             {/* Filière 3: Biologie & LIMS */}
-            <div className="bg-white p-5 rounded-2xl border border-blue-200 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex justify-between items-start">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-blue-100 text-blue-800 rounded-xl">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
                     <FlaskConical className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase text-blue-950">Filière Bilan & LIMS</h4>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-600 text-white rounded">Analyses & Dépistage</span>
+                    <h4 className="text-xs font-bold uppercase text-slate-900">Biologie &amp; LIMS</h4>
+                    <span className="text-[9px] font-semibold uppercase px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded">Analyses &amp; Dépistage</span>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Prescription d'analyses en direct, prélèvement avec code-barres, passage sur automates et validation biologique certifiée.
+                Prescription d'analyses en direct, prélèvement avec code-barres, passage sur automates et validation certifiée.
               </p>
               <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
                   <span>1. Enregistrement Prélèvements Sanguins</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
-                  <span>2. Analyse sur Automate & Contrôle Qualité</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>2. Analyse sur Automate &amp; Contrôle Qualité</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2" />
-                  <span>3. Validation Biologiste & Télétransmission</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>3. Validation Biologiste &amp; Télétransmission</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateToView('lab_results')}
-                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <span>Accéder au Plateau LIMS</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
             </div>
 
             {/* Filière 4: Périnatalité & Maternité */}
-            <div className="bg-white p-5 rounded-2xl border border-indigo-200 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex justify-between items-start">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-indigo-100 text-indigo-800 rounded-xl">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-slate-100 text-rose-600 rounded-lg">
                     <Heart className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase text-indigo-950">Filière Périnatalité</h4>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-indigo-600 text-white rounded">CPN & Accouchement</span>
+                    <h4 className="text-xs font-bold uppercase text-slate-900">Périnatalité</h4>
+                    <span className="text-[9px] font-semibold uppercase px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded">CPN &amp; Accouchement</span>
                   </div>
                 </div>
               </div>
@@ -823,105 +823,105 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
               </p>
               <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-2" />
-                  <span>1. Consultations Prénatales & Échographies</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>1. Consultations Prénatales &amp; Échographies</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-2" />
-                  <span>2. Admission Salle de Travail & Partogramme</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>2. Admission Salle de Travail &amp; Partogramme</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-2" />
-                  <span>3. Soins Immédiats Nouveau-Né & Postnatal</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>3. Soins Immédiats Nouveau-Né &amp; Postnatal</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateToView('maternite_dashboard')}
-                className="w-full mt-2 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-lg text-xs font-bold transition border border-indigo-200 flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <span>Accéder au Pôle Maternité</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
             </div>
 
             {/* Filière 5: Pédiatrie & PEV */}
-            <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex justify-between items-start">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-slate-100 text-amber-700 rounded-lg">
                     <Baby className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase text-amber-950">Filière Pédiatrie & PEV</h4>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-amber-600 text-white rounded">Vaccination & Enfance</span>
+                    <h4 className="text-xs font-bold uppercase text-slate-900">Pédiatrie &amp; PEV</h4>
+                    <span className="text-[9px] font-semibold uppercase px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded">Vaccination &amp; Enfance</span>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Courbes de croissance (Poids/Taille/PC), vaccinations selon calendrier PEV, et consultation pédiatrique spécialisée.
+                Courbes de croissance (Poids/Taille/PC), vaccinations selon calendrier PEV, et consultation pédiatrique.
               </p>
               <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2" />
-                  <span>1. Mensurations & Constantes Infantile</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>1. Mensurations &amp; Constantes Infantile</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2" />
-                  <span>2. Administration Vaccin & Carnet de Santé</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>2. Administration Vaccin &amp; Carnet de Santé</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2" />
-                  <span>3. Suivi Pédiatre & Nutrition</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>3. Suivi Pédiatre &amp; Nutrition</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateToView('pediatrie_dashboard')}
-                className="w-full mt-2 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold transition border border-amber-200 flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <span>Accéder au Pôle Pédiatrie</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
             </div>
 
             {/* Filière 6: Chirurgie & Hospitalisation */}
-            <div className="bg-white p-5 rounded-2xl border border-purple-200 shadow-xs space-y-3">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
               <div className="flex justify-between items-start">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-purple-100 text-purple-800 rounded-xl">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
                     <Scissors className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase text-purple-950">Filière Chirurgie & Bloc</h4>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-purple-600 text-white rounded">Chirurgie Programmée</span>
+                    <h4 className="text-xs font-bold uppercase text-slate-900">Chirurgie &amp; Bloc</h4>
+                    <span className="text-[9px] font-semibold uppercase px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded">Chirurgie Programmée</span>
                   </div>
                 </div>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Consultation pré-anesthésique, bilan hémostase complet, admission au bloc opératoire et surveillance continue post-opératoire.
+                Consultation pré-anesthésique, bilan hémostase complet, admission au bloc et surveillance post-opératoire.
               </p>
               <div className="pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-2" />
-                  <span>1. Bilan Pré-opératoire & Anesthésie</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>1. Bilan Pré-opératoire &amp; Anesthésie</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-2" />
-                  <span>2. Passage Bloc Opératoire & SSPI (Réveil)</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>2. Passage Bloc Opératoire &amp; SSPI (Réveil)</span>
                 </div>
                 <div className="flex items-center text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-2" />
-                  <span>3. Hospitalisation d'Étage & Suivi Plaie</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2" />
+                  <span>3. Hospitalisation d'Étage &amp; Suivi Plaie</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigateToView('bed_management')}
-                className="w-full mt-2 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-lg text-xs font-bold transition border border-purple-200 flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full mt-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center justify-center space-x-1.5 cursor-pointer"
               >
-                <span>Gérer les Lits & Bloc</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>Gérer les Lits &amp; Bloc</span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
             </div>
 
@@ -976,25 +976,25 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
 
           {/* Patient Header Card */}
           {currentPatient && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-black text-lg shadow-inner shrink-0">
+                <div className="w-11 h-11 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-800 font-bold text-base shrink-0">
                   {currentPatient.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black text-slate-900">{currentPatient.name}</h2>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700">
+                    <h2 className="text-sm font-bold text-slate-900">{currentPatient.name}</h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-100 text-slate-700">
                       {currentPatient.ndm || 'NDM-2026-0042'}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                      Parcours Continu Actif
+                    <span className="px-2 py-0.5 rounded text-[9px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      Parcours Actif
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-500 font-medium">
                     <span>{currentPatient.gender === 'M' ? 'Homme' : 'Femme'} • {currentPatient.age || 38} ans</span>
                     <span>Tél : <strong className="text-slate-700">{currentPatient.phone || 'Non renseigné'}</strong></span>
-                    <span>Assurance : <strong className="text-indigo-600">{currentPatient.insurance_name ? `${currentPatient.insurance_name} (${currentPatient.insurance_coverage_rate}%)` : 'Patient Privé'}</strong></span>
+                    <span>Assurance : <strong className="text-slate-800">{currentPatient.insurance_name ? `${currentPatient.insurance_name} (${currentPatient.insurance_coverage_rate}%)` : 'Patient Privé'}</strong></span>
                   </div>
                 </div>
               </div>
@@ -1002,62 +1002,61 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
               <div className="flex items-center gap-3 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-6">
                 <div className="text-center px-3">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Factures</span>
-                  <p className="text-base font-black text-slate-800">{patientInvoices.length}</p>
+                  <p className="text-sm font-bold text-slate-800">{patientInvoices.length}</p>
                 </div>
                 <div className="text-center px-3">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Consultations</span>
-                  <p className="text-base font-black text-indigo-600">{patientConsultations.length}</p>
+                  <p className="text-sm font-bold text-slate-800">{patientConsultations.length}</p>
                 </div>
                 <div className="text-center px-3">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quittance</span>
-                  <p className="text-xs font-black text-emerald-600 uppercase mt-1">À Jour</p>
+                  <p className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded mt-0.5">À Jour</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* 7 Stages Chronology */}
-          <div className="grid grid-cols-1 gap-4">
-            {stages.map((stage, idx) => {
-              const Icon = stage.icon;
+          <div className="grid grid-cols-1 gap-3">
+            {stages.map((stage) => {
               const isFinished = stage.status === 'completed';
               const isInProgress = stage.status === 'in_progress';
 
               return (
                 <div
                   key={stage.id}
-                  className={`rounded-2xl border p-5 transition-all ${
+                  className={`rounded-xl border p-4.5 transition-all ${
                     isFinished
-                      ? 'bg-white border-slate-200 shadow-xs'
+                      ? 'bg-white border-slate-200 shadow-2xs'
                       : isInProgress
-                      ? 'bg-indigo-50/40 border-indigo-200 shadow-md ring-2 ring-indigo-500/20'
-                      : 'bg-slate-50 border-slate-200 opacity-80'
+                      ? 'bg-white border-slate-400 shadow-xs'
+                      : 'bg-slate-50/70 border-slate-200 opacity-80'
                   }`}
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${
+                    <div className="flex items-start gap-3.5">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
                         isFinished
-                          ? 'bg-emerald-600 text-white'
+                          ? 'bg-slate-900 text-white'
                           : isInProgress
-                          ? 'bg-indigo-600 text-white animate-pulse'
+                          ? 'bg-slate-800 text-white'
                           : 'bg-slate-200 text-slate-600'
                       }`}>
-                        {isFinished ? <CheckCircle2 className="w-5 h-5" /> : <span>0{stage.number}</span>}
+                        {isFinished ? <CheckCircle2 className="w-4 h-4" /> : <span>0{stage.number}</span>}
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             Jalon {stage.number}
                           </span>
-                          <h4 className="text-sm font-black text-slate-900">{stage.title}</h4>
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                          <h4 className="text-xs font-bold text-slate-900">{stage.title}</h4>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase ${
                             isFinished
-                              ? 'bg-emerald-100 text-emerald-800'
+                              ? 'bg-slate-100 text-slate-700 border border-slate-200'
                               : isInProgress
-                              ? 'bg-indigo-100 text-indigo-800'
-                              : 'bg-slate-200 text-slate-700'
+                              ? 'bg-slate-900 text-white'
+                              : 'bg-slate-200 text-slate-600'
                           }`}>
                             {isFinished ? 'Réalisé' : isInProgress ? 'En cours' : 'À venir'}
                           </span>
@@ -1067,27 +1066,27 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-600 font-medium">{stage.subtitle}</p>
-                        <p className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
-                          <UserCheck className="w-3 h-3 text-slate-400" /> Opérateur : <strong className="text-slate-700">{stage.agent}</strong>
+                        <p className="text-xs text-slate-600">{stage.subtitle}</p>
+                        <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                          <UserCheck className="w-3 h-3 text-slate-400" /> Opérateur : <strong className="text-slate-700 font-semibold">{stage.agent}</strong>
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3 lg:self-center">
                       {stage.metrics && stage.metrics.map((m, mIdx) => (
-                        <div key={mIdx} className="hidden sm:block text-right bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">{m.label}</span>
-                          <span className="text-xs font-black text-slate-800">{m.value}</span>
+                        <div key={mIdx} className="hidden sm:block text-right bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 block">{m.label}</span>
+                          <span className="text-xs font-bold text-slate-800">{m.value}</span>
                         </div>
                       ))}
 
                       <button
                         onClick={() => onNavigateToView(stage.targetView)}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
                           isInProgress
-                            ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                            : 'bg-slate-900 hover:bg-slate-800 text-white'
+                            ? 'bg-slate-900 hover:bg-slate-800 text-white'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
                         }`}
                       >
                         <span>{stage.actionLabel}</span>
@@ -1096,10 +1095,10 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2 text-xs">
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-2 text-xs">
                     {stage.details.map((d, dIdx) => (
-                      <div key={dIdx} className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px] flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      <div key={dIdx} className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] flex items-center gap-1.5">
+                        <span className="w-1 h-1 rounded-full bg-slate-400" />
                         <span>{d}</span>
                       </div>
                     ))}
@@ -1116,9 +1115,9 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
       {activeTab === 'kpis' && (
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-600" />
-              Tableau de Bord des Délais Interservice & Efficience Clinique (TAT)
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-slate-700" />
+              Tableau de Bord des Délais Interservice &amp; Efficience Clinique (TAT)
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Suivi des temps d'attente moyens, conformité des parcours et taux de clôture des dossiers.
@@ -1128,32 +1127,32 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-slate-400">Temps Moyen Accueil &rarr; Médecin</span>
-              <p className="text-xl font-black text-slate-900 mt-1">11 min</p>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block">
+              <p className="text-xl font-bold text-slate-900 mt-1">11 min</p>
+              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">
                 -4 min par rapport à la moyenne
               </span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-slate-400">Délai Rendu LIMS (Automates)</span>
-              <p className="text-xl font-black text-indigo-600 mt-1">32 min</p>
-              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded mt-1 inline-block">
+              <p className="text-xl font-bold text-slate-900 mt-1">32 min</p>
+              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">
                 98% délivré sous 45 min
               </span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-slate-400">Taux de Délivrance Pharmacie</span>
-              <p className="text-xl font-black text-emerald-600 mt-1">99.2%</p>
-              <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">
+              <p className="text-xl font-bold text-slate-900 mt-1">99.2%</p>
+              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">
                 Ordonnances honorées
               </span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[10px] font-bold uppercase text-slate-400">Parcours Clos Sans Reste à Charge</span>
-              <p className="text-xl font-black text-slate-900 mt-1">94.8%</p>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 inline-block">
+              <p className="text-xl font-bold text-slate-900 mt-1">94.8%</p>
+              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block">
                 Solvabilité validée
               </span>
             </div>

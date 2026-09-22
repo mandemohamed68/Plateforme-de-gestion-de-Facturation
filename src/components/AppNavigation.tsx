@@ -256,12 +256,6 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           icon: Heart,
           description: 'Suivi de l\'arrivée à la sortie du patient',
           badge: 3
-        },
-        {
-          id: 'scenarios_s01_s50',
-          label: 'Simulateur Scénarios (S01-S50)',
-          icon: ScrollText,
-          description: 'Exécution textuelle & validation des 50 scénarios hospitaliers'
         }
       ]
     },
@@ -441,7 +435,6 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'labo_results', label: 'Résultats' },
             { id: 'labo_validation', label: 'Validation', badge: 1 },
             { id: 'patient_dossiers', label: 'Dossiers & Antécédents LIMS' },
-            { id: 'labo_catalog', label: 'Catalogue des examens' },
           ]
         },
         {
@@ -515,6 +508,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
         { id: 'admin_permissions', label: 'Permissions (RBAC)', icon: Lock, description: 'Matrice dynamique des droits' },
         { id: 'admin_company', label: 'Établissement', icon: Settings, description: 'Infos structure' },
         { id: 'admin_pricing', label: 'Tarifs & prestations', icon: CreditCard, description: 'Catalogue tarifs' },
+        { id: 'labo_catalog', label: 'Catalogue des examens', icon: FlaskConical, description: 'Nomenclature, cotations & analyses LIMS' },
+        { id: 'scenarios_s01_s50', label: 'Simulateur Scénarios (S01-S50)', icon: ScrollText, description: 'Validation des flux & scénarios hospitaliers' },
         { id: 'admin_medical_settings', label: 'Paramètres cliniques', icon: Stethoscope, description: 'Unités de soins & seuils vitaux' },
         { id: 'admin_reports', label: 'Rapports', icon: FileText, description: 'Rapports d\'activité' },
         { id: 'admin_audit', label: 'Journal & sécurité', icon: ShieldCheck, description: 'Logs audit' },
@@ -651,87 +646,96 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           </button>
         </div>
 
-        {/* Current User Role Notice Box */}
+        {/* Current User Profile & Role Card (Clean 100% Human Design) */}
         <div 
           style={{ borderColor: theme.sidebarBorder }}
-          className={`px-4 py-2.5 border-b ${theme.isDarkSidebar ? 'bg-black/10' : 'bg-slate-50'}`}
+          className={`p-3 border-b space-y-2.5 ${theme.isDarkSidebar ? 'bg-white/5' : 'bg-slate-50/70'}`}
         >
-          <div className="flex items-center justify-between">
-            <span 
-              style={{ color: theme.sidebarTextMuted }}
-              className="text-[10px] uppercase font-bold tracking-wider flex items-center space-x-1"
+          {/* User Info Row */}
+          <div className="flex items-center space-x-2.5">
+            <div 
+              style={{ backgroundColor: theme.primary }}
+              className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 tracking-wider"
             >
-              <ShieldCheck className="w-3 h-3 text-emerald-500 inline" />
-              <span>Rôle &amp; Habilitation</span>
-            </span>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getRoleBadgeStyle(
-                currentUser?.role
-              )}`}
-            >
-              {currentUser?.role || 'Utilisateur'}
-            </span>
-          </div>
-          <div 
-            style={{ color: theme.sidebarText }}
-            className="mt-0.5 text-xs font-bold truncate"
-          >
-            {currentUser?.name || 'Session active'}
-          </div>
-          <div 
-            style={{ color: theme.sidebarTextMuted }}
-            className="text-[10px] flex items-center space-x-1 mt-0.5 font-medium"
-          >
-            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-            <span className="truncate">
-              {allowedViews.length} module{allowedViews.length > 1 ? 's' : ''} autorisé{allowedViews.length > 1 ? 's' : ''}
-            </span>
+              {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-1">
+                <div 
+                  style={{ color: theme.sidebarText }}
+                  className="text-xs font-bold truncate leading-tight"
+                >
+                  {currentUser?.name || 'Session active'}
+                </div>
+                <span
+                  style={{
+                    backgroundColor: theme.isDarkSidebar ? 'rgba(255, 255, 255, 0.12)' : '#f1f5f9',
+                    color: theme.isDarkSidebar ? '#f8fafc' : '#334155',
+                    borderColor: theme.sidebarBorder
+                  }}
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0"
+                >
+                  {currentUser?.role?.toLowerCase().includes('super') ? 'Super Admin' : (currentUser?.role || 'Utilisateur')}
+                </span>
+              </div>
+              <div 
+                style={{ color: theme.sidebarTextMuted }}
+                className="text-[10px] flex items-center space-x-1 mt-0.5"
+              >
+                <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span className="truncate font-medium">
+                  {allowedViews.length} module{allowedViews.length > 1 ? 's' : ''} autorisé{allowedViews.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Session requirement banner for billers / cashiers */}
           {isSessionRequiredProfile && (
-            <div className={`mt-2 p-2 rounded-xl border text-[11px] font-medium transition-all ${
+            <div className={`p-2 rounded-lg border text-[11px] font-medium transition-all ${
               hasActiveSession 
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' 
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-600'
             }`}>
               <div className="flex items-center space-x-1.5 font-bold">
                 {hasActiveSession ? (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span>Vacation Active Déverrouillée</span>
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span>Session Non Ouverte</span>
                   </>
                 )}
               </div>
               <p className="text-[10px] mt-0.5 opacity-90 leading-tight">
                 {hasActiveSession 
-                  ? "Vous pouvez opérer sur tous vos menus autorisés."
-                  : "Ouvrez votre session journalière pour débloquer les autres menus."}
+                  ? "Opérations autorisées sur vos menus."
+                  : "Ouvrez votre session journalière pour débloquer les menus."}
               </p>
             </div>
           )}
           
+          {/* Mission Card */}
           <div 
             style={{ 
-              backgroundColor: theme.isDarkSidebar ? 'rgba(255, 255, 255, 0.08)' : '#ffffff',
+              backgroundColor: theme.isDarkSidebar ? 'rgba(0, 0, 0, 0.2)' : '#ffffff',
               borderColor: theme.sidebarBorder,
             }}
-            className="mt-2 p-2 rounded border shadow-xs"
+            className="p-2.5 rounded-lg border shadow-xs"
           >
             <div 
               style={{ color: theme.sidebarTextMuted }}
-              className="text-[9px] uppercase font-black tracking-widest mb-1"
+              className="text-[9px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1"
             >
-              Ma Mission
+              <Compass className="w-2.5 h-2.5 text-slate-400" />
+              <span>Mission Active</span>
             </div>
             <div 
               style={{ color: theme.sidebarText }}
-              className="text-[10px] font-bold leading-tight italic"
+              className="text-[10.5px] font-normal leading-relaxed"
             >
               {getUserMissionDescription(currentUser)}
             </div>
@@ -1137,18 +1141,15 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             <button
               id="btn-header-patient-journey"
               onClick={() => setCurrentView('patient_journey')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer shadow-2xs border ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer shadow-2xs border ${
                 currentView === 'patient_journey'
                   ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border-indigo-200'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
               }`}
-              title="Filière de Soins & Matching Interservice"
+              title="Filière de Soins & Parcours Patient 360°"
             >
-              <Compass className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="hidden xl:inline text-[11px]">Filière & Matching</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-indigo-600 text-white">
-                360°
-              </span>
+              <Compass className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden xl:inline text-[11px]">Parcours 360°</span>
             </button>
           </div>
 
