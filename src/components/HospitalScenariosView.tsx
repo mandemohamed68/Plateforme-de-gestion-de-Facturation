@@ -413,17 +413,17 @@ const M32InteractiveSimulator: React.FC = () => {
   return (
     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
       {sessionState === 'closed' ? (
-        <div className="bg-purple-50 border border-purple-200 p-6 rounded-lg text-center space-y-3">
-          <div className="w-12 h-12 bg-purple-600 text-white rounded-full flex items-center justify-center mx-auto text-xl font-bold">
-            🔒
+        <div className="bg-slate-100 border border-slate-300 p-6 rounded-lg text-center space-y-3">
+          <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center mx-auto shadow-2xs">
+            <Lock className="w-5 h-5 text-white" />
           </div>
-          <h4 className="font-bold text-purple-900 text-sm">Session Caisse Clôturée avec Succès !</h4>
-          <p className="text-xs text-purple-700 leading-relaxed max-w-md mx-auto">
-            Bordereau de Caisse Z généré de manière sécurisée et irréversible. Toutes les données de ventes ont été figées dans l'audit R02.
+          <h4 className="font-bold text-slate-900 text-sm">Session Caisse Clôturée</h4>
+          <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
+            Bordereau de Caisse Z généré de manière sécurisée et irréversible. Toutes les ventes ont été figées dans le journal d'audit R02.
           </p>
 
-          <div className="bg-white p-3 rounded-lg border border-purple-100 text-left font-mono text-[10px] text-slate-600 space-y-1 max-w-sm mx-auto">
-            <div className="font-bold text-[11px] text-purple-900 border-b border-purple-100 pb-1 mb-1 text-center">BORDEREAU Z JOURNALIER</div>
+          <div className="bg-white p-3 rounded-lg border border-slate-200 text-left font-mono text-[10px] text-slate-700 space-y-1 max-w-sm mx-auto">
+            <div className="font-bold text-[11px] text-slate-900 border-b border-slate-200 pb-1 mb-1 text-center">BORDEREAU Z JOURNALIER</div>
             <div>• Fond Initial : {openingBalance.toLocaleString('fr-FR')} FCFA</div>
             <div>• Solde Théorique Système : {systemTheoreticalBalance.toLocaleString('fr-FR')} FCFA</div>
             <div>• Total Physiquement Compté : {physicalTotal.toLocaleString('fr-FR')} FCFA</div>
@@ -434,7 +434,7 @@ const M32InteractiveSimulator: React.FC = () => {
 
           <button
             onClick={handleResetSession}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg transition-all"
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition-all cursor-pointer"
           >
             Réouvrir la Session de Test
           </button>
@@ -540,10 +540,10 @@ const M32InteractiveSimulator: React.FC = () => {
             <button
               onClick={handleCloseSession}
               disabled={discrepancy !== 0 && !justification.trim()}
-              className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white rounded-lg text-xs font-bold shadow-md transition-all flex items-center gap-2"
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>Signer le Bordereau Z & Clôturer la Session</span>
+              <span>Signer le Bordereau Z &amp; Clôturer la Session</span>
             </button>
           </div>
         </div>
@@ -1203,21 +1203,21 @@ export const HospitalScenariosView: React.FC<HospitalScenariosViewProps> = ({
             {/* Implementation Priorities Roadmap */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 text-xs">
               {[
-                { id: 'P1', label: 'Caisse & Arbitrage', desc: 'Modale M3.1 & M3.2', color: 'border-indigo-200 bg-indigo-50/30 text-indigo-950' },
-                { id: 'P2', label: 'Patients & Accueil', desc: 'Identité unique NDM', color: 'border-blue-200 bg-blue-50/30 text-blue-950' },
-                { id: 'P3', label: 'Dossier Clinique', desc: 'Consultations & DME', color: 'border-amber-200 bg-amber-50/30 text-amber-950' },
-                { id: 'P4', label: 'Plateau Labo & Radio', desc: 'Modale M4.2 & Normes', color: 'border-emerald-200 bg-emerald-50/30 text-emerald-950' },
-                { id: 'P5', label: 'Pharmacie Dispens.', desc: 'Ordonnances & Stock', color: 'border-rose-200 bg-rose-50/30 text-rose-950' },
-                { id: 'P6', label: 'Logs Audit & Rapports', desc: 'Bordereau Z & R02', color: 'border-purple-200 bg-purple-50/30 text-purple-950' },
+                { id: 'P1', label: 'Caisse & Arbitrage', desc: 'Modale M3.1 & M3.2' },
+                { id: 'P2', label: 'Patients & Accueil', desc: 'Identité unique NDM' },
+                { id: 'P3', label: 'Dossier Clinique', desc: 'Consultations & DME' },
+                { id: 'P4', label: 'Plateau Labo & Radio', desc: 'Modale M4.2 & Normes' },
+                { id: 'P5', label: 'Pharmacie Dispens.', desc: 'Ordonnances & Stock' },
+                { id: 'P6', label: 'Logs Audit & Rapports', desc: 'Bordereau Z & R02' },
               ].map((p) => (
-                <div key={p.id} className={`p-3 rounded-xl border flex flex-col justify-between gap-1 ${p.color}`}>
+                <div key={p.id} className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col justify-between gap-1 text-slate-800">
                   <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-[13px]">{p.id}</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                    <span className="font-bold text-[12px]">{p.id}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
                   </div>
                   <div>
-                    <div className="font-bold text-[11px] truncate">{p.label}</div>
-                    <div className="text-[9px] opacity-75 truncate">{p.desc}</div>
+                    <div className="font-semibold text-[11px] truncate">{p.label}</div>
+                    <div className="text-[9px] text-slate-500 truncate">{p.desc}</div>
                   </div>
                 </div>
               ))}

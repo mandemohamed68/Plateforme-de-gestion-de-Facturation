@@ -48,6 +48,9 @@ interface CaisseSessionsViewProps {
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
   onNavigateToLab?: () => void;
   onSessionClosed?: (sessionCode: string) => void;
+  onBackToInvoices?: () => void;
+  onBackToDashboard?: () => void;
+  onRequestOpenSession?: () => void;
 }
 
 // Billets et Pièces simples pour le décompte physique
@@ -76,6 +79,9 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
   onShowToast,
   onNavigateToLab,
   onSessionClosed,
+  onBackToInvoices,
+  onBackToDashboard,
+  onRequestOpenSession,
 }) => {
   const notify = (
     text: string,
@@ -471,6 +477,51 @@ export const CaisseSessionsView: React.FC<CaisseSessionsViewProps> = ({
           </button>
         </div>
       )}
+
+      {/* GLOBAL VIEW NAVIGATION BAR WITH BACK BUTTON */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          {(onBackToInvoices || onBackToDashboard) && (
+            <button
+              type="button"
+              onClick={onBackToInvoices || onBackToDashboard}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-lg border border-slate-200/80 transition cursor-pointer"
+              title="Retourner aux Factures et Dossiers"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Retour Facturation</span>
+            </button>
+          )}
+          <div>
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <span>Gestion des Sessions de Caisse</span>
+              {myActiveSession ? (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
+                  En cours : {myActiveSession.session_code}
+                </span>
+              ) : (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                  Aucune session active
+                </span>
+              )}
+            </h1>
+            <p className="text-[11px] text-slate-500">
+              Ouvertures, vacations, clôtures journalières et arrêtés financiers (Z)
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { fetchSessions(); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 cursor-pointer transition shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualiser</span>
+          </button>
+        </div>
+      </div>
 
       {/* SUPERVISOR TITLE BAR */}
       {isSupervisor && (

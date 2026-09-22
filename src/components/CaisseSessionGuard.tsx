@@ -28,12 +28,14 @@ interface MandatorySessionOpenModalProps {
   isOpen: boolean;
   currentUser: ResUser | null;
   onSessionOpened: (session: TillSession) => void;
+  onClose?: () => void;
 }
 
 export const MandatorySessionOpenModal: React.FC<MandatorySessionOpenModalProps> = ({
   isOpen,
   currentUser,
   onSessionOpened,
+  onClose,
 }) => {
   const [tillName, setTillName] = useState('Guichet Caisse 1 (Central)');
   const [openingBalance, setOpeningBalance] = useState('50000');
@@ -63,7 +65,7 @@ export const MandatorySessionOpenModal: React.FC<MandatorySessionOpenModalProps>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+        <div className="p-5 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold">
               <Lock className="w-5 h-5" />
@@ -73,10 +75,20 @@ export const MandatorySessionOpenModal: React.FC<MandatorySessionOpenModalProps>
                 Protocole de Caisse Sécurisée
               </span>
               <h3 className="text-base font-extrabold text-slate-900">
-                Ouverture de Session de Caisse Obligatoire
+                Ouverture de Session de Caisse
               </h3>
             </div>
           </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition cursor-pointer"
+              title="Fermer (Consulter sans ouvrir de session)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Form Body */}
@@ -153,11 +165,21 @@ export const MandatorySessionOpenModal: React.FC<MandatorySessionOpenModalProps>
             />
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+                <span>Consulter sans ouvrir</span>
+              </button>
+            )}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+              className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
             >
               <Unlock className="w-4 h-4" />
               <span>Ouvrir la Session du Jour</span>

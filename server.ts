@@ -430,29 +430,9 @@ function loadDb() {
       if (store.dbTaxes) dbTaxes = store.dbTaxes;
       if (store.dbProductTemplates) {
         dbProductTemplates = store.dbProductTemplates;
-        // Merge missing initial items (e.g., medication, imaging, hospitalization)
-        initialProductTemplates.forEach((initT) => {
-          const exists = dbProductTemplates.some((t) => t.id === initT.id || t.name.trim().toLowerCase() === initT.name.trim().toLowerCase());
-          if (!exists) {
-            dbProductTemplates.push(initT);
-          } else {
-            const current = dbProductTemplates.find((t) => t.id === initT.id || t.name.trim().toLowerCase() === initT.name.trim().toLowerCase());
-            if (current) {
-              if (initT.prix_tm && !current.prix_tm) current.prix_tm = initT.prix_tm;
-              if (initT.prix_hp && !current.prix_hp) current.prix_hp = initT.prix_hp;
-              if (initT.lab_tests && (!current.lab_tests || current.lab_tests.length === 0)) current.lab_tests = initT.lab_tests;
-            }
-          }
-        });
       }
       if (store.dbProductProducts) {
         dbProductProducts = store.dbProductProducts;
-        initialProductProducts.forEach((initP) => {
-          const exists = dbProductProducts.some((p) => p.id === initP.id || p.default_code === initP.default_code);
-          if (!exists) {
-            dbProductProducts.push(initP);
-          }
-        });
       }
 
       // Ensure every template has at least one product variant

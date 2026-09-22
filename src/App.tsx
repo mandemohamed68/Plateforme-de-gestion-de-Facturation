@@ -283,6 +283,7 @@ export default function App() {
   const [schemaTables, setSchemaTables] = useState<any[]>([]);
   const [showSessionClosedSuccessModal, setShowSessionClosedSuccessModal] = useState(false);
   const [closedSessionCodeForSuccess, setClosedSessionCodeForSuccess] = useState('');
+  const [forceOpenSessionModal, setForceOpenSessionModal] = useState(false);
 
   // Company Branding & Settings State
   const [company, setCompany] = useState<CompanySettings>({
@@ -951,6 +952,11 @@ export default function App() {
   };
 
   const handlePayInvoice = (move: AccountMove) => {
+    if (!hasActiveSession && isCashierProfile) {
+      setForceOpenSessionModal(true);
+      showToast("Veuillez d'abord ouvrir une session pour encaisser cette facture.", 'warning', 'Session Requise');
+      return;
+    }
     setSelectedMoveForPayment(move);
     setAutoOpenPaymentModal(true);
     setReturnToSessionMode(true);
@@ -958,6 +964,11 @@ export default function App() {
   };
 
   const handleNavigateToNewPayment = async () => {
+    if (!hasActiveSession && isCashierProfile) {
+      setForceOpenSessionModal(true);
+      showToast("Veuillez d'abord ouvrir une session pour enregistrer un règlement.", 'warning', 'Session Requise');
+      return;
+    }
     await fetchAllData();
     setAutoOpenPaymentModal(true);
     setReturnToSessionMode(false);
@@ -1612,9 +1623,11 @@ export default function App() {
 
             {/* Mandatory Cashier Session Opening Modal */}
             <MandatorySessionOpenModal
-              isOpen={Boolean(isCashierProfile && !activeUserSession && !isLoading && isAuthenticated)}
+              isOpen={Boolean(isCashierProfile && !activeUserSession && !isLoading && isAuthenticated && forceOpenSessionModal)}
               currentUser={currentUser}
+              onClose={() => setForceOpenSessionModal(false)}
               onSessionOpened={async (createdSession) => {
+                setForceOpenSessionModal(false);
                 try {
                   const res = await fetch('/api/till-sessions', {
                     method: 'POST',
@@ -1938,6 +1951,7 @@ export default function App() {
                 partnerReductions={partnerReductions}
                 hasActiveSession={hasActiveSession}
                 onNavigateToSessions={() => setCurrentView('caisse_sessions')}
+                onRequestOpenSession={() => setForceOpenSessionModal(true)}
                 tillSessions={tillSessions}
                 onShowToast={showToast}
                 onNavigateToLab={() => setCurrentView('lab_sampling')}
@@ -2019,6 +2033,8 @@ export default function App() {
                 onShowToast={showToast}
                 hasActiveSession={hasActiveSession}
                 onNavigateToSessions={() => setCurrentView('caisse_sessions')}
+                onBackToInvoices={() => setCurrentView('invoices')}
+                onRequestOpenSession={() => setForceOpenSessionModal(true)}
               />
             )}
 
@@ -2033,6 +2049,9 @@ export default function App() {
                 onRefreshData={fetchAllData}
                 onShowToast={showToast}
                 onNavigateToLab={() => setCurrentView('lab_sampling')}
+                onBackToInvoices={() => setCurrentView('invoices')}
+                onBackToDashboard={() => setCurrentView('dashboard')}
+                onRequestOpenSession={() => setForceOpenSessionModal(true)}
                 onOpenNewInvoice={async () => {
                   await fetchAllData();
                   setMoveTypeFilter('out_invoice');
@@ -2050,6 +2069,7 @@ export default function App() {
                 onSessionClosed={(code) => {
                   setClosedSessionCodeForSuccess(code);
                   setShowSessionClosedSuccessModal(true);
+                  setForceOpenSessionModal(false);
                 }}
               />
             )}

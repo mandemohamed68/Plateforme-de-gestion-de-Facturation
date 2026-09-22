@@ -42,6 +42,7 @@ import {
   CheckCheck,
   UserPlus,
   Lock,
+  Shield,
 } from 'lucide-react';
 import {
   AccountMove,
@@ -99,6 +100,7 @@ interface InvoicesViewProps {
   partnerReductions?: PartnerReduction[];
   hasActiveSession?: boolean;
   onNavigateToSessions?: () => void;
+  onRequestOpenSession?: () => void;
   tillSessions?: any[];
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
   onNavigateToLab?: () => void;
@@ -137,6 +139,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   partnerReductions = [],
   hasActiveSession = true,
   onNavigateToSessions,
+  onRequestOpenSession,
   tillSessions = [],
   onShowToast,
   onNavigateToLab,
@@ -200,6 +203,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   // Safe In-App Delete Modal State
   const [moveToDelete, setMoveToDelete] = useState<AccountMove | null>(null);
   const [supervisorCorrectionTarget, setSupervisorCorrectionTarget] = useState<AccountMove | null>(null);
+
+  const profile = getUserBillingProfile(currentUser);
+  const isSupervisor = isSupervisorOrAdmin(currentUser) || profile === 'superviseur';
+  const isCashier = profile === 'caisse' || profile === 'facture_caisse' || isSupervisor;
+  const isCashierOnly = profile === 'caisse' && !isSupervisor;
+  const isBiller = profile === 'facture' || profile === 'facture_caisse' || isSupervisor;
+  const isReadOnlyForm = Boolean(editingMove?.state === 'posted' && !isSupervisor);
 
   // Billing view tabs: Invoices Register vs Pending Medical Prescriptions
   const [billingViewTab, setBillingViewTab] = useState<'invoices' | 'prescriptions'>('invoices');
@@ -773,29 +783,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   const handleOpenEditModal = (move: AccountMove) => {
-    const profile = getUserBillingProfile(currentUser);
-
-    // Enforce active session for billing/caisse operational profiles
-    if (!hasActiveSession && (profile === 'caisse' || profile === 'facture_caisse' || profile === 'facture')) {
+    // Enforce active session for draft creation/editing, but allow consultation of existing validated invoices
+    if (!hasActiveSession && (profile === 'caisse' || profile === 'facture_caisse' || profile === 'facture') && !isSupervisor && move.state === 'draft') {
       setShowRequireSessionModal(true);
-      return;
-    }
-
-    // Only supervisor can edit content of a posted invoice, but cashiers & polyvalents can open it to collect payments
-    if (move.state === 'posted' && profile !== 'superviseur' && profile !== 'caisse' && profile !== 'facture_caisse') {
-      notify(
-        "Action restreinte : Seul le Superviseur Caisse / Facture est habilité à modifier une facture déjà validée.",
-        'error',
-        'Privilège Superviseur Requis'
-      );
       return;
     }
 
     setEditingMove(move);
     if (move.state === 'posted' && move.payment_state === 'paid') {
       setCurrentStep(3);
+    } else if (move.state === 'posted' && !isSupervisor && isCashier) {
+      setCurrentStep(2);
     } else {
       setCurrentStep(1);
+    }
+
+    if (move.state === 'posted' && !isSupervisor) {
+      notify(
+        "Facture déjà éditée et validée (Mode Consultation Seule). Seuls les Superviseurs et Administrateurs sont autorisés à modifier une facture validée.",
+        'info',
+        'Consultation Facture'
+      );
     }
 
     const currentPartner = partners.find((p) => p.id === move.partner_id);
@@ -1279,6 +1287,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   // Save Current Form State to Backend (Draft)
   const handleSaveDraftOnly = async () => {
+    if (editingMove?.id && editingMove.state === 'posted') {
+      notify(
+        "Action impossible : Une facture déjà validée ne peut pas être réenregistrée en brouillon.",
+        'error',
+        'Opération Interdite'
+      );
+      return;
+    }
+
     if (!partnerNameInput.trim()) {
       notify('Veuillez renseigner le nom du patient avant de sauvegarder.', 'warning', 'Saisie Incomplète');
       return;
@@ -1371,6 +1388,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
   // Step 1 -> Step 2: VALIDATE INVOICE & AUTOMATICALLY SWITCH TO PAYMENT
   const handleValidateInvoiceAndGoToPayment = async () => {
+    const isAlreadyPosted = Boolean(editingMove?.id && editingMove.state === 'posted');
+
+    if (isAlreadyPosted) {
+      if (!isSupervisor) {
+        notify(
+          "Action restreinte : Seuls les Superviseurs et Administrateurs sont autorisés à modifier une facture déjà éditée.",
+          'error',
+          'Accès Superviseur Requis'
+        );
+        return;
+      }
+      if (!cancelReason.trim()) {
+        notify(
+          "Un motif d'intervention est obligatoirement requis pour enregistrer une modification sur une facture déjà validée.",
+          'error',
+          'Motif Superviseur Requis'
+        );
+        return;
+      }
+    }
+
     if (!partnerNameInput.trim()) {
       notify('Veuillez renseigner le nom du patient.', 'warning', 'Saisie Incomplète');
       return;
@@ -1490,6 +1528,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
 
       const isAlreadyPosted = editingMove?.id && editingMove.state === 'posted';
 
+      if (isAlreadyPosted && editingMove) {
+        logFinancialCorrection({
+          supervisorId: currentUser?.id || 1,
+          supervisorName: currentUser?.name || 'Superviseur Caisse',
+          targetType: 'invoice',
+          targetRef: invCode,
+          action: 'edit',
+          reason: cancelReason.trim(),
+          oldAmount: editingMove.amount_total,
+          newAmount: computedTotal,
+          details: `Rectification de facture validée par Superviseur pour ${partnerNameInput.trim()}`,
+        });
+      }
+
       notify(
         isAlreadyPosted 
           ? `La facture ${invCode} a été mise à jour avec succès !`
@@ -1555,12 +1607,6 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       setIsSubmitting(false);
     }
   };
-
-  const profile = getUserBillingProfile(currentUser);
-  const isSupervisor = profile === 'superviseur';
-  const isCashier = profile === 'caisse' || profile === 'facture_caisse';
-  const isCashierOnly = profile === 'caisse';
-  const isBiller = profile === 'facture' || profile === 'facture_caisse';
 
   const myActiveSession = tillSessions.find(
     (s: any) => s.user_id === currentUser?.id && s.state === 'opened'
@@ -1956,17 +2002,22 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               <span>Encaisser</span>
                             </button>
                           )}
-                          {isSupervisor && (
+                          {isSupervisor ? (
                             <button
                               type="button"
-                              onClick={() => setMoveToDelete(m)}
+                              onClick={() => {
+                                if (m.state === 'posted') {
+                                  setSupervisorCorrectionTarget(m);
+                                } else {
+                                  setMoveToDelete(m);
+                                }
+                              }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                              title="Supprimer / Annuler (Droit exclusif Superviseur)"
+                              title="Supprimer / Annuler (Superviseur / Administrateur avec motif obligatoire)"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          {m.state === 'draft' && isBiller && !isSupervisor && (
+                          ) : m.state === 'draft' && isBiller ? (
                             <button
                               type="button"
                               onClick={() => setMoveToDelete(m)}
@@ -1974,6 +2025,21 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                               title="Supprimer brouillon"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                notify(
+                                  "Action restreinte : Seuls les Superviseurs et Administrateurs sont habilités à modifier, supprimer ou annuler une facture déjà validée.",
+                                  'error',
+                                  'Accès Superviseur Requis'
+                                );
+                              }}
+                              className="p-1.5 text-slate-300 hover:text-slate-500 rounded transition cursor-pointer"
+                              title="Action restreinte : Réservée aux Superviseurs et Administrateurs avec motif obligatoire"
+                            >
+                              <Lock className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -2260,6 +2326,64 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               {/* ========================================================================= */}
               {currentStep === 1 && (
                 <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Banner when invoice is already posted */}
+                  {editingMove?.state === 'posted' && (
+                    <div className={`p-3 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                      isSupervisor 
+                        ? 'bg-amber-50/90 border-amber-300 text-amber-950' 
+                        : 'bg-slate-100 border-slate-300 text-slate-800'
+                    }`}>
+                      <div className="flex items-start gap-2.5">
+                        {isSupervisor ? (
+                          <Shield className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <div className="font-bold">
+                            {isSupervisor 
+                              ? 'Modification Supervisée d\'une Facture Déjà Éditée' 
+                              : 'Facture Déjà Éditée & Validée (Mode Consultation Seule)'}
+                          </div>
+                          <p className="text-[11px] opacity-90">
+                            {isSupervisor
+                              ? 'En tant que Superviseur / Administrateur, tout ajustement apporté à cette facture sera enregistré avec votre motif obligatoire au registre d\'audit financier.'
+                              : 'Seuls les Superviseurs et Administrateurs sont autorisés à modifier, supprimer ou annuler une facture déjà éditée. Les champs sont verrouillés en lecture seule.'}
+                          </p>
+                        </div>
+                      </div>
+                      {editingMove?.payment_state !== 'paid' && isCashier && (
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(2)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-xs cursor-pointer shrink-0 whitespace-nowrap self-start sm:self-center"
+                        >
+                          Passer au Règlement Caisse
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Motif input for supervisor modifying posted invoice */}
+                  {editingMove?.state === 'posted' && isSupervisor && (
+                    <div className="bg-amber-50 p-3 rounded-lg border border-amber-300 space-y-1.5">
+                      <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Motif d'Intervention Obligatoire de Rectification</span>
+                        <span className="text-rose-600 font-black">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Précisez obligatoirement le motif (ex: Rectification du montant suite accord médical, correction de prestation...)"
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        className="w-full bg-white border border-amber-400 rounded-md px-3 py-1.5 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  )}
+
+                  <fieldset disabled={isReadOnlyForm} className="contents space-y-5">
                   
                   {/* Quick Importer from Pending Medical Prescriptions */}
                   {pendingPrescriptionConsultations.length > 0 && !editingMove && (
@@ -3336,6 +3460,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       )}
                     </div>
                   </div>
+                  </fieldset>
 
                   {/* BOTTOM ACTION BUTTONS FOR STEP 1 */}
                   <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -3344,40 +3469,60 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       onClick={handleCloseFormModal}
                       className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded transition cursor-pointer"
                     >
-                      Annuler
+                      Fermer
                     </button>
 
-                    <div className="flex items-center space-x-2 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        disabled={isSubmitting}
-                        onClick={handleSaveDraftOnly}
-                        className="flex-1 sm:flex-none px-4 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded transition cursor-pointer"
-                      >
-                        Enregistrer Brouillon
-                      </button>
-
-                      {/* MAIN VALIDATION BUTTON: Posts invoice and AUTOMATICALLY switches to payment */}
-                      <button
-                        type="button"
-                        disabled={isSubmitting || !partnerNameInput || !partnerNameInput.trim() || (invoiceCategory !== 'consultation' && lines.length === 0)}
-                        onClick={handleValidateInvoiceAndGoToPayment}
-                        className={`flex-1 sm:flex-none px-5 py-2.5 text-xs font-black text-white rounded shadow-md flex items-center justify-center space-x-2 transition ${
-                          !partnerNameInput || !partnerNameInput.trim() || (invoiceCategory !== 'consultation' && lines.length === 0)
-                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-                            : 'bg-slate-900 hover:bg-slate-800 cursor-pointer'
-                        }`}
-                      >
-                        <span>
-                          {editingMove?.id && editingMove.state === 'posted'
-                            ? 'Enregistrer les Modifications'
-                            : getUserBillingProfile(currentUser) === 'facture'
-                            ? 'Valider & Transmettre à la Caisse'
-                            : 'Valider la Facture & Passer au Paiement'}
+                    {isReadOnlyForm ? (
+                      <div className="flex items-center space-x-2 w-full sm:w-auto">
+                        <span className="text-xs text-slate-500 italic flex items-center gap-1">
+                          <Lock className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Lecture seule (Modifications réservées au Superviseur / Admin)</span>
                         </span>
-                        {!(editingMove?.id && editingMove.state === 'posted') && <ArrowRight className="w-4 h-4" />}
-                      </button>
-                    </div>
+                        {editingMove?.payment_state !== 'paid' && isCashier && (
+                          <button
+                            type="button"
+                            onClick={() => setCurrentStep(2)}
+                            className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-sm cursor-pointer"
+                          >
+                            Passer au Règlement Guichet
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 w-full sm:w-auto">
+                        {(!editingMove?.id || editingMove.state !== 'posted') && (
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={handleSaveDraftOnly}
+                            className="flex-1 sm:flex-none px-4 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded transition cursor-pointer"
+                          >
+                            Enregistrer Brouillon
+                          </button>
+                        )}
+
+                        {/* MAIN VALIDATION BUTTON: Posts invoice and AUTOMATICALLY switches to payment */}
+                        <button
+                          type="button"
+                          disabled={isSubmitting || !partnerNameInput || !partnerNameInput.trim() || (invoiceCategory !== 'consultation' && lines.length === 0)}
+                          onClick={handleValidateInvoiceAndGoToPayment}
+                          className={`flex-1 sm:flex-none px-5 py-2.5 text-xs font-black text-white rounded shadow-md flex items-center justify-center space-x-2 transition ${
+                            !partnerNameInput || !partnerNameInput.trim() || (invoiceCategory !== 'consultation' && lines.length === 0)
+                              ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                              : 'bg-slate-900 hover:bg-slate-800 cursor-pointer'
+                          }`}
+                        >
+                          <span>
+                            {editingMove?.id && editingMove.state === 'posted'
+                              ? 'Enregistrer les Modifications (Superviseur avec motif)'
+                              : getUserBillingProfile(currentUser) === 'facture'
+                              ? 'Valider & Transmettre à la Caisse'
+                              : 'Valider la Facture & Passer au Paiement'}
+                          </span>
+                          {!(editingMove?.id && editingMove.state === 'posted') && <ArrowRight className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                 </div>
@@ -3700,11 +3845,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 type="button"
                 onClick={async () => {
                   if (moveToDelete) {
-                    const profile = getUserBillingProfile(currentUser);
                     if (moveToDelete.state === 'posted') {
-                      if (profile !== 'superviseur') {
+                      if (!isSupervisor) {
                         notify(
-                          "Action restreinte : Seul le Superviseur Caisse / Facture a le droit de supprimer ou annuler une facture validée.",
+                          "Action restreinte : Seuls les Superviseurs et Administrateurs sont habilités à supprimer ou annuler une facture validée.",
                           'error',
                           'Action Restreinte'
                         );
@@ -4191,16 +4335,21 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowRequireSessionModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
               >
-                Annuler
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Fermer / Rester en consultation</span>
               </button>
-              {onNavigateToSessions && (
+              {(onRequestOpenSession || onNavigateToSessions) && (
                 <button
                   type="button"
                   onClick={() => {
                     setShowRequireSessionModal(false);
-                    onNavigateToSessions();
+                    if (onRequestOpenSession) {
+                      onRequestOpenSession();
+                    } else if (onNavigateToSessions) {
+                      onNavigateToSessions();
+                    }
                   }}
                   className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs transition-all cursor-pointer"
                 >
