@@ -156,11 +156,141 @@ const safeFetchJson = async <T,>(url: string, fallback: T): Promise<T> => {
   }
 };
 
+const VIEW_TO_PATH_MAP: Record<string, string> = {
+  dashboard: '/accueil',
+  consultations: '/consultations',
+  invoices: '/factures',
+  payments: '/reglements',
+  caisse_sessions: '/sessions-caisses',
+  insurance_claims: '/assurances',
+  partners: '/partenaires',
+  patient_dossiers: '/dossiers-patients',
+  lab_results: '/lab-resultats',
+  lab_sampling: '/lab-prelevements',
+  lab_grouped_results: '/lab-validations',
+  products: '/catalogue-prestations',
+  users: '/utilisateurs',
+  company: '/configuration',
+  flash_announcements: '/annonces-flash',
+  notifications: '/notifications',
+  alert_settings: '/alertes-parametres',
+  logs_audit: '/logs-audit',
+  schema: '/base-de-donnees',
+  scenarios_s01_s50: '/scenarios-cliniques',
+  patient_journey: '/parcours-patient-360',
+  appointments: '/rendez-vous',
+  bed_management: '/gestion-lits',
+  letters_referrals: '/courriers-references',
+  care_plans: '/plans-de-soins',
+  transmissions: '/transmissions-infirmieres',
+  nurse_schedule: '/planning-soignants',
+  surgery_theater: '/bloc-operatoire',
+  imaging_pacs: '/imagerie-pacs',
+  pharmacy_dispensing: '/pharmacie-dispensation',
+  pharmacy_stock: '/pharmacie-stock',
+  pharmacy_orders: '/pharmacie-commandes',
+  pharmacy_expired: '/pharmacie-perimes',
+  pharmacy_narcotics: '/pharmacie-stupefiants',
+  pharmacy_sales: '/pharmacie-ventes',
+  pharmacy_settings: '/pharmacie-parametres',
+  sterilization_log: '/registre-sterilisation',
+  quality_vigilance: '/qualite-vigilance',
+  hr_management: '/ressources-humaines',
+  superviseur_dashboard: '/superviseur',
+  superviseur_sessions: '/superviseur-sessions',
+  superviseur_invoices: '/superviseur-factures',
+  superviseur_caisses: '/superviseur-caisses',
+  superviseur_payments: '/superviseur-reglements',
+  superviseur_reports: '/superviseur-rapports',
+  caisse_dashboard: '/caisse',
+  caisse_new_payment: '/caisse-encaissement',
+  caisse_payments: '/caisse-reglements',
+  caisse_cloture: '/caisse-cloture',
+  factures_dashboard: '/facturation',
+  factures_new_invoice: '/facturation-nouvelle',
+  factures_all: '/factures-toutes',
+  factures_draft: '/factures-brouillons',
+  factures_paid: '/factures-payees',
+  factures_unpaid: '/factures-impayees',
+  factures_cancelled: '/factures-annulees',
+  caisse_facture_dashboard: '/caisse-facturation',
+  caisse_facture_sessions: '/caisse-facturation-sessions',
+  caisse_facture_new_payment: '/caisse-facturation-nouveau-reglement',
+  caisse_facture_new_invoice: '/caisse-facturation-nouvelle-facture',
+  caisse_facture_all_invoices: '/caisse-facturation-factures',
+  caisse_facture_all_payments: '/caisse-facturation-reglements',
+  caisse_facture_draft: '/caisse-facturation-brouillons',
+  caisse_facture_paid: '/caisse-facturation-payees',
+  caisse_facture_unpaid: '/caisse-facturation-impayees',
+  caisse_facture_cancelled: '/caisse-facturation-annulees',
+  caisse_facture_cloture: '/caisse-facturation-cloture',
+  infirmier_dashboard: '/infirmier',
+  infirmier_queue: '/infirmier-file-attente',
+  infirmier_triage: '/infirmier-triage',
+  infirmier_vitals: '/infirmier-constantes',
+  infirmier_prescriptions: '/infirmier-prescriptions',
+  infirmier_referred: '/infirmier-orientes',
+  infirmier_care: '/infirmier-soins',
+  medecin_dashboard: '/medecin',
+  medecin_queue: '/medecin-consultation',
+  medecin_consultations: '/medecin-historique',
+  medecin_prescriptions: '/medecin-ordonnances',
+  medecin_dossiers: '/medecin-dossiers',
+  medecin_referred: '/medecin-orientes',
+  labo_dashboard: '/labo',
+  labo_queue: '/labo-attente',
+  labo_sampling: '/labo-prelevements',
+  labo_in_progress: '/labo-analyse',
+  labo_results: '/labo-resultats',
+  labo_validation: '/labo-validation',
+  labo_catalog: '/labo-catalogue',
+  imagerie_dashboard: '/imagerie',
+  imagerie_queue: '/imagerie-attente',
+  imagerie_scheduled: '/imagerie-rendez-vous',
+  imagerie_reports: '/imagerie-comptes-rendus',
+  imagerie_completed: '/imagerie-realisees',
+  imagerie_validation: '/imagerie-validation',
+  imagerie_prescriptions: '/imagerie-prescriptions',
+  hospit_dashboard: '/hospitalisation',
+  hospit_admissions: '/hospitalisation-admissions',
+  hospit_beds: '/hospitalisation-lits',
+  hospit_patients: '/hospitalisation-patients',
+  hospit_transfers: '/hospitalisation-transferts',
+  hospit_monitoring: '/hospitalisation-surveillance',
+  hospit_discharges: '/hospitalisation-sorties',
+  pediatrie_dashboard: '/pediatrie',
+  pediatrie_queue: '/pediatrie-attente',
+  pediatrie_consultations: '/pediatrie-consultation',
+  pediatrie_vaccination: '/pediatrie-vaccination',
+  pediatrie_croissance: '/pediatrie-croissance',
+  maternite_dashboard: '/maternite',
+  maternite_cpn: '/maternite-cpn',
+  maternite_accouchements: '/maternite-accouchements',
+  maternite_partogramme: '/maternite-partogramme',
+  maternite_postpartum: '/maternite-postpartum',
+  specialiste_dashboard: '/specialiste-dashboard',
+  specialiste_queue: '/specialiste-consultation',
+  specialiste_consultations: '/specialiste-historique',
+  specialiste_prescriptions: '/specialiste-ordonnances',
+  specialiste_patients: '/specialiste-patients',
+  specialiste_referred: '/specialiste-orientes',
+  specialiste_followup: '/specialiste-suivi',
+};
+
+const getInitialView = (): AppView => {
+  if (typeof window === 'undefined') return 'caisse_sessions';
+  const path = window.location.pathname;
+  const foundEntry = Object.entries(VIEW_TO_PATH_MAP).find(([view, p]) => p === path);
+  if (foundEntry) {
+    return foundEntry[0] as AppView;
+  }
+  const saved = localStorage.getItem('app_current_view');
+  if (saved) return saved as AppView;
+  return 'caisse_sessions';
+};
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<AppView>(() => {
-    const saved = localStorage.getItem('app_current_view');
-    return (saved as AppView) || 'caisse_sessions';
-  });
+  const [currentView, setCurrentView] = useState<AppView>(getInitialView);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moveTypeFilter, setMoveTypeFilter] = useState<MoveType>('out_invoice');
@@ -336,6 +466,30 @@ export default function App() {
   const resetActivity = useCallback(() => {
     lastActivityTimeRef.current = Date.now();
     setInactivityWarningSeconds(null);
+  }, []);
+
+  // Synchronize URL with currentView state and persist view
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const path = VIEW_TO_PATH_MAP[currentView];
+      if (path && window.location.pathname !== path) {
+        window.history.pushState(null, '', path);
+      }
+      localStorage.setItem('app_current_view', currentView);
+    }
+  }, [currentView]);
+
+  // Support Back and Forward browser navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const foundEntry = Object.entries(VIEW_TO_PATH_MAP).find(([view, p]) => p === path);
+      if (foundEntry) {
+        setCurrentView(foundEntry[0] as AppView);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Automatic logout on inactivity (medical security and patient data privacy)
