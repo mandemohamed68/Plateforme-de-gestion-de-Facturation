@@ -169,6 +169,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const paymentFilter = externalPaymentFilter || internalPaymentFilter;
   const setPaymentFilter = setExternalPaymentFilter || setInternalPaymentFilter;
   const [showRequireSessionModal, setShowRequireSessionModal] = useState(false);
+  const [isSessionWarningDismissed, setIsSessionWarningDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('invoice_session_warning_dismissed') === 'true';
+    }
+    return false;
+  });
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -1694,8 +1700,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   return (
     <div className="space-y-4 pb-12 max-w-full">
       {/* Session Required Warning Banner for Cashier / Biller */}
-      {!hasActiveSession && (profile === 'facture' || profile === 'caisse' || profile === 'facture_caisse') && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+      {!hasActiveSession && !isSessionWarningDismissed && (profile === 'facture' || profile === 'caisse' || profile === 'facture_caisse') && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-xs relative">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-100 text-amber-700 rounded-lg shrink-0">
               <Lock className="w-5 h-5" />
@@ -1711,16 +1717,31 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               </p>
             </div>
           </div>
-          {onNavigateToSessions && (
+          <div className="flex items-center gap-2 shrink-0">
+            {onNavigateToSessions && (
+              <button
+                type="button"
+                onClick={onNavigateToSessions}
+                className="px-3.5 py-2 bg-amber-900 text-white font-bold rounded-lg hover:bg-amber-800 transition-colors shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-300" />
+                <span>{profile === 'facture' ? 'Ouvrir ma Session de Facturation' : 'Ouvrir ma Session'}</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={onNavigateToSessions}
-              className="px-3.5 py-2 bg-amber-900 text-white font-bold rounded-lg hover:bg-amber-800 transition-colors shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+              onClick={() => {
+                setIsSessionWarningDismissed(true);
+                try {
+                  localStorage.setItem('invoice_session_warning_dismissed', 'true');
+                } catch (_) {}
+              }}
+              className="p-1.5 text-amber-700 hover:text-amber-900 rounded-lg hover:bg-amber-100 transition cursor-pointer"
+              title="Masquer l'avertissement"
             >
-              <Lock className="w-3.5 h-3.5 text-amber-300" />
-              <span>{profile === 'facture' ? 'Ouvrir ma Session de Facturation' : 'Ouvrir ma Session'}</span>
+              <X className="w-4 h-4" />
             </button>
-          )}
+          </div>
         </div>
       )}
 

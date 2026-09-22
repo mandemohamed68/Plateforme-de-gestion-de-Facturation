@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Bell,
   AlertTriangle,
@@ -44,8 +44,77 @@ export const InAppNotificationCenter: React.FC<InAppNotificationCenterProps> = (
   const [showCriticalAlertModal, setShowCriticalAlertModal] = useState(false);
   const [selectedNotifForPreview, setSelectedNotifForPreview] = useState<AppNotification | null>(null);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const criticalUnread = notifications.filter(n => !n.read && n.priority === 'critical');
+  // Read actual settings from "Gestion des Alertes"
+  const alertSettings = useMemo(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('app_alert_categories_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return [];
+  }, [notifications]); // Keep fresh and react to updates
+
+  const globalSoundEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const saved = localStorage.getItem('app_alert_global_sound');
+      if (saved !== null) {
+        return JSON.parse(saved) !== false;
+      }
+    } catch (_) {}
+    return true;
+  }, []);
+
+  const isCategoryEnabled = (category: string) => {
+    if (alertSettings.length > 0) {
+      const catSetting = alertSettings.find(s => s.id === category);
+      if (catSetting && catSetting.enabled === false) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const isPopupBannerEnabledForCategory = (category: string) => {
+    if (alertSettings.length > 0) {
+      const catSetting = alertSettings.find(s => s.id === category);
+      if (catSetting) {
+        return catSetting.enabled !== false && catSetting.popupBanner !== false;
+      }
+    }
+    return true;
+  };
+
+  const isSoundEnabledForCategory = (category: string) => {
+    if (alertSettings.length > 0) {
+      const catSetting = alertSettings.find(s => s.id === category);
+      if (catSetting) {
+        return catSetting.enabled !== false && catSetting.soundEnabled !== false;
+      }
+    }
+    return true;
+  };
+
+  // Only count and trigger for categories that are enabled
+  const visibleNotifications = useMemo(() => {
+    return notifications.filter(n => isCategoryEnabled(n.category));
+  }, [notifications, alertSettings]);
+
+  const unreadCount = visibleNotifications.filter(n => !n.read).length;
+
+  const criticalUnread = useMemo(() => {
+    return notifications.filter(n => {
+      if (n.read) return false;
+      if (n.priority !== 'critical') return false;
+      // Do not show popup or list in critical warning modal if popupBanner is disabled or category disabled
+      return isPopupBannerEnabledForCategory(n.category);
+    });
+  }, [notifications, alertSettings]);
 
   const allowedViews = getAllowedViews(currentUser);
 
@@ -53,11 +122,16 @@ export const InAppNotificationCenter: React.FC<InAppNotificationCenterProps> = (
   useEffect(() => {
     if (criticalUnread.length > 0) {
       setShowCriticalAlertModal(true);
-      if (soundEnabled) {
-        playEmergencyAlarmSound();
+      if (soundEnabled && globalSoundEnabled) {
+        const hasAnySoundEnabled = criticalUnread.some(n => isSoundEnabledForCategory(n.category));
+        if (hasAnySoundEnabled) {
+          playEmergencyAlarmSound();
+        }
       }
+    } else {
+      setShowCriticalAlertModal(false);
     }
-  }, [criticalUnread.length, soundEnabled]);
+  }, [criticalUnread.length, soundEnabled, globalSoundEnabled, alertSettings]);
 
   const handleOpenNotificationModule = (notif: AppNotification) => {
     onMarkAsRead(notif.id);
@@ -75,7 +149,7 @@ export const InAppNotificationCenter: React.FC<InAppNotificationCenterProps> = (
     }
   };
 
-  const filteredNotifs = notifications.filter(n => {
+  const filteredNotifs = visibleNotifications.filter(n => {
     if (activeTab === 'all') return true;
     return n.category === activeTab;
   });
