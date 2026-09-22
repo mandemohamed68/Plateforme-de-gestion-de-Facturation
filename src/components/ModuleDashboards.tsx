@@ -1265,15 +1265,42 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
   const [showRequireSessionModal, setShowRequireSessionModal] = useState(false);
   const [isStatusBannerDismissed, setIsStatusBannerDismissed] = useState(() => {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('caisse_status_banner_dismissed') === 'true';
+      return (
+        localStorage.getItem('caisse_status_banner_dismissed') === 'true' ||
+        sessionStorage.getItem('caisse_status_banner_dismissed') === 'true'
+      );
     }
     return false;
   });
+
+  // Respect system alert settings from "Gestion des Alertes" (Paramètres)
+  const isCaisseAlertCategoryEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const saved = localStorage.getItem('app_alert_categories_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const found = parsed.find((c: any) => c.id === 'caisse');
+          if (found && typeof found.enabled === 'boolean') {
+            return found.enabled;
+          }
+        }
+      }
+    } catch (_) {}
+    return true;
+  }, []);
+
   const [tillNameInput, setTillNameInput] = useState('Guichet Caisse 1 (Hall Principal)');
   const [openingBalanceInput, setOpeningBalanceInput] = useState('50000');
   const [openSessionNotes, setOpenSessionNotes] = useState('');
   const [isOpeningSession, setIsOpeningSession] = useState(false);
-  const [showGuideBanner, setShowGuideBanner] = useState(true);
+  const [showGuideBanner, setShowGuideBanner] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('caisse_guide_banner_dismissed') !== 'true';
+    }
+    return true;
+  });
 
   const isSupervisor = isSupervisorOrAdmin(currentUser);
 
@@ -1371,6 +1398,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
         notes: openSessionNotes,
       });
       try {
+        localStorage.removeItem('caisse_status_banner_dismissed');
         sessionStorage.removeItem('caisse_status_banner_dismissed');
       } catch (_) {}
 
@@ -1441,8 +1469,13 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
               </div>
             </div>
             <button
-              onClick={() => setShowGuideBanner(false)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg transition"
+              onClick={() => {
+                setShowGuideBanner(false);
+                try {
+                  localStorage.setItem('caisse_guide_banner_dismissed', 'true');
+                } catch (_) {}
+              }}
+              className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition cursor-pointer"
               title="Masquer le guide"
             >
               <X className="w-4 h-4" />
@@ -1524,7 +1557,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
             </button>
           </div>
         </div>
-      ) : !isStatusBannerDismissed ? (
+      ) : (!isStatusBannerDismissed && isCaisseAlertCategoryEnabled) ? (
         lastClosedSessionToday ? (
           <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800 shadow-xs">
             <div className="flex items-center gap-3">
@@ -1553,7 +1586,10 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
               <button
                 onClick={() => {
                   setIsStatusBannerDismissed(true);
-                  try { sessionStorage.setItem('caisse_status_banner_dismissed', 'true'); } catch (_) {}
+                  try {
+                    localStorage.setItem('caisse_status_banner_dismissed', 'true');
+                    sessionStorage.setItem('caisse_status_banner_dismissed', 'true');
+                  } catch (_) {}
                 }}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
                 title="Masquer"
@@ -1587,7 +1623,10 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
               <button
                 onClick={() => {
                   setIsStatusBannerDismissed(true);
-                  try { sessionStorage.setItem('caisse_status_banner_dismissed', 'true'); } catch (_) {}
+                  try {
+                    localStorage.setItem('caisse_status_banner_dismissed', 'true');
+                    sessionStorage.setItem('caisse_status_banner_dismissed', 'true');
+                  } catch (_) {}
                 }}
                 className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer"
                 title="Masquer"
