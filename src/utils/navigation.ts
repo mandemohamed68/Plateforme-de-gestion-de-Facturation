@@ -459,6 +459,9 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
   const allowed = getRawViews();
   if (Array.isArray(allowed)) {
     let result = [...allowed];
+    if (!result.includes('patient_dossiers')) {
+      result.push('patient_dossiers');
+    }
     if (result.includes('partners') && !result.includes('patient_dossiers')) {
       result.push('patient_dossiers');
     }
@@ -486,6 +489,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
  * Maps any AppView to its required hospital service code (if modular).
  */
 export function getServiceIdForView(view: string): string | null {
+  if (view === 'patient_dossiers' || view === 'medecin_dossiers') return null; // Central Dossier Médical is always available across all practitioner disciplines
   if (view.startsWith('pediatrie_')) return 'pediatrie';
   if (view.startsWith('maternite_')) return 'maternite';
   if (view.startsWith('hospit_') || view === 'bed_management') return 'hospitalisation';
@@ -503,7 +507,7 @@ export function getServiceIdForView(view: string): string | null {
   ) {
     return 'caisse_facturation';
   }
-  if (view.startsWith('medecin_') || view === 'consultations' || view === 'patient_dossiers') return 'medecine_generale';
+  if (view.startsWith('medecin_') || view === 'consultations') return 'medecine_generale';
   if (view.startsWith('specialiste_')) return 'specialiste';
   if (view.startsWith('infirmier_')) return 'urgences';
   return null;
@@ -513,13 +517,14 @@ export function getServiceIdForView(view: string): string | null {
  * Checks if a specific hospital service is currently enabled in settings.
  */
 export function isServiceActive(serviceId: string, company?: CompanySettings | null): boolean {
-  if (!company) return true;
-  if (company.enabled_hospital_services && Array.isArray(company.enabled_hospital_services)) {
-    return company.enabled_hospital_services.includes(serviceId);
-  }
-  if (company.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
-    const s = company.hospital_services_config.find((item) => item.id === serviceId);
-    if (s) return Boolean(s.enabled);
+  if (company) {
+    if (company.enabled_hospital_services && Array.isArray(company.enabled_hospital_services)) {
+      return company.enabled_hospital_services.includes(serviceId);
+    }
+    if (company.hospital_services_config && Array.isArray(company.hospital_services_config) && company.hospital_services_config.length > 0) {
+      const s = company.hospital_services_config.find((item) => item.id === serviceId);
+      if (s) return Boolean(s.enabled);
+    }
   }
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -527,6 +532,14 @@ export function isServiceActive(serviceId: string, company?: CompanySettings | n
       if (local) {
         const parsed = JSON.parse(local);
         if (Array.isArray(parsed)) return parsed.includes(serviceId);
+      }
+      const localConfig = localStorage.getItem('app_hospital_services_config');
+      if (localConfig) {
+        const parsedConfig = JSON.parse(localConfig);
+        if (Array.isArray(parsedConfig)) {
+          const s = parsedConfig.find((item: any) => item.id === serviceId);
+          if (s) return Boolean(s.enabled);
+        }
       }
     } catch (e) {}
   }

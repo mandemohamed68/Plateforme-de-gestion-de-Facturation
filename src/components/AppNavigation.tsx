@@ -345,6 +345,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           children: [
             { id: 'infirmier_dashboard', label: 'Tableau de bord' },
             { id: 'infirmier_queue', label: 'Patients en attente', badge: pendingUrgencyNotifsCount },
+            { id: 'patient_dossiers', label: 'Dossiers & Antécédents' },
             { id: 'infirmier_vitals', label: 'Triage & Constantes' },
             { id: 'infirmier_prescriptions', label: 'Prescriptions Infirmières' },
             { id: 'infirmier_referred', label: 'Patients Référés / Orientés' },
@@ -361,7 +362,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'medecin_dashboard', label: 'Tableau de bord' },
             { id: 'medecin_queue', label: 'Patients en attente', badge: 3 },
             { id: 'medecin_consultations', label: 'Consultations' },
-            { id: 'medecin_dossiers', label: 'Dossiers médicaux' },
+            { id: 'patient_dossiers', label: 'Dossiers médicaux (DPI)' },
             { id: 'medecin_prescriptions', label: 'Prescriptions' },
           ]
         },
@@ -374,6 +375,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'specialiste_dashboard', label: 'Tableau de bord' },
             { id: 'specialiste_referred', label: 'Patients orientés' },
             { id: 'specialiste_consultations', label: 'Consultations' },
+            { id: 'patient_dossiers', label: 'Dossiers médicaux (DPI)' },
             { id: 'specialiste_followup', label: 'Suivi' },
             { id: 'specialiste_patients', label: 'Patients' },
             { id: 'specialiste_prescriptions', label: 'Prescriptions' },
@@ -394,6 +396,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'pediatrie_dashboard', label: 'Tableau de bord' },
             { id: 'pediatrie_queue', label: 'File d\'attente pédiatrique' },
             { id: 'pediatrie_consultations', label: 'Consultations Pédiatriques' },
+            { id: 'patient_dossiers', label: 'Dossiers Pédiatriques' },
             { id: 'pediatrie_vaccination', label: 'Vaccination & PEV' },
             { id: 'pediatrie_croissance', label: 'Courbes de Croissance OMS' },
           ]
@@ -412,6 +415,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           children: [
             { id: 'maternite_dashboard', label: 'Tableau de bord' },
             { id: 'maternite_cpn', label: 'Consultations Prénatales (CPN)' },
+            { id: 'patient_dossiers', label: 'Dossiers Obstétriques' },
             { id: 'maternite_accouchements', label: 'Registre des Accouchements' },
             { id: 'maternite_partogramme', label: 'Partogramme & Travail' },
             { id: 'maternite_postpartum', label: 'Suivi Post-Partum' },
@@ -436,6 +440,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'labo_in_progress', label: 'Examens en cours' },
             { id: 'labo_results', label: 'Résultats' },
             { id: 'labo_validation', label: 'Validation', badge: 1 },
+            { id: 'patient_dossiers', label: 'Dossiers & Antécédents LIMS' },
             { id: 'labo_catalog', label: 'Catalogue des examens' },
           ]
         },
@@ -452,6 +457,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'imagerie_completed', label: 'Examens réalisés' },
             { id: 'imagerie_reports', label: 'Comptes rendus' },
             { id: 'imagerie_validation', label: 'Validation' },
+            { id: 'patient_dossiers', label: 'Dossiers & Clichés' },
             { id: 'imagerie_prescriptions', label: 'Prescriptions d’examens' },
           ]
         },
@@ -469,12 +475,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           badge: pharmacyBadgeTotal,
           children: [
             { id: 'pharmacy_dispensing', label: '1. Ordonnances & Dispensation', badge: pendingPharmNotifsCount },
-            { id: 'pharmacy_stock', label: '2. Stock & Catalogue Médicaments', badge: 2 },
-            { id: 'pharmacy_orders', label: '3. Commandes & Réquisitions', badge: 1 },
-            { id: 'pharmacy_expired', label: '4. Périmés & Alertes', badge: 1 },
-            { id: 'pharmacy_narcotics', label: '5. Registre des Stupéfiants' },
-            { id: 'pharmacy_sales', label: '6. Ventes Directes Comptoir' },
-            { id: 'pharmacy_settings', label: '7. Configuration Admin' },
+            { id: 'patient_dossiers', label: '2. Dossiers & Historique Médicaments' },
+            { id: 'pharmacy_stock', label: '3. Stock & Catalogue Médicaments', badge: 2 },
+            { id: 'pharmacy_orders', label: '4. Commandes & Réquisitions', badge: 1 },
+            { id: 'pharmacy_expired', label: '5. Périmés & Alertes', badge: 1 },
+            { id: 'pharmacy_narcotics', label: '6. Registre des Stupéfiants' },
+            { id: 'pharmacy_sales', label: '7. Ventes Directes Comptoir' },
+            { id: 'pharmacy_settings', label: '8. Configuration Admin' },
           ]
         }
       ]
@@ -487,6 +494,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
         { id: 'hospit_dashboard', label: 'Tableau de bord', icon: BarChart3, description: 'Synthèse d\'hospitalisation' },
         { id: 'hospit_admissions', label: 'Admissions', icon: Users, description: 'Entrées d\'hospitalisation' },
         { id: 'hospit_patients', label: 'Patients hospitalisés', icon: Users, description: 'Liste des patients alités' },
+        { id: 'patient_dossiers', label: 'Dossiers Médicaux Hospitalisés', icon: FolderOpen, description: 'Dossiers cliniques des patients' },
         { id: 'hospit_beds', label: 'Gestion des lits', icon: Bed, description: 'Attribution & état des lits' },
         { id: 'hospit_transfers', label: 'Transferts de patients', icon: ArrowLeftRight, description: 'Mouvements & transferts de lits' },
         { id: 'hospit_monitoring', label: 'Suivi des séjours', icon: Activity, description: 'Dossiers & soins d\'hospitalisation' },

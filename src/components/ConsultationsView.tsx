@@ -51,7 +51,7 @@ import { formatDateDDMMYYYY } from '../utils/dateUtils';
 interface ConsultationsViewProps {
   company: CompanySettings;
   partners: ResPartner[];
-  products: ProductTemplate[];
+  products: any[];
   currentUser: ResUser | null;
   initialConsultation?: MedicalConsultation | null;
   onSelectConsultation?: (consultation: MedicalConsultation | null) => void;

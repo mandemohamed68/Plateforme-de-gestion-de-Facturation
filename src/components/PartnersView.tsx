@@ -277,8 +277,8 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
       return true;
     })
     .sort((a, b) => {
-      const dateA = a.create_date ? new Date(a.create_date).getTime() : 0;
-      const dateB = b.create_date ? new Date(b.create_date).getTime() : 0;
+      const dateA = a.created_at || (a as any).create_date ? new Date(a.created_at || (a as any).create_date).getTime() : 0;
+      const dateB = b.created_at || (b as any).create_date ? new Date(b.created_at || (b as any).create_date).getTime() : 0;
       if (dateB !== dateA) return dateB - dateA;
       return (b.id || 0) - (a.id || 0);
     });

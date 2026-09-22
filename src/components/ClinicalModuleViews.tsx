@@ -481,9 +481,9 @@ export const InfirmierVitalsTableView: React.FC<ClinicalViewProps> = ({
                   const v = c.vitals;
                   const isRecorded = Boolean(v && (v.bp_systolic || v.heart_rate || v.temperature || v.taken_at));
 
-                  const highBp = v?.bp_systolic && parseInt(v.bp_systolic) >= 140;
-                  const highFever = v?.temperature && parseFloat(v.temperature) >= 38.5;
-                  const lowSpo2 = v?.spo2 && parseInt(v.spo2) < 94;
+                  const highBp = v?.bp_systolic && Number(v.bp_systolic) >= 140;
+                  const highFever = v?.temperature && Number(v.temperature) >= 38.5;
+                  const lowSpo2 = v?.spo2 && Number(v.spo2) < 94;
 
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition">

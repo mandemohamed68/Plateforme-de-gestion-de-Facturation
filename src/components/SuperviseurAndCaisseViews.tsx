@@ -588,10 +588,10 @@ export const SuperviseurReportsView: React.FC<BillingViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {[
-                  { mode: 'Espèces (Cash)', count: payments.filter(p => !p.payment_method_line_id || p.payment_method_line_id === 'cash').length, amount: payments.filter(p => !p.payment_method_line_id || p.payment_method_line_id === 'cash').reduce((sum, p) => sum + (p.amount || 0), 0) },
-                  { mode: 'Wave Mobile Money', count: payments.filter(p => p.payment_method_line_id === 'wave').length, amount: payments.filter(p => p.payment_method_line_id === 'wave').reduce((sum, p) => sum + (p.amount || 0), 0) },
-                  { mode: 'Orange Money', count: payments.filter(p => p.payment_method_line_id === 'orange_money').length, amount: payments.filter(p => p.payment_method_line_id === 'orange_money').reduce((sum, p) => sum + (p.amount || 0), 0) },
-                  { mode: 'Carte Bancaire / TPE', count: payments.filter(p => p.payment_method_line_id === 'card').length, amount: payments.filter(p => p.payment_method_line_id === 'card').reduce((sum, p) => sum + (p.amount || 0), 0) },
+                  { mode: 'Espèces (Cash)', count: payments.filter(p => !p.payment_method_line_id || String(p.payment_method_line_id) === 'cash' || p.payment_method_code === 'cash').length, amount: payments.filter(p => !p.payment_method_line_id || String(p.payment_method_line_id) === 'cash' || p.payment_method_code === 'cash').reduce((sum, p) => sum + (p.amount || 0), 0) },
+                  { mode: 'Wave Mobile Money', count: payments.filter(p => String(p.payment_method_line_id) === 'wave' || p.payment_method_code === 'wave').length, amount: payments.filter(p => String(p.payment_method_line_id) === 'wave' || p.payment_method_code === 'wave').reduce((sum, p) => sum + (p.amount || 0), 0) },
+                  { mode: 'Orange Money', count: payments.filter(p => String(p.payment_method_line_id) === 'orange_money' || p.payment_method_code === 'orange_money').length, amount: payments.filter(p => String(p.payment_method_line_id) === 'orange_money' || p.payment_method_code === 'orange_money').reduce((sum, p) => sum + (p.amount || 0), 0) },
+                  { mode: 'Carte Bancaire / TPE', count: payments.filter(p => String(p.payment_method_line_id) === 'card' || p.payment_method_code === 'card').length, amount: payments.filter(p => String(p.payment_method_line_id) === 'card' || p.payment_method_code === 'card').reduce((sum, p) => sum + (p.amount || 0), 0) },
                 ].map((row, idx) => {
                   const percentage = totalCollected > 0 ? Math.round((row.amount / totalCollected) * 100) : 0;
                   return (

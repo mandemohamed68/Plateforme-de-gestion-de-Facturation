@@ -211,11 +211,12 @@ export interface CompanySettings {
 export interface PatientFieldConfig {
   id: string; // e.g. 'last_name', 'first_name', 'gender', 'birth_date', 'phone', 'contact_person_name', 'blood_group', 'allergies', etc.
   label: string;
-  category: 'identity' | 'contact' | 'emergency' | 'clinical' | 'administrative';
+  category: 'identity' | 'contact' | 'emergency' | 'clinical' | 'administrative' | 'medical';
   category_label: string;
   status: 'mandatory' | 'optional' | 'hidden'; // 'mandatory' (Obligatoire), 'optional' (Optionnel), 'hidden' (Masqué)
   description?: string;
   is_core?: boolean; // Cannot be hidden if core
+  requirement?: string;
 }
 
 export interface HospitalConsultationType {
@@ -223,22 +224,23 @@ export interface HospitalConsultationType {
   code: string;
   name: string;
   pole: 'generaliste' | 'pediatrie' | 'maternite' | 'specialiste' | 'infirmier' | 'urgences';
-  pole_name: string;
+  pole_name?: string;
   price: number;
   description?: string;
   duration_minutes?: number;
   active: boolean;
   is_custom?: boolean;
+  pole_label?: string;
 }
 
 export interface EnterpriseConvention {
   id: string;
-  code: string; // ex: CONV-SIR-2026, CONV-AXA-80
-  name: string; // ex: Société Ivoirienne de Raffinage (SIR), SUNU Assurances
-  type: 'enterprise' | 'insurance' | 'mutuelle' | 'ipm';
-  type_label: string;
+  code?: string; // ex: CONV-SIR-2026, CONV-AXA-80
+  name?: string; // ex: Société Ivoirienne de Raffinage (SIR), SUNU Assurances
+  type: 'enterprise' | 'insurance' | 'mutuelle' | 'ipm' | 'mutual';
+  type_label?: string;
   default_coverage_rate: number; // e.g. 80
-  allowed_rates: number[]; // [30, 50, 70, 75, 80, 100]
+  allowed_rates?: number[]; // [30, 50, 70, 75, 80, 100]
   contact_person?: string;
   contact_phone?: string;
   contact_email?: string;
@@ -246,6 +248,15 @@ export interface EnterpriseConvention {
   city?: string;
   notes?: string;
   active: boolean;
+  sector?: string;
+  partner_id?: number | null;
+  partner_name?: string;
+  convention_code?: string;
+  matricule_label?: string;
+  phone?: string;
+  email?: string;
+  supported_rates?: number[];
+  requires_matricule?: boolean;
 }
 
 export interface BordereauLineItem {
@@ -354,6 +365,8 @@ export interface ResPartner {
   country_name?: string;
   total_invoiced?: number;
   total_residual?: number;
+  code?: string | null;
+  ref?: string | null;
 }
 
 export interface UomUom {
@@ -485,6 +498,11 @@ export interface AccountMove {
   currency?: ResCurrency;
   lines?: AccountMoveLine[];
   payments?: AccountPayment[];
+  patient_ndm?: string | null;
+  create_date?: string;
+  invoice_line_ids?: any[];
+  partner_name?: string;
+  payment_method?: string;
 }
 
 export interface AccountMoveLine {
@@ -536,6 +554,8 @@ export interface AccountPayment {
   partner_type?: string;
   date?: string;
   payment_method_line_id?: number;
+  ndm_number?: string | null;
+  payment_method_name?: string | null;
 }
 
 export interface ResCurrency {
@@ -583,7 +603,7 @@ export interface AnalyticsSummary {
 
 export type AnalyticsData = AnalyticsSummary;
 
-export type LabResultStatus = 'pending_sampling' | 'in_progress' | 'results_entered' | 'validated' | 'rejected' | 'accepted' | 'saisi' | 'valide_tech' | 'valide_biologiste' | 'envoye';
+export type LabResultStatus = 'pending_sampling' | 'in_progress' | 'results_entered' | 'validated' | 'rejected' | 'accepted' | 'saisi' | 'valide_tech' | 'valide_biologiste' | 'envoye' | 'draft' | 'pending_validation' | 'done';
 
 export interface LabParameterResult {
   id: string;
@@ -647,9 +667,14 @@ export interface LabExamOrder {
   envoye_portail?: boolean;
   date_envoi?: string;
   destinataires?: string;
+  order_date?: string;
+  barcode?: string;
+  state?: string;
+  priority?: string;
+  exam_name?: string;
 }
 
-export type TillSessionState = 'new' | 'in_progress' | 'closed';
+export type TillSessionState = 'new' | 'in_progress' | 'closed' | 'opened';
 
 export interface TillSessionTransaction {
   id: number;
@@ -698,6 +723,17 @@ export interface TillSession {
   updated_at: string;
   transactions: TillSessionTransaction[];
   activity_logs?: TillSessionActivityLog[];
+  cashbox_start?: number;
+  total_payments?: number;
+  cashbox_end?: number;
+  name?: string;
+  user_id?: number;
+  start_at?: string;
+  opened_at?: string;
+  total_wave_collected?: number;
+  total_om_collected?: number;
+  create_date?: string;
+  billetage?: Record<string | number, number>;
 }
 
 export interface WorkflowLogEntry {
@@ -931,6 +967,9 @@ export interface MedicalVitals {
   nurse_name?: string | null; // alias
   taken_at?: string | null;
   recorded_at?: string | null; // alias
+  pulse?: number | null; // alias for heart_rate
+  glycemia?: number | null; // alias for blood_sugar
+  blood_pressure?: string | null;
 }
 
 export interface PrescribedItem {
@@ -965,7 +1004,7 @@ export interface MedicalConsultation {
   doctor_name: string;
   specialty?: string | null; // ex: "Médecine Générale", "Pédiatrie", "Cardiologie"
   consultation_date: string; // ISO String
-  status: 'pending_payment' | 'triage' | 'waiting' | 'in_consultation' | 'completed' | 'cancelled' | 'referred' | 'transferred';
+  status: 'pending_payment' | 'triage' | 'waiting' | 'in_consultation' | 'completed' | 'cancelled' | 'referred' | 'transferred' | 'done';
   chief_complaint: string; // Motif de consultation
   history_of_present_illness?: string | null; // Anamnèse / Histoire de la maladie
   medical_history?: string | null; // Antécédents
@@ -1012,6 +1051,15 @@ export interface MedicalConsultation {
   reliquat_reason?: string | null;
   patient_choice?: 'internal' | 'external';
   referred_to_doctor?: boolean;
+  patient?: ResPartner;
+  consultation_type?: string;
+  date?: string;
+  state?: string;
+  notes?: string;
+  reason?: string;
+  orientation?: string;
+  care_records?: any[];
+  prescriptions?: any[];
 }
 
 // ============================================================
@@ -1059,6 +1107,12 @@ export interface HospitalScenario {
     reference?: string;
     details?: string;
   };
+  categorie?: string;
+  description?: string;
+  etape?: string;
+  resultatAttendu?: string;
+  donneesEntree?: string;
+  actions?: string[];
 }
 
 export interface JournalEntry {

@@ -193,7 +193,7 @@ export default function App() {
       targetRole: 'Médecin',
       patientName: 'Mme YAO Amoin',
       patientNdm: 'NDM-1554',
-      actionView: 'urgences_tableau',
+      actionView: 'infirmier_queue',
     },
     {
       id: 'notif-2',
@@ -2101,7 +2101,9 @@ export default function App() {
               <PartnersView
                 partners={partners}
                 countries={countries}
-                onSavePartner={handleSavePartner}
+                onSavePartner={async (partnerData) => {
+                  await handleSavePartner(partnerData);
+                }}
                 onDeletePartner={handleDeletePartner}
                 partnerReductions={partnerReductions}
                 onSaveReduction={handleSavePartnerReduction}
@@ -2144,6 +2146,7 @@ export default function App() {
                 labOrders={labOrders}
                 company={company}
                 onOpenPdf={(m) => setPdfMove(m)}
+                onNavigateToView={(v) => setCurrentView(v)}
               />
             )}
 

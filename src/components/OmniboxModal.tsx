@@ -187,7 +187,7 @@ export const OmniboxModal: React.FC<OmniboxModalProps> = ({
     const matchedMoves = moves
       .filter((m) => {
         const nameMatch = (m.name || '').toLowerCase().includes(trimmed);
-        const partnerMatch = (m.partner_name || m.partner?.name || '').toLowerCase().includes(trimmed);
+        const partnerMatch = ((m as any).partner_name || m.partner?.name || '').toLowerCase().includes(trimmed);
         return nameMatch || partnerMatch;
       })
       .slice(0, 5)
@@ -195,7 +195,7 @@ export const OmniboxModal: React.FC<OmniboxModalProps> = ({
         id: `m-${m.id}`,
         type: 'move' as const,
         title: `Facture ${m.name || `#${m.id}`}`,
-        subtitle: `${m.partner_name || m.partner?.name || 'Client'} • ${formatFCFA(m.amount_total || 0)} (${m.payment_state === 'paid' ? 'Payée' : 'Non soldée'})`,
+        subtitle: `${(m as any).partner_name || m.partner?.name || 'Client'} • ${formatFCFA(m.amount_total || 0)} (${m.payment_state === 'paid' ? 'Payée' : 'Non soldée'})`,
         icon: FileText,
         category: 'Factures & Reçus',
         data: m,

@@ -48,6 +48,8 @@ interface ModuleDashboardProps {
   payments: AccountPayment[];
   tillSessions: TillSession[];
   labOrders: LabExamOrder[];
+  users?: ResUser[];
+  analytics?: any;
   company?: CompanySettings;
   currentUser: ResUser | null;
   onNavigateToView: (view: AppView) => void;
@@ -702,7 +704,7 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
                         {order.barcode || `LAB-${order.id}`}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900">{order.patient_name || partner?.name || 'Patient'}</div>
+                        <div className="font-bold text-slate-900">{order.partner_name || (order as any).patient_name || partner?.name || 'Patient'}</div>
                         <div className="text-[11px] text-slate-500 font-mono">{partner?.ndm || '--'}</div>
                       </td>
                       <td className="py-3 px-4 text-slate-700 font-medium">

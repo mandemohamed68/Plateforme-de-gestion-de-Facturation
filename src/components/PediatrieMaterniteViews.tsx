@@ -55,15 +55,16 @@ import {
 import { printElement } from '../lib/printUtils';
 
 interface ModuleProps {
-  currentView: AppView;
+  currentView?: AppView;
   company: CompanySettings;
   currentUser: ResUser | null;
   partners: ResPartner[];
-  consultations: MedicalConsultation[];
+  consultations?: MedicalConsultation[];
   moves?: AccountMove[];
   onNavigateToView: (view: AppView) => void;
   onRefreshData?: () => Promise<void>;
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
+  onCreateInvoice?: (partnerId: number, items: any[], note?: string) => Promise<void>;
 }
 
 // -------------------------------------------------------------
