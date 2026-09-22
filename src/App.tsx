@@ -1654,7 +1654,35 @@ export default function App() {
               transition={{ duration: 0.18, ease: 'easeOut' }}
               className="w-full"
             >
-            {currentView === 'infirmier_dashboard' && (
+            {!isViewServiceActive(currentView, company) ? (
+              <div className="flex flex-col items-center justify-center min-h-[55vh] text-center p-8 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-sm max-w-xl mx-auto my-8">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mb-4 ring-8 ring-amber-50/50">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                  Module Hospitalier Temporairement Désactivé
+                </h2>
+                <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm leading-relaxed">
+                  Ce service a été désactivé dans la configuration de l'établissement. Vous pouvez le réactiver à tout moment depuis le menu d'administration des modules.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => setCurrentView('dashboard')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm"
+                  >
+                    Tableau de bord général
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('admin_services')}
+                    className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-sm font-semibold transition-all"
+                  >
+                    Gérer les modules (Admin)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {currentView === 'infirmier_dashboard' && (
               <InfirmierDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -2766,34 +2794,7 @@ export default function App() {
                 onShowToast={showToast}
               />
             )}
-
-            {/* Disabled Service Fallback View */}
-            {!isViewServiceActive(currentView, company) && (
-              <div className="flex flex-col items-center justify-center min-h-[55vh] text-center p-8 bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-sm max-w-xl mx-auto my-8">
-                <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mb-4 ring-8 ring-amber-50/50">
-                  <AlertTriangle className="w-8 h-8" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
-                  Module Hospitalier Temporairement Désactivé
-                </h2>
-                <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm leading-relaxed">
-                  Ce service a été désactivé dans la configuration de l'établissement. Vous pouvez le réactiver à tout moment depuis le menu d'administration des modules.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    onClick={() => setCurrentView('dashboard')}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm"
-                  >
-                    Tableau de bord général
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('admin_services')}
-                    className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-sm font-semibold transition-all"
-                  >
-                    Gérer les modules (Admin)
-                  </button>
-                </div>
-              </div>
+              </>
             )}
             </motion.div>
           </AnimatePresence>
