@@ -103,6 +103,7 @@ import {
 } from './components/PediatrieMaterniteViews';
 import { FlashInfoTicker } from './components/FlashInfoTicker';
 import { FlashAnnouncementsView, DEFAULT_FLASH_ANNOUNCEMENTS } from './components/FlashAnnouncementsView';
+import { SplashLoadingScreen } from './components/SplashLoadingScreen';
 import {
   AppointmentsView,
   BedManagementView,
@@ -550,6 +551,7 @@ export default function App() {
 
   // Loading & Real-time Spaced Toast Queue System (1s delay between notifications, max 2 visible, deduplicated)
   const [isLoading, setIsLoading] = useState(true);
+  const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [toasts, setToasts] = useState<
     Array<{
       id: string;
@@ -1551,6 +1553,19 @@ export default function App() {
     }
     showToast(`Bienvenue, ${user.name} !`);
   };
+
+  if (isSplashVisible) {
+    return (
+      <SplashLoadingScreen
+        companyName={company.name || 'SAP PAY'}
+        watermarkText={company.watermark_text || "Système d'Information Hospitalier & Financier"}
+        primaryColor={company.primary_color || '#0f172a'}
+        logoUrl={company.logo_url}
+        isDataReady={!isLoading}
+        onFinished={() => setIsSplashVisible(false)}
+      />
+    );
+  }
 
   if (!isAuthenticated) {
     return (
