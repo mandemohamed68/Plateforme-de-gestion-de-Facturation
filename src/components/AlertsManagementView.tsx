@@ -39,7 +39,6 @@ export interface AlertCategorySetting {
   id: 'urgency' | 'lab' | 'pharmacy' | 'caisse' | 'supervisor' | 'sms_whatsapp';
   label: string;
   description: string;
-  icon: React.ElementType;
   enabled: boolean;
   soundEnabled: boolean;
   popupBanner: boolean;
@@ -49,6 +48,95 @@ export interface AlertCategorySetting {
   allowedRoles: string[];
 }
 
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  urgency: AlertTriangle,
+  lab: FlaskConical,
+  pharmacy: Pill,
+  caisse: CreditCard,
+  supervisor: ShieldCheck,
+  sms_whatsapp: MessageSquare,
+};
+
+export const getAlertCategoryIcon = (catId: string): React.ElementType => {
+  return CATEGORY_ICONS[catId] || Bell;
+};
+
+// Default Categories configuration
+const defaultCategories: AlertCategorySetting[] = [
+  {
+    id: 'urgency',
+    label: '🚨 Urgences Vitales & CCMU 1-2',
+    description: 'Alertes rouges prioritaires pour admissions choc, décompensation respiratoire, arrêts cardio.',
+    enabled: true,
+    soundEnabled: true,
+    popupBanner: true,
+    badgeCounter: true,
+    color: 'rose',
+    badgeStyle: 'bg-rose-100 text-rose-800 border-rose-300',
+    allowedRoles: ['Super Admin', 'Médecin', 'Infirmier', 'Superviseur'],
+  },
+  {
+    id: 'lab',
+    label: '🧪 Laboratoire & Valeurs Paniques (LIMS)',
+    description: 'Examens biologiste validés, valeurs critiques (Hémoglobine < 6, Troponine élevée, BKM+).',
+    enabled: true,
+    soundEnabled: true,
+    popupBanner: true,
+    badgeCounter: true,
+    color: 'sky',
+    badgeStyle: 'bg-sky-100 text-sky-800 border-sky-300',
+    allowedRoles: ['Super Admin', 'Médecin', 'Infirmier', 'Biologiste', 'Superviseur'],
+  },
+  {
+    id: 'pharmacy',
+    label: '💊 Pharmacie, Ordonnances & Stocks',
+    description: 'Dispensation d’ordonnance en attente, alertes péremption et ruptures de stock d’urgence.',
+    enabled: true,
+    soundEnabled: true,
+    popupBanner: false,
+    badgeCounter: true,
+    color: 'amber',
+    badgeStyle: 'bg-amber-100 text-amber-800 border-amber-300',
+    allowedRoles: ['Super Admin', 'Médecin', 'Pharmacien', 'Superviseur'],
+  },
+  {
+    id: 'caisse',
+    label: '💳 Caisse, Solvabilité & Avances',
+    description: 'Prise en charge assurance refusée, annulation de reçu, écart de fond de caisse.',
+    enabled: true,
+    soundEnabled: true,
+    popupBanner: false,
+    badgeCounter: true,
+    color: 'emerald',
+    badgeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    allowedRoles: ['Super Admin', 'Caissier', 'Superviseur', 'Réceptionniste'],
+  },
+  {
+    id: 'supervisor',
+    label: '📑 Supervision & Mouvements Inter-Services',
+    description: 'Transferts de patients, réouvertures de session de caisse, audits de sécurité.',
+    enabled: true,
+    soundEnabled: false,
+    popupBanner: false,
+    badgeCounter: true,
+    color: 'indigo',
+    badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    allowedRoles: ['Super Admin', 'Superviseur'],
+  },
+  {
+    id: 'sms_whatsapp',
+    label: '📲 Gateway SMS / WhatsApp Patient',
+    description: 'Envois automatiques de confirmations de rdv, rappels CPN/Vaccin, avis de prêt de bilans.',
+    enabled: true,
+    soundEnabled: false,
+    popupBanner: false,
+    badgeCounter: false,
+    color: 'teal',
+    badgeStyle: 'bg-teal-100 text-teal-800 border-teal-300',
+    allowedRoles: ['Super Admin', 'Médecin', 'Réceptionniste', 'Superviseur'],
+  },
+];
+
 export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
   currentUser,
   onShowToast,
@@ -57,7 +145,6 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
   const [activeTab, setActiveTab] = useState<'categories' | 'audio' | 'permissions' | 'simulation'>('categories');
   const [globalSoundEnabled, setGlobalSoundEnabled] = useState(true);
   const [volumeLevel, setVolumeLevel] = useState(80);
-  const [autoDismissSeconds, setAutoDismissSeconds] = useState(8);
   const [allowCrossModulePreview, setAllowCrossModulePreview] = useState(true);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
   const [quietHoursStart, setQuietHoursStart] = useState('22:00');
@@ -75,105 +162,44 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
     'Superviseur'
   ];
 
-  // Default Categories configuration
-  const initialCategories: AlertCategorySetting[] = [
-    {
-      id: 'urgency',
-      label: '🚨 Urgences Vitales & CCMU 1-2',
-      description: 'Alertes rouges prioritaires pour admissions choc, décompensation respiratoire, arrêts cardio.',
-      icon: AlertTriangle,
-      enabled: true,
-      soundEnabled: true,
-      popupBanner: true,
-      badgeCounter: true,
-      color: 'rose',
-      badgeStyle: 'bg-rose-100 text-rose-800 border-rose-300',
-      allowedRoles: ['Super Admin', 'Médecin', 'Infirmier', 'Superviseur'],
-    },
-    {
-      id: 'lab',
-      label: '🧪 Laboratoire & Valeurs Paniques (LIMS)',
-      description: 'Examens biologiste validés, valeurs critiques (Hémoglobine < 6, Troponine élevée, BKM+).',
-      icon: FlaskConical,
-      enabled: true,
-      soundEnabled: true,
-      popupBanner: true,
-      badgeCounter: true,
-      color: 'sky',
-      badgeStyle: 'bg-sky-100 text-sky-800 border-sky-300',
-      allowedRoles: ['Super Admin', 'Médecin', 'Infirmier', 'Biologiste', 'Superviseur'],
-    },
-    {
-      id: 'pharmacy',
-      label: '💊 Pharmacie, Ordonnances & Stocks',
-      description: 'Dispensation d’ordonnance en attente, alertes péremption et ruptures de stock d’urgence.',
-      icon: Pill,
-      enabled: true,
-      soundEnabled: true,
-      popupBanner: false,
-      badgeCounter: true,
-      color: 'amber',
-      badgeStyle: 'bg-amber-100 text-amber-800 border-amber-300',
-      allowedRoles: ['Super Admin', 'Médecin', 'Pharmacien', 'Superviseur'],
-    },
-    {
-      id: 'caisse',
-      label: '💳 Caisse, Solvabilité & Avances',
-      description: 'Prise en charge assurance refusée, annulation de reçu, écart de fond de caisse.',
-      icon: CreditCard,
-      enabled: true,
-      soundEnabled: true,
-      popupBanner: false,
-      badgeCounter: true,
-      color: 'emerald',
-      badgeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-      allowedRoles: ['Super Admin', 'Caissier', 'Superviseur', 'Réceptionniste'],
-    },
-    {
-      id: 'supervisor',
-      label: '📑 Supervision & Mouvements Inter-Services',
-      description: 'Transferts de patients, réouvertures de session de caisse, audits de sécurité.',
-      icon: ShieldCheck,
-      enabled: true,
-      soundEnabled: false,
-      popupBanner: false,
-      badgeCounter: true,
-      color: 'indigo',
-      badgeStyle: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-      allowedRoles: ['Super Admin', 'Superviseur'],
-    },
-    {
-      id: 'sms_whatsapp',
-      label: '📲 Gateway SMS / WhatsApp Patient',
-      description: 'Envois automatiques de confirmations de rdv, rappels CPN/Vaccin, avis de prêt de bilans.',
-      icon: MessageSquare,
-      enabled: true,
-      soundEnabled: false,
-      popupBanner: false,
-      badgeCounter: false,
-      color: 'teal',
-      badgeStyle: 'bg-teal-100 text-teal-800 border-teal-300',
-      allowedRoles: ['Super Admin', 'Médecin', 'Réceptionniste', 'Superviseur'],
-    },
-  ];
-
   const [categories, setCategories] = useState<AlertCategorySetting[]>(() => {
-    const saved = localStorage.getItem('app_alert_categories_config');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse alert config:', e);
+    try {
+      const saved = localStorage.getItem('app_alert_categories_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge safely with defaultCategories to preserve any updated structure
+          return defaultCategories.map(defaultCat => {
+            const found = parsed.find((p: any) => p.id === defaultCat.id);
+            if (found) {
+              return {
+                ...defaultCat,
+                enabled: typeof found.enabled === 'boolean' ? found.enabled : defaultCat.enabled,
+                soundEnabled: typeof found.soundEnabled === 'boolean' ? found.soundEnabled : defaultCat.soundEnabled,
+                popupBanner: typeof found.popupBanner === 'boolean' ? found.popupBanner : defaultCat.popupBanner,
+                badgeCounter: typeof found.badgeCounter === 'boolean' ? found.badgeCounter : defaultCat.badgeCounter,
+                allowedRoles: Array.isArray(found.allowedRoles) ? found.allowedRoles : defaultCat.allowedRoles,
+              };
+            }
+            return defaultCat;
+          });
+        }
       }
+    } catch (e) {
+      console.error('Failed to parse alert config:', e);
     }
-    return initialCategories;
+    return defaultCategories;
   });
 
   // Save settings when changed
   useEffect(() => {
-    localStorage.setItem('app_alert_categories_config', JSON.stringify(categories));
-    localStorage.setItem('app_alert_global_sound', JSON.stringify(globalSoundEnabled));
-    localStorage.setItem('app_alert_cross_module_preview', JSON.stringify(allowCrossModulePreview));
+    try {
+      localStorage.setItem('app_alert_categories_config', JSON.stringify(categories));
+      localStorage.setItem('app_alert_global_sound', JSON.stringify(globalSoundEnabled));
+      localStorage.setItem('app_alert_cross_module_preview', JSON.stringify(allowCrossModulePreview));
+    } catch (e) {
+      console.error('LocalStorage write error:', e);
+    }
   }, [categories, globalSoundEnabled, allowCrossModulePreview]);
 
   const toggleCategory = (id: string) => {
@@ -208,7 +234,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
   };
 
   const handleResetDefaults = () => {
-    setCategories(initialCategories);
+    setCategories(defaultCategories);
     setGlobalSoundEnabled(true);
     setAllowCrossModulePreview(true);
     localStorage.removeItem('app_alert_categories_config');
@@ -216,18 +242,22 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
   };
 
   const handleSaveConfig = () => {
-    localStorage.setItem('app_alert_categories_config', JSON.stringify(categories));
-    onShowToast('✅ Configuration des alertes et notifications enregistrée avec succès !', 'success');
+    try {
+      localStorage.setItem('app_alert_categories_config', JSON.stringify(categories));
+      onShowToast('Configuration des alertes et notifications enregistrée avec succès !', 'success');
+    } catch (e) {
+      onShowToast('Erreur lors de la sauvegarde locale.', 'error');
+    }
   };
 
   const handleTestChimeSound = () => {
     playChimeNotification();
-    onShowToast('🔊 Test Carillon Doux effectué (Web Audio Synthesizer).', 'info');
+    onShowToast('Test Carillon Doux effectué (Web Audio Synthesizer).', 'info');
   };
 
   const handleTestEmergencySound = () => {
     playEmergencyAlarmSound();
-    onShowToast('🚨 Test Alarme Urgence Vitale effectué (Double Bip Haute Fréquence).', 'warning');
+    onShowToast('Test Alarme Urgence Vitale effectué (Double Bip Haute Fréquence).', 'warning');
   };
 
   const triggerTestNotif = (type: 'urgency' | 'lab' | 'pharmacy' | 'caisse') => {
@@ -280,7 +310,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
         }
       }
     } else {
-      onShowToast('Action de test simulee avec succes.', 'info');
+      onShowToast('Action de test simulée avec succès.', 'info');
     }
   };
 
@@ -296,7 +326,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
             </div>
             <h1 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
               <Bell className="w-6 h-6 text-indigo-600" />
-              Gestion des Alertes & Notifications Inter-Services
+              Gestion des Alertes &amp; Notifications Inter-Services
             </h1>
             <p className="text-slate-600 text-xs md:text-sm max-w-2xl leading-relaxed font-medium">
               Pilotez l'activation des canaux d'alerte (Urgences, LIMS, Pharmacie, Caisse), réglez les synthétiseurs sonores, définissez la matrice des permissions par profil et prévisualisez les notifications en direct.
@@ -387,7 +417,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
           }`}
         >
           <Volume2 className="w-4 h-4" />
-          <span>2. Alarmes & Audio</span>
+          <span>2. Alarmes &amp; Audio</span>
         </button>
 
         <button
@@ -411,7 +441,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
           }`}
         >
           <Play className="w-4 h-4 text-emerald-500" />
-          <span>4. Test & Simulation en Direct</span>
+          <span>4. Test &amp; Simulation en Direct</span>
         </button>
       </div>
 
@@ -444,7 +474,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {categories.map(cat => {
-              const Icon = cat.icon;
+              const Icon = getAlertCategoryIcon(cat.id);
               return (
                 <div
                   key={cat.id}
@@ -508,7 +538,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
                         />
                         <span className="font-semibold text-slate-700 text-[11px] flex items-center gap-1">
                           <Radio className="w-3.5 h-3.5 text-slate-500" />
-                          Pop-up Banniere
+                          Pop-up Bannière
                         </span>
                       </label>
                     </div>
@@ -527,7 +557,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
             <div>
               <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
                 <Volume2 className="w-5 h-5 text-indigo-600" />
-                Réglages du Synthétiseur Sonore & Alarmes
+                Réglages du Synthétiseur Sonore &amp; Alarmes
               </h3>
               <p className="text-xs text-slate-500 mt-1">
                 Ajustez le volume global et effectuez des essais acoustiques en direct pour les cas d'urgence vitale.
@@ -596,7 +626,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
           <div className="pt-4 border-t border-slate-100 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-bold text-xs text-slate-900">Mode Nuit & Plage de Silence (Quiet Hours)</h4>
+                <h4 className="font-bold text-xs text-slate-900">Mode Nuit &amp; Plage de Silence (Quiet Hours)</h4>
                 <p className="text-[11px] text-slate-500">
                   Atténue les bips secondaires (Pharmacie, Caisse) la nuit, tout en conservant les alertes urgences vitales.
                 </p>
@@ -664,7 +694,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
               </div>
               <div>
                 <h4 className="font-bold text-xs text-emerald-950">
-                  Mode Redirection Intelligent & Aperçu Sécurisé Inter-Services
+                  Mode Redirection Intelligent &amp; Aperçu Sécurisé Inter-Services
                 </h4>
                 <p className="text-[11px] text-emerald-800">
                   Si un utilisateur clique sur une notification hors de ses modules habituels, lui afficher un aperçu sécurisé au lieu de bloquer brutalement avec "Accès non autorisé".
@@ -699,7 +729,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
                 {categories.map(cat => {
-                  const Icon = cat.icon;
+                  const Icon = getAlertCategoryIcon(cat.id);
                   return (
                     <tr key={cat.id} className="hover:bg-slate-50 transition">
                       <td className="p-3.5 flex items-center gap-2">
@@ -735,7 +765,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
           <div>
             <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
               <Play className="w-5 h-5 text-emerald-600" />
-              Simulateur & Générateur d'Alertes en Direct
+              Simulateur &amp; Générateur d'Alertes en Direct
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               Injectez immédiatement une fausse notification dans la cloche du haut pour tester le comportement en condition réelle.
@@ -828,3 +858,4 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
     </div>
   );
 };
+
