@@ -736,6 +736,16 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             const isCategoryExpanded = expandedMenus[cat.title];
             const CategoryIcon = cat.icon;
 
+            const renderSafeIcon = (IconInput: any, iconClasses: string) => {
+              if (!IconInput) return null;
+              if (React.isValidElement(IconInput)) return IconInput;
+              if (typeof IconInput === 'function') {
+                const Comp = IconInput;
+                return <Comp className={iconClasses} />;
+              }
+              return null;
+            };
+
             return (
               <div key={`cat-${cat.title}-${idx}`} className="space-y-1">
                 <button
@@ -744,7 +754,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-colors hover:bg-black/5 group`}
                 >
                   <div className="flex items-center space-x-2">
-                    <CategoryIcon className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100" />
+                    {renderSafeIcon(CategoryIcon, "w-3.5 h-3.5 opacity-70 group-hover:opacity-100")}
                     <span>{cat.title}</span>
                   </div>
                   <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isCategoryExpanded ? 'rotate-180' : ''}`} />
@@ -808,7 +818,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                             }`}
                           >
                             <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-                              {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? '' : 'opacity-70 group-hover:opacity-100'}`} />}
+                              {renderSafeIcon(Icon, `w-3.5 h-3.5 shrink-0 ${isActive ? '' : 'opacity-70 group-hover:opacity-100'}`)}
                               <span className="truncate">{item.label}</span>
                             </div>
                             {hasChildren ? (
