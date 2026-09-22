@@ -952,7 +952,7 @@ export default function App() {
   };
 
   const handlePayInvoice = (move: AccountMove) => {
-    if (!hasActiveSession && isCashierProfile) {
+    if (!hasActiveSession) {
       setForceOpenSessionModal(true);
       showToast("Veuillez d'abord ouvrir une session pour encaisser cette facture.", 'warning', 'Session Requise');
       return;
@@ -964,7 +964,7 @@ export default function App() {
   };
 
   const handleNavigateToNewPayment = async () => {
-    if (!hasActiveSession && isCashierProfile) {
+    if (!hasActiveSession) {
       setForceOpenSessionModal(true);
       showToast("Veuillez d'abord ouvrir une session pour enregistrer un règlement.", 'warning', 'Session Requise');
       return;

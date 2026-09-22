@@ -172,7 +172,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
   React.useEffect(() => {
     if (selectedMoveForPayment) {
-      if (!hasActiveSession && !isSupervisor) {
+      if (!hasActiveSession) {
         if (onRequestOpenSession) {
           onRequestOpenSession();
         } else if (onNavigateToSessions) {
@@ -201,7 +201,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   };
 
   const handleOpenModal = () => {
-    if (!hasActiveSession && !isSupervisor) {
+    if (!hasActiveSession) {
       if (onRequestOpenSession) {
         onRequestOpenSession();
       } else if (onNavigateToSessions) {

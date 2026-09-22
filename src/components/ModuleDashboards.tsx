@@ -38,7 +38,7 @@ import {
   AppView
 } from '../types';
 import { formatFCFA } from '../lib/formatters';
-import { isSupervisorOrAdmin } from '../utils/caisseSessionService';
+import { isSupervisorOrAdmin, loadAllSessions, openNewCashierSession } from '../utils/caisseSessionService';
 
 interface ModuleDashboardProps {
   currentView: AppView;
@@ -1219,15 +1219,56 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
   onNewPayment,
   onPrintReceipt,
 }) => {
-  // Session resolution: checks both 'opened' and 'in_progress'
-  const myActiveSession = tillSessions.find(
-    (s) => (s.state === 'opened' || (s.state as any) === 'in_progress') &&
-    (!currentUser || s.cashier_id === currentUser.id || s.cashier_name === currentUser.name || currentUser.login === 'admin' || currentUser.login === 'super_admin' || currentUser.login === 'caisse' || currentUser.login === 'caisse_facture')
-  ) || tillSessions.find((s) => s.state === 'opened' || (s.state as any) === 'in_progress');
+  // Session resolution: accurately checks both server tillSessions and local stored sessions
+  const myActiveSession = useMemo(() => {
+    if (!currentUser) return null;
+    const currentName = (currentUser.name || '').toLowerCase().trim();
+    const currentLogin = (currentUser.login || '').toLowerCase().trim();
+
+    const serverActive = tillSessions.find((s) => {
+      if (s.state !== 'in_progress' && (s.state as any) !== 'opened') return false;
+      if (s.cashier_id === currentUser.id) return true;
+      const sName = (s.cashier_name || '').toLowerCase().trim();
+      if (sName === currentName || sName === currentLogin) return true;
+      if (currentLogin === 'caissier' && (s.cashier_id === 3 || sName.includes('amadou') || sName.includes('caissier'))) return true;
+      if (currentLogin === 'caisse_facture' && (s.cashier_id === 4 || sName.includes('awa') || sName.includes('facture'))) return true;
+      if (isSupervisorOrAdmin(currentUser) && (s.cashier_id === currentUser.id || sName === currentName)) return true;
+      return false;
+    });
+
+    if (serverActive) {
+      const allLocal = loadAllSessions();
+      const localState = allLocal.find((s) => s.id === serverActive.id);
+      if (localState && localState.state === 'closed') {
+        return null;
+      }
+      return serverActive;
+    }
+
+    const allLocal = loadAllSessions();
+    const localActive = allLocal.find(
+      (s) => (s.cashier_id === currentUser.id || (s.cashier_name || '').toLowerCase() === currentName) && s.state === 'in_progress'
+    );
+    return localActive || null;
+  }, [tillSessions, currentUser]);
+
+  const lastClosedSessionToday = useMemo(() => {
+    const all = [...tillSessions, ...loadAllSessions()];
+    return all
+      .filter((s) => s.state === 'closed' && (isSupervisorOrAdmin(currentUser) || s.cashier_id === currentUser?.id || (s.cashier_name || '').toLowerCase() === (currentUser?.name || '').toLowerCase()))
+      .sort((a, b) => (b.id || 0) - (a.id || 0))[0] || null;
+  }, [tillSessions, currentUser]);
 
   const [searchPaymentTerm, setSearchPaymentTerm] = useState('');
   const [methodFilter, setMethodFilter] = useState<'all' | 'cash' | 'wave' | 'orange_money' | 'card'>('all');
   const [showOpenSessionModal, setShowOpenSessionModal] = useState(false);
+  const [showRequireSessionModal, setShowRequireSessionModal] = useState(false);
+  const [isStatusBannerDismissed, setIsStatusBannerDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('caisse_status_banner_dismissed') === 'true';
+    }
+    return false;
+  });
   const [tillNameInput, setTillNameInput] = useState('Guichet Caisse 1 (Hall Principal)');
   const [openingBalanceInput, setOpeningBalanceInput] = useState('50000');
   const [openSessionNotes, setOpenSessionNotes] = useState('');
@@ -1322,6 +1363,17 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
     e.preventDefault();
     setIsOpeningSession(true);
     try {
+      openNewCashierSession({
+        userId: currentUser?.id || 1,
+        userName: currentUser?.name || 'Caissier Principal',
+        tillName: tillNameInput,
+        openingBalance: Number(openingBalanceInput) || 0,
+        notes: openSessionNotes,
+      });
+      try {
+        sessionStorage.removeItem('caisse_status_banner_dismissed');
+      } catch (_) {}
+
       const res = await fetch('/api/till-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1340,9 +1392,15 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
         }
       } else {
         setShowOpenSessionModal(false);
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
       }
     } catch (_) {
       setShowOpenSessionModal(false);
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
     } finally {
       setIsOpeningSession(false);
     }
@@ -1425,6 +1483,10 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
 
           <button
             onClick={() => {
+              if (!myActiveSession) {
+                setShowRequireSessionModal(true);
+                return;
+              }
               if (onNewPayment) onNewPayment();
               else onNavigateToView('caisse_new_payment');
             }}
@@ -1436,7 +1498,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
         </div>
       </div>
 
-      {/* Active Session Status Banner */}
+      {/* Active Session Status Banner / Repos Guichet */}
       {myActiveSession ? (
         <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -1456,33 +1518,86 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onNavigateToView('caisse_cloture')}
-              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition"
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg transition cursor-pointer"
             >
               Arrêté & Billetage
             </button>
           </div>
         </div>
-      ) : (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <div className="text-xs font-bold text-amber-900">
-                Aucune session de caisse ouverte pour votre poste
+      ) : !isStatusBannerDismissed ? (
+        lastClosedSessionToday ? (
+          <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
               </div>
-              <p className="text-[11px] text-amber-700 mt-0.5">
-                Veuillez ouvrir votre session en déclarant le fond de caisse initial afin d'enregistrer des encaissements et d'éditer des quittances officielles.
-              </p>
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-2 flex-wrap">
+                  <span>Poste au Repos • Arrêté de Caisse Effectué</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 font-mono">
+                    {lastClosedSessionToday.session_code || `SES-${lastClosedSessionToday.id}`} Clôturée
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  La vacation a été clôturée et les fonds sont consignés. Pour enregistrer de nouveaux encaissements, ouvrez une nouvelle session.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowOpenSessionModal(true)}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+              >
+                Ouvrir une Session
+              </button>
+              <button
+                onClick={() => {
+                  setIsStatusBannerDismissed(true);
+                  try { sessionStorage.setItem('caisse_status_banner_dismissed', 'true'); } catch (_) {}
+                }}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+                title="Masquer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => setShowOpenSessionModal(true)}
-            className="px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-lg transition shrink-0"
-          >
-            Ouvrir ma Session
-          </button>
-        </div>
-      )}
+        ) : (
+          <div className="bg-slate-100 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                <CreditCard className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-800">
+                  Guichet Caisse • En attente d'ouverture
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Le guichet est actuellement au repos. L'ouverture d'une session est requise uniquement lors de l'enregistrement d'un encaissement.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowOpenSessionModal(true)}
+                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+              >
+                Ouvrir ma Session
+              </button>
+              <button
+                onClick={() => {
+                  setIsStatusBannerDismissed(true);
+                  try { sessionStorage.setItem('caisse_status_banner_dismissed', 'true'); } catch (_) {}
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition cursor-pointer"
+                title="Masquer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )
+      ) : null}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1492,10 +1607,10 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
             <CreditCard className="w-4 h-4 text-slate-500" />
           </div>
           <p className="text-xl font-black text-slate-900 mt-2">
-            {myActiveSession ? 'Ouverte' : 'Fermée'}
+            {myActiveSession ? 'Ouverte' : lastClosedSessionToday ? 'Clôturée' : 'Au repos'}
           </p>
           <span className="text-[11px] text-slate-500">
-            {myActiveSession ? `Fond: ${formatFCFA(fondInitial)}` : 'Caisse fermée'}
+            {myActiveSession ? `Fond: ${formatFCFA(fondInitial)}` : lastClosedSessionToday ? 'Arrêté journalier validé' : 'En attente d\'ouverture'}
           </span>
         </div>
 
@@ -1765,6 +1880,44 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal - Alerte Activation Requise pour Encaissement */}
+      {showRequireSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
+              <CreditCard className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-black text-slate-900">
+                Guichet Caisse à l'Arrêt
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Le guichet est actuellement désactivé (aucune session de caisse en cours). Conformément aux règles d'audit financier hospitalier, vous devez obligatoirement ouvrir une session et déclarer votre fond de caisse pour enregistrer un encaissement.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRequireSessionModal(false)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Rester en consultation
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRequireSessionModal(false);
+                  setShowOpenSessionModal(true);
+                }}
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+              >
+                Ouvrir ma Session
+              </button>
+            </div>
           </div>
         </div>
       )}
