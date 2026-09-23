@@ -1645,25 +1645,27 @@ export default function App() {
                 (currentUser?.group_ids || []).includes(1) ||
                 (currentUser?.group_ids || []).includes(5);
 
-              // Seuls les profils opérationnels de caisse, facture et caisse & facture doivent ouvrir et fermer une session
+              // Seuls les profils opérationnels effectuant des encaissements en caisse doivent maintenir une session ouverte
               const profile = getUserBillingProfile(currentUser);
-              const isSessionReq =
+              const isCashierOperationProfile =
                 !isSupervisorOrAdminUser &&
                 (roleLower.includes('caiss') ||
-                  roleLower.includes('factur') ||
                   roleLower.includes('polyvalent') ||
                   loginLower === 'caissier' ||
                   loginLower === 'caisse_facture' ||
-                  loginLower === 'facturer' ||
-                  loginLower === 'facturier' ||
                   profile === 'caisse' ||
-                  profile === 'facture' ||
                   profile === 'facture_caisse');
 
-              const isCaisseOrPolyvalentView = view.startsWith('caisse_') && view !== 'caisse_sessions';
-              if (!isSupervisorOrAdminUser && (isSessionReq || isCaisseOrPolyvalentView) && !hasActiveSession && view !== 'caisse_sessions') {
-                showToast('Ouverture de session requise pour accéder aux fonctionnalités de caisse', 'error');
-                setCurrentView('caisse_sessions');
+              const isCaisseEncaissementView =
+                view === 'caisse_new_payment' ||
+                view === 'caisse_cloture' ||
+                view === 'caisse_facture_new_payment' ||
+                view === 'caisse_facture_cloture';
+
+              if (isCashierOperationProfile && isCaisseEncaissementView && !hasActiveSession) {
+                setForceOpenSessionModal(true);
+                showToast('Ouverture de session de caisse requise pour enregistrer des encaissements', 'warning', 'Session requise');
+                setCurrentView(view);
                 return;
               }
 
@@ -2183,6 +2185,7 @@ export default function App() {
               currentView === 'caisse_facture_new_payment' ||
               currentView === 'superviseur_payments') && (
               <PaymentsView
+                currentView={currentView}
                 payments={payments}
                 moves={moves}
                 partners={partners}
@@ -2193,7 +2196,11 @@ export default function App() {
                   setSelectedMoveForPayment(null);
                   setAutoOpenPaymentModal(false);
                 }}
-                autoOpenModal={autoOpenPaymentModal}
+                autoOpenModal={
+                  autoOpenPaymentModal ||
+                  currentView === 'caisse_new_payment' ||
+                  currentView === 'caisse_facture_new_payment'
+                }
                 onFinishAndReturnToSession={returnToSessionMode ? handleReturnToSession : undefined}
                 company={company}
                 onNavigateToTriage={() => setCurrentView('infirmier_triage')}

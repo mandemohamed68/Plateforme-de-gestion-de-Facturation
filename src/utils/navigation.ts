@@ -368,7 +368,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       ];
     }
 
-    // 8. Superviseur Caisse / Facture - 6 items
+    // 8. Superviseur Caisse / Facture
     if (
       login === 'superviseur' ||
       role.includes('superviseur')
@@ -383,13 +383,26 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'superviseur_caisses',
         'superviseur_payments',
         'superviseur_reports',
+        'caisse_group',
+        'caisse_dashboard',
+        'caisse_new_payment',
+        'caisse_payments',
+        'caisse_cloture',
+        'factures_group',
+        'factures_dashboard',
+        'factures_new_invoice',
+        'factures_all',
+        'factures_draft',
+        'factures_paid',
+        'factures_unpaid',
+        'factures_cancelled',
         'caisse_sessions',
         'invoices',
         'payments'
       ];
     }
 
-    // 9. Caisse & Facture (Polyvalent) - 11 items
+    // 9. Caisse & Facture (Polyvalent)
     if (
       login === 'caisse_facture' ||
       (role.includes('caisse') && role.includes('factur')) ||
@@ -398,18 +411,20 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       return [
         'dashboard',
         'patient_journey',
-        'caisse_facture_group',
-        'caisse_facture_dashboard',
-        'caisse_facture_new_payment',
-        'caisse_facture_new_invoice',
-        'caisse_facture_all_invoices',
-        'caisse_facture_all_payments',
-        'caisse_facture_draft',
-        'caisse_facture_paid',
-        'caisse_facture_unpaid',
-        'caisse_facture_cancelled',
-        'caisse_facture_cloture',
+        'caisse_group',
+        'caisse_dashboard',
+        'caisse_new_payment',
+        'caisse_payments',
+        'caisse_cloture',
         'caisse_sessions',
+        'factures_group',
+        'factures_dashboard',
+        'factures_new_invoice',
+        'factures_all',
+        'factures_draft',
+        'factures_paid',
+        'factures_unpaid',
+        'factures_cancelled',
         'invoices',
         'payments'
       ];

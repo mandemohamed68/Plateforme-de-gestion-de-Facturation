@@ -206,17 +206,14 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     (currentUser?.group_ids || []).includes(1) ||
     (currentUser?.group_ids || []).includes(5);
 
-  // Seuls les profils caisse, facture et caisse & facture doivent ouvrir et fermer une session
+  // Seuls les profils caisse et caisse-facture (polyvalents) doivent ouvrir/fermer une session de caisse
   const isSessionRequiredProfile =
     !isSupervisorOrAdmin && (
       loginLower === 'caissier' ||
       loginLower === 'caisse_facture' ||
-      loginLower === 'facturier' ||
       roleLower.includes('caiss') ||
-      roleLower.includes('factur') ||
       roleLower.includes('polyvalent') ||
       profile === 'caisse' ||
-      profile === 'facture' ||
       profile === 'facture_caisse'
     );
 
@@ -285,9 +282,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           badge: pendingPaymentsCount,
           children: [
             { id: 'caisse_dashboard', label: 'Tableau de bord' },
-            { id: 'caisse_new_payment', label: 'Nouvelle encaissements', badge: pendingPaymentsCount },
-            { id: 'caisse_payments', label: 'Encaissements' },
-            { id: 'caisse_cloture', label: 'Clôture' },
+            { id: 'caisse_new_payment', label: 'Nouvel encaissement', badge: pendingPaymentsCount },
+            { id: 'caisse_payments', label: 'Historique des encaissements' },
+            { id: 'caisse_cloture', label: 'Clôture de caisse' },
           ]
         },
         {
@@ -299,29 +296,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
             { id: 'factures_dashboard', label: 'Tableau de bord' },
             { id: 'factures_new_invoice', label: 'Nouvelle facture' },
             { id: 'factures_all', label: 'Toutes les factures' },
-            { id: 'factures_draft', label: 'En attente', badge: pendingPaymentsCount },
-            { id: 'factures_paid', label: 'Encaissées' },
-            { id: 'factures_unpaid', label: 'Impayées' },
-            { id: 'factures_cancelled', label: 'Annulées' },
-          ]
-        },
-        {
-          id: 'caisse_facture_group',
-          label: 'Caisse & Facture',
-          icon: CreditCard,
-          description: 'Accès polyvalent caisse/facture',
-          badge: pendingPaymentsCount,
-          children: [
-            { id: 'caisse_facture_dashboard', label: 'Tableau de bord' },
-            { id: 'caisse_facture_new_payment', label: 'Nouvelle encaissements', badge: pendingPaymentsCount },
-            { id: 'caisse_facture_new_invoice', label: 'Nouvelle facture' },
-            { id: 'caisse_facture_all_invoices', label: 'Toutes les factures' },
-            { id: 'caisse_facture_all_payments', label: 'Toutes les Encaissements' },
-            { id: 'caisse_facture_draft', label: 'En attente', badge: pendingPaymentsCount },
-            { id: 'caisse_facture_paid', label: 'Encaissées' },
-            { id: 'caisse_facture_unpaid', label: 'Impayées' },
-            { id: 'caisse_facture_cancelled', label: 'Annulées' },
-            { id: 'caisse_facture_cloture', label: 'Clôture' },
+            { id: 'factures_draft', label: 'En attente de paiement', badge: pendingPaymentsCount },
+            { id: 'factures_paid', label: 'Factures encaissées' },
+            { id: 'factures_unpaid', label: 'Factures impayées' },
+            { id: 'factures_cancelled', label: 'Factures annulées' },
           ]
         },
       ]
