@@ -760,8 +760,91 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
     }
   };
 
+  // Strict Practitioner Specialty & Department Isolation Filter
+  const userRole = (currentUser?.role || '').toLowerCase();
+  const userLogin = (currentUser?.login || '').toLowerCase();
+  const isAdminOrSuper =
+    userLogin === 'mandemohamed68@gmail.com' ||
+    userLogin === 'super_admin' ||
+    userLogin === 'admin' ||
+    userRole.includes('admin') ||
+    userRole.includes('direct');
+
+  const isPediatrician = !isAdminOrSuper && (userLogin === 'pediatre' || userRole.includes('pediat') || userRole.includes('pédiat'));
+  const isSageFemme = !isAdminOrSuper && (userLogin === 'sage_femme' || userRole.includes('sage') || userRole.includes('mater') || userRole.includes('gynec'));
+  const isSpecialist = !isAdminOrSuper && (userLogin === 'specialiste' || userRole.includes('special') || userRole.includes('spécial') || userRole.includes('cardio') || userRole.includes('ophtalmo'));
+  const isGeneralDoctor = !isAdminOrSuper && !isPediatrician && !isSageFemme && !isSpecialist;
+
+  const matchesPractitionerScope = (c: MedicalConsultation): boolean => {
+    if (isAdminOrSuper) return true;
+
+    const specialty = (c.specialty || '').toLowerCase();
+    const typeId = ((c as any).consultation_type_id || c.consultation_type || '').toUpperCase();
+    const reason = (c.reason || c.chief_complaint || '').toLowerCase();
+    const docType = (c.doctor_type || '').toLowerCase();
+    const targetLevel = ((c as any).target_level || '').toLowerCase();
+    const isPediatricPatient =
+      (c.patient_age !== undefined && c.patient_age !== null && c.patient_age <= 15) ||
+      specialty.includes('pédiatr') ||
+      typeId.startsWith('CS-PED') ||
+      reason.includes('pédiatr') ||
+      reason.includes('nourrisson') ||
+      reason.includes('enfant');
+
+    const isMaternityPatient =
+      specialty.includes('mater') ||
+      specialty.includes('cpn') ||
+      specialty.includes('gynéc') ||
+      specialty.includes('obstét') ||
+      typeId.startsWith('CS-MAT') ||
+      typeId.startsWith('CS-GYN') ||
+      reason.includes('grossesse') ||
+      reason.includes('cpn') ||
+      reason.includes('accouchement');
+
+    const isSpecialistPatient =
+      targetLevel === 'specialiste' ||
+      docType === 'specialiste' ||
+      c.status === 'referred' ||
+      typeId.startsWith('CS-SPEC') ||
+      specialty.includes('spécial') ||
+      specialty.includes('cardio') ||
+      specialty.includes('ophtalmo') ||
+      specialty.includes('dermato') ||
+      specialty.includes('chirurg') ||
+      specialty.includes('neurolog');
+
+    // 1. Pédiatre ne voit QUE les patients pédiatriques
+    if (isPediatrician) {
+      return isPediatricPatient;
+    }
+
+    // 2. Maternité / Sage-femme ne voit QUE les patientes maternité / CPN / gynéco
+    if (isSageFemme) {
+      return isMaternityPatient;
+    }
+
+    // 3. Spécialiste ne voit QUE les consultations spécialisées ou référées
+    if (isSpecialist) {
+      return isSpecialistPatient;
+    }
+
+    // 4. Médecin Généraliste ne voit QUE la médecine générale (exclut pédiatrie, maternité et spécialistes)
+    if (isGeneralDoctor) {
+      if (isPediatricPatient || isMaternityPatient || isSpecialistPatient) {
+        return false;
+      }
+      return true;
+    }
+
+    return true;
+  };
+
   const clinicalQueue = consultations.filter(c => {
     if (c.status === 'completed' || c.status === 'cancelled') return false;
+
+    // Strict Practitioner Role Isolation
+    if (!matchesPractitionerScope(c)) return false;
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -782,7 +865,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
     return true;
   });
 
-  const completedConsultations = consultations.filter(c => c.status === 'completed');
+  const completedConsultations = consultations.filter(c => c.status === 'completed' && matchesPractitionerScope(c));
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
@@ -1125,80 +1208,121 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                 </div>
               </div>
 
-              {/* 3-Section Stepper / Modular Tabs */}
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                <div className="flex items-center gap-2 overflow-x-auto">
-                  <button
-                    type="button"
-                    onClick={() => setConsultationStep(1)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                      consultationStep === 1
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      consultationStep === 1 ? 'bg-white text-slate-900' : 'bg-slate-300 text-slate-700'
-                    }`}>
-                      1
-                    </span>
-                    <Activity className="w-3.5 h-3.5" />
-                    <span>Constantes & Triage</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setConsultationStep(2)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                      consultationStep === 2
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      consultationStep === 2 ? 'bg-white text-slate-900' : 'bg-slate-300 text-slate-700'
-                    }`}>
-                      2
-                    </span>
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Examen Clinique & Diagnostics CIM-10</span>
-                    {selectedDiagnoses.length > 0 && (
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        consultationStep === 2 ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-800'
+              {/* 3-Section Stepper / Modular Tabs with Step Validation & Directives */}
+              <div className="space-y-3 border-b border-slate-200 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    <button
+                      type="button"
+                      onClick={() => setConsultationStep(1)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        consultationStep === 1
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        consultationStep === 1 ? 'bg-white text-slate-900' : 'bg-slate-300 text-slate-700'
                       }`}>
-                        {selectedDiagnoses.length}
+                        {vTemp || vSys ? '✓' : '1'}
                       </span>
-                    )}
-                  </button>
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>1. Constantes & Triage</span>
+                      {(vTemp || vSys) && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      )}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setConsultationStep(3)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                      consultationStep === 3
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      consultationStep === 3 ? 'bg-white text-slate-900' : 'bg-slate-300 text-slate-700'
-                    }`}>
-                      3
-                    </span>
-                    <Pill className="w-3.5 h-3.5" />
-                    <span>Prescriptions Médicales & Clôture</span>
-                    {activePrescriptions.length > 0 && (
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        consultationStep === 3 ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-800'
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConsultationStep(2);
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        consultationStep === 2
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        consultationStep === 2 ? 'bg-white text-slate-900' : 'bg-slate-300 text-slate-700'
                       }`}>
-                        {activePrescriptions.length}
+                        {selectedDiagnoses.length > 0 || clinicalComplaint ? '✓' : '2'}
                       </span>
-                    )}
-                  </button>
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>2. Examen Clinique & CIM-10</span>
+                      {selectedDiagnoses.length > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          consultationStep === 2 ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {selectedDiagnoses.length}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!clinicalComplaint.trim() && selectedDiagnoses.length === 0) {
+                          if (onShowToast) onShowToast("Veuillez renseigner le motif de consultation ou sélectionner au moins un diagnostic CIM-10 à l'étape 2.", "warning", "Contrôle d'Étape");
+                        }
+                        setConsultationStep(3);
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                        consultationStep === 3
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        consultationStep === 3 ? 'bg-white text-slate-900' : 'bg-slate-300 text-slate-700'
+                      }`}>
+                        3
+                      </span>
+                      <Pill className="w-3.5 h-3.5" />
+                      <span>3. Prescriptions & Clôture</span>
+                      {activePrescriptions.length > 0 && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          consultationStep === 3 ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-800'
+                        }`}>
+                          {activePrescriptions.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      Étape <strong>{consultationStep}</strong>/3 : {consultationStep === 1 ? 'Constantes' : consultationStep === 2 ? 'Examen & Diagnostics' : 'Prescriptions'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
-                  <span>Étape <strong>{consultationStep}</strong> sur <strong>3</strong></span>
+                {/* Subtle Practitioner Directive Bar */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs flex items-center justify-between text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                    <span className="font-semibold text-slate-800 text-[11px] uppercase tracking-wider">
+                      {consultationStep === 1 && "Directive Clinique :"}
+                      {consultationStep === 2 && "Directive Déontologique :"}
+                      {consultationStep === 3 && "Directive Circuit de Soins :"}
+                    </span>
+                    <span className="text-[11px] text-slate-600">
+                      {consultationStep === 1 && "Vérifiez les paramètres vitaux transmis par le triage ou ajustez-les avant de démarrer l'examen."}
+                      {consultationStep === 2 && "Renseignez le motif et codifiez au moins un diagnostic CIM-10 principal pour le dossier médical."}
+                      {consultationStep === 3 && "Sélectionnez les actes et médicaments puis choisissez le circuit (Interne hôpital ou Externe ville)."}
+                    </span>
+                  </div>
+                  {consultationStep < 3 ? (
+                    <button
+                      type="button"
+                      onClick={() => setConsultationStep((prev) => (prev + 1) as 1 | 2 | 3)}
+                      className="text-[11px] font-bold text-slate-900 hover:underline flex items-center gap-1 cursor-pointer shrink-0 ml-2"
+                    >
+                      <span>Étape Suivante</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -1653,7 +1777,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                           disabled={!manualDiagName.trim()}
                           className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold text-xs py-2 rounded-md transition"
                         >
-                          + Ajouter
+                          Ajouter
                         </button>
                       </div>
                     </div>
@@ -1821,7 +1945,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                               disabled={!manualLabName.trim()}
                               className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-medium text-xs py-1.5 rounded transition"
                             >
-                              + Ajouter Labo
+                              Ajouter Labo
                             </button>
                           </div>
                         </div>
@@ -1912,7 +2036,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                               disabled={!manualImgName.trim()}
                               className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-medium text-xs py-1.5 rounded transition"
                             >
-                              + Ajouter Imagerie
+                              Ajouter Imagerie
                             </button>
                           </div>
                         </div>
@@ -2014,7 +2138,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                               disabled={!medInputName.trim()}
                               className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-medium text-xs py-1.5 rounded transition"
                             >
-                              + Ajouter Médoc
+                              Ajouter Médicament
                             </button>
                           </div>
                         </div>

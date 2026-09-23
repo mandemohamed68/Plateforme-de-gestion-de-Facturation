@@ -1613,7 +1613,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
 
                   <a
                     href="/api/database/dump-sql"
-                    download
+                    download="database_dump_exhaustive.sql"
                     className="flex items-center justify-between p-3.5 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition group cursor-pointer"
                   >
                     <div className="flex items-center space-x-3">
@@ -1622,10 +1622,10 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                       </div>
                       <div>
                         <div className="text-xs font-black text-slate-900 group-hover:text-emerald-900">
-                          Télécharger Dump SQL
+                          Télécharger Dump SQL Exhaustif
                         </div>
                         <div className="text-[11px] text-slate-500">
-                          Script tables &amp; INSERT (MariaDB / MySQL)
+                          Toutes les tables DDL + données DML complètes (.SQL)
                         </div>
                       </div>
                     </div>
@@ -1635,15 +1635,22 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                   </a>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-600 space-y-1">
-                  <div className="font-bold text-slate-700 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Emplacement local des fichiers de persistance et dump sur le serveur :</span>
+                <div className="p-3.5 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 text-[11px] space-y-2">
+                  <div className="font-bold text-white flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Injection Directe dans votre Base de Données Locale :</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-mono font-semibold">PostgreSQL / MySQL / SQLite</span>
                   </div>
-                  <div className="font-mono text-[10px] text-slate-500 pl-5">
-                    • /data/db_store.json (Stockage actif persistant)<br />
-                    • /data/database_dump.json (Archive dump JSON complète)<br />
-                    • /database/dump_database.sql (Script SQL de réimportation)
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-[10.5px] text-emerald-300 space-y-1 overflow-x-auto">
+                    <div># Commande PostgreSQL :</div>
+                    <div className="text-slate-200">psql -U postgres -d nom_de_votre_bd -f database_dump_exhaustive.sql</div>
+                    <div className="pt-1"># Commande MySQL / MariaDB :</div>
+                    <div className="text-slate-200">mysql -u root -p nom_de_votre_bd &lt; database_dump_exhaustive.sql</div>
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    Fichier disponible à la racine du projet : <code className="text-amber-300 font-bold">database_dump_exhaustive.sql</code>
                   </div>
                 </div>
               </div>

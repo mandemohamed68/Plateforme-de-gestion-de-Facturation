@@ -2042,13 +2042,22 @@ export const AdminConventionsManagementView: React.FC<AdminViewsProps> = ({
 
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedConvention || !selectedConvention.partner_name.trim()) return;
+    const nameVal = selectedConvention?.partner_name || selectedConvention?.name || '';
+    if (!selectedConvention || !nameVal.trim()) return;
+
+    const normalizedConv = {
+      ...selectedConvention,
+      partner_name: nameVal.trim(),
+      name: nameVal.trim(),
+      code: selectedConvention.code || selectedConvention.convention_code,
+      convention_code: selectedConvention.convention_code || selectedConvention.code,
+    };
 
     let updated: EnterpriseConvention[];
     if (isNew) {
-      updated = [selectedConvention, ...conventions];
+      updated = [normalizedConv, ...conventions];
     } else {
-      updated = conventions.map((c) => (c.id === selectedConvention.id ? selectedConvention : c));
+      updated = conventions.map((c) => (c.id === normalizedConv.id ? normalizedConv : c));
     }
     saveConventions(updated);
     setIsModalOpen(false);
@@ -2068,11 +2077,12 @@ export const AdminConventionsManagementView: React.FC<AdminViewsProps> = ({
   };
 
   const filtered = conventions.filter((c) => {
-    const matchesSearch =
-      c.partner_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.convention_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.matricule_label || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === 'all' || c.type === typeFilter;
+    const name = (c.partner_name || c.name || '').toLowerCase();
+    const code = (c.convention_code || c.code || '').toLowerCase();
+    const matricule = (c.matricule_label || '').toLowerCase();
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = name.includes(q) || code.includes(q) || matricule.includes(q);
+    const matchesType = typeFilter === 'all' || c.type === typeFilter || (typeFilter === 'mutual' && (c.type === 'mutuelle' as any));
     return matchesSearch && matchesType;
   });
 

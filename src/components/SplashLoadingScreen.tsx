@@ -10,31 +10,37 @@ interface SplashLoadingScreenProps {
 }
 
 export const SplashLoadingScreen: React.FC<SplashLoadingScreenProps> = ({
-  companyName = 'LABORATOIRE D\'ANALYSES MÉDICALES',
+  companyName = "LABORATOIRE D'ANALYSES MÉDICALES",
   watermarkText = "Système d'Information Hospitalier & Financier (SIH)",
   primaryColor = '#0f172a',
   logoUrl,
   isDataReady,
   onFinished,
 }) => {
-  const [progress, setProgress] = useState(18);
-  const [statusMessage, setStatusMessage] = useState('Initialisation des services sécurisés...');
+  const [progress, setProgress] = useState(20);
+  const [statusMessage, setStatusMessage] = useState('Démarrage des services hospitaliers...');
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // Reset image error if logoUrl changes dynamically
+  useEffect(() => {
+    setImageError(false);
+  }, [logoUrl]);
 
   useEffect(() => {
     const t1 = setTimeout(() => {
-      setProgress(42);
+      setProgress(45);
       setStatusMessage('Vérification des autorisations & sessions...');
     }, 280);
 
     const t2 = setTimeout(() => {
-      setProgress(74);
+      setProgress(78);
       setStatusMessage('Chargement du catalogue clinique & comptable...');
     }, 680);
 
     const t3 = setTimeout(() => {
-      setProgress(92);
-      setStatusMessage('Sychronisation des modules en cours...');
+      setProgress(94);
+      setStatusMessage('Synchronisation des modules en cours...');
     }, 1100);
 
     return () => {
@@ -54,89 +60,101 @@ export const SplashLoadingScreen: React.FC<SplashLoadingScreenProps> = ({
           setIsFadingOut(true);
           const doneTimer = setTimeout(() => {
             onFinished();
-          }, 400);
+          }, 450);
           return () => clearTimeout(doneTimer);
         }, 300);
 
         return () => clearTimeout(fadeTimer);
-      }, 700);
+      }, 600);
 
       return () => clearTimeout(readyTimer);
     }
   }, [isDataReady, onFinished]);
 
+  const hasValidLogo = Boolean(logoUrl && logoUrl.trim().length > 0 && !imageError);
+
   return (
     <div
       id="splash-loading-screen"
-      className={`fixed inset-0 z-[999999] bg-[#0b0f19] flex flex-col items-center justify-center font-sans select-none overflow-hidden transition-all duration-500 ease-out ${
-        isFadingOut ? 'opacity-0 scale-[1.01] pointer-events-none' : 'opacity-100 scale-100'
+      className={`fixed inset-0 z-[999999] bg-white flex flex-col items-center justify-center font-sans select-none overflow-hidden transition-all duration-500 ease-out ${
+        isFadingOut ? 'opacity-0 scale-[1.02] pointer-events-none' : 'opacity-100 scale-100'
       }`}
     >
-      {/* Background subtle radial ambient highlight */}
+      {/* Subtle background ambient warmth */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[140px]" />
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] bg-blue-500/5 rounded-full blur-[120px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:32px_32px] opacity-[0.03]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-slate-50/60 rounded-full blur-[140px]" />
       </div>
 
-      {/* Main Container */}
+      {/* Main Center Content */}
       <div className="relative z-10 flex flex-col items-center px-6 max-w-md w-full">
         
-        {/* Executive Logo Card */}
-        <div className="relative group">
-          {/* Subtle Outer Glow Ring */}
-          <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-emerald-500/20 via-blue-500/20 to-teal-500/20 blur-md opacity-75" />
+        {/* Rounded Squircle Card with Multi-Color Ambient Halo Glow */}
+        <div className="relative flex items-center justify-center">
           
-          <div className="relative w-32 h-32 sm:w-36 sm:h-36 bg-slate-900/90 rounded-2xl border border-slate-800/80 p-5 flex items-center justify-center shadow-2xl backdrop-blur-xl">
-            {logoUrl ? (
+          {/* Ambient Multi-Color Halo (identical to reference image) */}
+          <div className="absolute -inset-6 pointer-events-none transition-all duration-700">
+            {/* Cyan / Blue glow top-left */}
+            <div className="absolute -top-3 left-2 w-32 h-32 bg-sky-400/40 rounded-full blur-2xl" />
+            {/* Green / Lime glow mid-left */}
+            <div className="absolute top-8 -left-4 w-32 h-32 bg-emerald-400/45 rounded-full blur-2xl" />
+            {/* Red / Orange / Coral glow bottom */}
+            <div className="absolute -bottom-4 left-6 right-6 h-28 bg-rose-500/50 rounded-full blur-2xl" />
+            {/* Blue / Purple glow right */}
+            <div className="absolute top-4 -right-4 w-32 h-32 bg-indigo-400/35 rounded-full blur-2xl" />
+            {/* Central diffuse blend */}
+            <div className="absolute inset-2 rounded-[48px] bg-gradient-to-tr from-rose-400/25 via-emerald-300/20 to-sky-400/30 blur-xl" />
+          </div>
+
+          {/* White Squircle Card */}
+          <div className="relative w-36 h-36 sm:w-44 sm:h-44 bg-white rounded-[32px] sm:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] border border-slate-100/90 flex items-center justify-center p-6 z-10 overflow-hidden">
+            {hasValidLogo ? (
               <img
                 src={logoUrl}
                 alt={companyName}
-                className="w-full h-full object-contain drop-shadow-md"
+                onError={() => setImageError(true)}
+                className="w-full h-full object-contain select-none transition-transform duration-300 hover:scale-105"
               />
             ) : (
-              <div className="w-full h-full rounded-xl bg-slate-800/80 border border-slate-700/60 flex flex-col items-center justify-center p-2 text-emerald-400">
-                <svg className="w-12 h-12 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  <circle cx="12" cy="12" r="9" strokeWidth="1.5" />
+              /* Default Clean Emblem (matches the silhouette inside circle style) */
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-slate-900 flex items-center justify-center text-white shadow-inner">
+                <svg
+                  className="w-10 h-10 sm:w-12 sm:h-12 fill-white stroke-none"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M19 10.5h-5.5V5c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v5.5H5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5h5.5V19c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-5.5H19c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5z" />
                 </svg>
               </div>
             )}
           </div>
         </div>
 
-        {/* Branding & Subtitle */}
+        {/* Branding & Establishment Name */}
         <div className="mt-8 text-center flex flex-col items-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-slate-300 text-[11px] font-semibold tracking-wider uppercase mb-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>SIH Enterprise • SAP PAY</span>
-          </div>
-
-          <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight uppercase max-w-sm leading-snug">
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight max-w-sm leading-snug">
             {companyName}
           </h1>
 
-          <p className="text-[11px] font-medium text-slate-400 tracking-wider uppercase mt-1">
+          <p className="text-xs font-medium text-slate-500 tracking-normal mt-1 max-w-xs">
             {watermarkText}
           </p>
         </div>
 
-        {/* Executive Loading Gauge */}
-        <div className="mt-8 w-full max-w-xs flex flex-col items-center">
-          <div className="w-full h-1.5 bg-slate-800/90 rounded-full overflow-hidden p-0.5 border border-slate-700/40 shadow-inner">
+        {/* Minimalist Loading Gauge */}
+        <div className="mt-7 w-full max-w-xs flex flex-col items-center">
+          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden p-0 relative">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500 rounded-full transition-all duration-500 ease-out relative"
+              className="h-full bg-slate-900 rounded-full transition-all duration-300 ease-out relative"
               style={{ width: `${progress}%` }}
             >
               <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full" />
             </div>
           </div>
 
-          <div className="w-full flex items-center justify-between mt-3 text-[11px] font-medium text-slate-400">
-            <span className="truncate max-w-[210px] text-left text-slate-300">
+          <div className="w-full flex items-center justify-between mt-2.5 text-[11px] font-medium text-slate-500">
+            <span className="truncate max-w-[220px] text-left">
               {statusMessage}
             </span>
-            <span className="font-mono text-emerald-400 font-semibold ml-2 tabular-nums">
+            <span className="font-mono text-slate-900 font-bold ml-2 tabular-nums">
               {progress}%
             </span>
           </div>
@@ -144,10 +162,9 @@ export const SplashLoadingScreen: React.FC<SplashLoadingScreenProps> = ({
 
       </div>
 
-      {/* Footer Credentials */}
-      <div className="absolute bottom-6 left-0 right-0 text-center flex flex-col items-center gap-1 text-[10px] font-medium text-slate-500 tracking-widest uppercase">
-        <p>Sécurité Bancaire & Médicale • Chiffrement AES 256-Bit</p>
-        <p className="text-slate-600 text-[9px]">Garantie de Conformité HDS & Standards ISO 27001</p>
+      {/* Footer */}
+      <div className="absolute bottom-6 left-0 right-0 text-center flex flex-col items-center gap-1 text-[11px] font-medium text-slate-400">
+        <p>Système Sécurisé • HDS &amp; ISO 27001</p>
       </div>
     </div>
   );

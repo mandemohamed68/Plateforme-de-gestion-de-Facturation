@@ -398,7 +398,9 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'factures_cancelled',
         'caisse_sessions',
         'invoices',
-        'payments'
+        'payments',
+        'insurance_claims',
+        'partners'
       ];
     }
 
@@ -426,11 +428,13 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'factures_unpaid',
         'factures_cancelled',
         'invoices',
-        'payments'
+        'payments',
+        'insurance_claims',
+        'partners'
       ];
     }
 
-    // 10. Factures (Facturier seul) - 7 items
+    // 10. Factures (Facturier seul) - 8 items
     if (
       login === 'facturier' ||
       (role.includes('factur') && !role.includes('caisse'))
@@ -446,7 +450,9 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'factures_paid',
         'factures_unpaid',
         'factures_cancelled',
-        'invoices'
+        'insurance_claims',
+        'invoices',
+        'partners'
       ];
     }
 
@@ -468,16 +474,54 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       ];
     }
 
+    // 12. Pharmacie Hospitalière (Pharmacien)
+    if (
+      login === 'pharmacien' ||
+      login === 'pharmacie' ||
+      role.includes('pharmac') ||
+      department.includes('pharmac')
+    ) {
+      return [
+        'dashboard',
+        'patient_journey',
+        'pharmacy_dispensing',
+        'patient_dossiers',
+        'pharmacy_stock',
+        'pharmacy_orders',
+        'pharmacy_expired',
+        'pharmacy_narcotics',
+        'pharmacy_sales',
+        'pharmacy_settings'
+      ];
+    }
+
     return ['dashboard', 'patient_journey'];
   };
 
   const allowed = getRawViews();
   if (Array.isArray(allowed)) {
     let result = [...allowed];
-    if (!result.includes('patient_dossiers')) {
+    const roleLower = (user?.role || '').toLowerCase();
+    const isClinicalOrAdmin =
+      roleLower.includes('admin') ||
+      roleLower.includes('direct') ||
+      roleLower.includes('medecin') ||
+      roleLower.includes('médecin') ||
+      roleLower.includes('docteur') ||
+      roleLower.includes('infirm') ||
+      roleLower.includes('sage') ||
+      roleLower.includes('mater') ||
+      roleLower.includes('pediat') ||
+      roleLower.includes('biologiste') ||
+      roleLower.includes('labo') ||
+      roleLower.includes('radio') ||
+      roleLower.includes('imagerie') ||
+      roleLower.includes('soin');
+
+    if (isClinicalOrAdmin && !result.includes('patient_dossiers')) {
       result.push('patient_dossiers');
     }
-    if (result.includes('partners') && !result.includes('patient_dossiers')) {
+    if (result.includes('partners') && isClinicalOrAdmin && !result.includes('patient_dossiers')) {
       result.push('patient_dossiers');
     }
     if ((result.includes('company') || user?.permissions?.includes('can_manage_settings') || user?.permissions?.includes('all')) && !result.includes('flash_announcements')) {
@@ -489,7 +533,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     if (!result.includes('notifications')) {
       result.push('notifications');
     }
-    if (result.includes('pharmacy_dispensing') || result.includes('company') || user?.role?.toLowerCase().includes('admin') || user?.role?.toLowerCase().includes('pharmac')) {
+    if (result.includes('pharmacy_dispensing') || (isClinicalOrAdmin && (user?.role?.toLowerCase().includes('pharmac') || user?.permissions?.includes('all')))) {
       const pharmViews: AppView[] = ['pharmacy_dispensing', 'pharmacy_stock', 'pharmacy_orders', 'pharmacy_expired', 'pharmacy_narcotics', 'pharmacy_sales', 'pharmacy_settings'];
       pharmViews.forEach(pv => {
         if (!result.includes(pv)) result.push(pv);
@@ -497,7 +541,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     }
     return result;
   }
-  return ['caisse_sessions', 'invoices', 'payments', 'partners', 'patient_dossiers', 'flash_announcements'];
+  return ['caisse_sessions', 'invoices', 'payments', 'partners', 'flash_announcements'];
 }
 
 /**
@@ -517,8 +561,7 @@ export function getServiceIdForView(view: string): string | null {
     view.startsWith('superviseur_') ||
     view === 'invoices' ||
     view === 'payments' ||
-    view === 'caisse_sessions' ||
-    view === 'insurance_claims'
+    view === 'caisse_sessions'
   ) {
     return 'caisse_facturation';
   }
@@ -568,5 +611,129 @@ export function isViewServiceActive(view: string, company?: CompanySettings | nu
   const srvId = getServiceIdForView(view);
   if (!srvId) return true;
   return isServiceActive(srvId, company);
+}
+
+/**
+ * Determines the smart dashboard view tailored to a specific user role.
+ */
+export function getSmartDashboardView(user: ResUser | null): AppView {
+  if (!user) return 'admin_dashboard';
+
+  const login = (user.login || '').toLowerCase().trim();
+  const role = (user.role || '').toLowerCase().trim();
+  const department = (user.department || '').toLowerCase().trim();
+
+  // 1. Super Admin / Direction / Admin Universel -> Admin Dashboard (Administration & Gouvernance)
+  if (
+    login === 'mandemohamed68@gmail.com' ||
+    login === 'super_admin' ||
+    login === 'admin' ||
+    role.includes('super admin') ||
+    role.includes('directeur') ||
+    role.includes('administrateur') ||
+    role.includes('universel')
+  ) {
+    return 'admin_dashboard';
+  }
+
+  // 2. Superviseur Caisse / Factures -> Superviseur Dashboard
+  if (login === 'superviseur' || role.includes('superviseur')) {
+    return 'superviseur_dashboard';
+  }
+
+  // 3. Caisse & Facture Polyvalent -> Caisse & Facture Dashboard
+  if (
+    login === 'caisse_facture' ||
+    (role.includes('caisse') && role.includes('factur')) ||
+    role.includes('polyvalent')
+  ) {
+    return 'caisse_facture_dashboard';
+  }
+
+  // 4. Caissier Seul -> Caisse Dashboard
+  if (login === 'caissier' || (role.includes('caiss') && !role.includes('factur'))) {
+    return 'caisse_dashboard';
+  }
+
+  // 5. Facturier Seul -> Factures Dashboard
+  if (login === 'facturier' || (role.includes('factur') && !role.includes('caisse'))) {
+    return 'factures_dashboard';
+  }
+
+  // 6. Infirmier -> Infirmier Dashboard
+  if (
+    login === 'infirmier' ||
+    role.includes('infirmier') ||
+    role.includes('infirmière') ||
+    role.includes('nurse') ||
+    department.includes('infirmier') ||
+    department.includes('soins')
+  ) {
+    return 'infirmier_dashboard';
+  }
+
+  // 7. Médecin Généraliste -> Médecin Dashboard
+  if (
+    login === 'medecin' ||
+    role.includes('médecin') ||
+    role.includes('medecin') ||
+    role.includes('docteur') ||
+    role.includes('dr.')
+  ) {
+    return 'medecin_dashboard';
+  }
+
+  // 8. Médecin Spécialiste -> Spécialiste Dashboard
+  if (login === 'specialiste' || role.includes('spécialiste') || role.includes('specialiste')) {
+    return 'specialiste_dashboard';
+  }
+
+  // 9. Pédiatrie -> Pédiatrie Dashboard
+  if (login === 'pediatre' || role.includes('pediat') || department.includes('pediat')) {
+    return 'pediatrie_dashboard';
+  }
+
+  // 10. Maternité & Sage-Femme -> Maternité Dashboard
+  if (
+    login === 'sage_femme' ||
+    role.includes('sage') ||
+    role.includes('mater') ||
+    role.includes('gynec') ||
+    department.includes('mater')
+  ) {
+    return 'maternite_dashboard';
+  }
+
+  // 11. Laboratoire -> Labo Dashboard
+  if (
+    login === 'laboratoire' ||
+    login === 'dr.toure' ||
+    login === 'technicien' ||
+    role.includes('biologiste') ||
+    role.includes('technicien') ||
+    role.includes('laboratoire') ||
+    department.includes('lab')
+  ) {
+    return 'labo_dashboard';
+  }
+
+  // 12. Imagerie Médicale -> Imagerie Dashboard
+  if (
+    login === 'imagerie' ||
+    role.includes('imagerie') ||
+    role.includes('radiologue') ||
+    role.includes('radio') ||
+    department.includes('imagerie') ||
+    department.includes('radio')
+  ) {
+    return 'imagerie_dashboard';
+  }
+
+  // 13. Hospitalisation -> Hospit Dashboard
+  if (login === 'hospitalisation' || role.includes('hospit') || department.includes('hospit')) {
+    return 'hospit_dashboard';
+  }
+
+  return 'admin_dashboard';
 }
 

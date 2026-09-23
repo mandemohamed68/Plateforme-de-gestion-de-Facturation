@@ -356,7 +356,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-md flex items-center space-x-1.5 transition shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Créer une règle de réduction</span>
+              <span>Créer une règle de réduction</span>
             </button>
           ) : (
             <>
@@ -366,7 +366,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                 className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-md flex items-center space-x-1.5 transition shadow-xs"
               >
                 <HeartHandshake className="w-3.5 h-3.5 text-slate-700" />
-                <span>+ Nouvelle Assurance / Mutuelle</span>
+                <span>Nouvelle Assurance / Mutuelle</span>
               </button>
               <button
                 type="button"
@@ -374,7 +374,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                 className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-md flex items-center space-x-1.5 transition shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Nouveau Patient / Tiers</span>
+                <span>Nouveau Patient / Tiers</span>
               </button>
             </>
           )}
@@ -472,7 +472,7 @@ export const PartnersView: React.FC<PartnersViewProps> = ({
                 {partnerReductions.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-slate-400 bg-slate-50/50 font-medium">
-                      Aucune règle de réduction partenaire configurée. Cliquez sur "+ Créer une règle de réduction" ci-dessus.
+                      Aucune règle de réduction partenaire configurée. Cliquez sur "Créer une règle de réduction" ci-dessus.
                     </td>
                   </tr>
                 ) : (

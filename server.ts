@@ -1212,6 +1212,15 @@ app.get('/api/database/dump', (req: Request, res: Response) => {
 app.get('/api/database/dump-sql', (req: Request, res: Response) => {
   try {
     const dateStr = new Date().toISOString().slice(0, 10);
+    const dumpPath = path.join(process.cwd(), 'database_dump_exhaustive.sql');
+    if (fs.existsSync(dumpPath)) {
+      const sqlContent = fs.readFileSync(dumpPath, 'utf8');
+      const filename = `dump_base_donnees_exhaustive_${dateStr}.sql`;
+      res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(sqlContent);
+    }
+
     const escapeSql = (val: any): string => {
       if (val === null || val === undefined) return 'NULL';
       if (typeof val === 'number') return String(val);
@@ -1221,119 +1230,127 @@ app.get('/api/database/dump-sql', (req: Request, res: Response) => {
     };
 
     let sql = `-- ==========================================================\n`;
-    sql += `-- DUMP DE BASE DE DONNÉES - LABORATOIRE D'ANALYSES MÉDICALES\n`;
+    sql += `-- DUMP DE BASE DE DONNÉES EXHAUSTIF - SIH & CLINIQUE\n`;
     sql += `-- Date d'exportation : ${new Date().toISOString()}\n`;
     sql += `-- Établissement : ${dbCompany.name}\n`;
     sql += `-- ==========================================================\n\n`;
-
     sql += `SET FOREIGN_KEY_CHECKS = 0;\n\n`;
 
-    // 1. Partners
-    sql += `-- 1. Table des Patients & Partenaires (${dbPartners.length} enregistrements)\n`;
-    sql += `CREATE TABLE IF NOT EXISTS res_partner (\n`;
-    sql += `  id INT PRIMARY KEY,\n`;
-    sql += `  name VARCHAR(255) NOT NULL,\n`;
-    sql += `  is_company TINYINT(1) DEFAULT 0,\n`;
-    sql += `  email VARCHAR(255),\n`;
-    sql += `  phone VARCHAR(100),\n`;
-    sql += `  street VARCHAR(255),\n`;
-    sql += `  city VARCHAR(100),\n`;
-    sql += `  vat VARCHAR(100),\n`;
-    sql += `  customer_rank INT DEFAULT 0,\n`;
-    sql += `  supplier_rank INT DEFAULT 0\n`;
-    sql += `);\n\n`;
-
-    dbPartners.forEach((p) => {
-      sql += `INSERT INTO res_partner (id, name, is_company, email, phone, street, city, vat, customer_rank, supplier_rank) VALUES (${p.id}, ${escapeSql(p.name)}, ${p.is_company ? 1 : 0}, ${escapeSql(p.email)}, ${escapeSql(p.phone)}, ${escapeSql(p.street)}, ${escapeSql(p.city)}, ${escapeSql(p.vat)}, ${p.customer_rank || 0}, ${p.supplier_rank || 0}) ON DUPLICATE KEY UPDATE name = VALUES(name);\n`;
+    // 1. Countries & Currencies & UOMs
+    sql += `-- 1. Pays, Devises et Unités\n`;
+    sql += `CREATE TABLE IF NOT EXISTS res_country (id INT PRIMARY KEY, name VARCHAR(100) NOT NULL, code VARCHAR(10) NOT NULL);\n`;
+    dbCountries.forEach((c) => {
+      sql += `INSERT INTO res_country (id, name, code) VALUES (${c.id}, ${escapeSql(c.name)}, ${escapeSql(c.code)});\n`;
+    });
+    sql += `CREATE TABLE IF NOT EXISTS res_currency (id INT PRIMARY KEY, name VARCHAR(50) NOT NULL, symbol VARCHAR(10) NOT NULL, active TINYINT(1) DEFAULT 1);\n`;
+    dbCurrencies.forEach((c) => {
+      sql += `INSERT INTO res_currency (id, name, symbol, active) VALUES (${c.id}, ${escapeSql(c.name)}, ${escapeSql(c.symbol)}, ${c.active ? 1 : 0});\n`;
+    });
+    sql += `CREATE TABLE IF NOT EXISTS uom_uom (id INT PRIMARY KEY, name VARCHAR(100) NOT NULL, factor DECIMAL(10,4) DEFAULT 1.0000);\n`;
+    dbUoms.forEach((u) => {
+      sql += `INSERT INTO uom_uom (id, name, factor) VALUES (${u.id}, ${escapeSql(u.name)}, ${u.factor || 1.0});\n`;
     });
     sql += `\n`;
 
-    // 2. Lab Orders
-    sql += `-- 2. Table des Dossiers et Examens Biologiques (${dbLabOrders.length} enregistrements)\n`;
-    sql += `CREATE TABLE IF NOT EXISTS lab_exam_order (\n`;
-    sql += `  id INT PRIMARY KEY,\n`;
-    sql += `  order_number VARCHAR(100) NOT NULL,\n`;
-    sql += `  partner_id INT,\n`;
-    sql += `  partner_name VARCHAR(255),\n`;
-    sql += `  patient_gender VARCHAR(10),\n`;
-    sql += `  patient_age INT,\n`;
-    sql += `  prescribing_doctor VARCHAR(255),\n`;
-    sql += `  sampling_date VARCHAR(50),\n`;
-    sql += `  status VARCHAR(50),\n`;
-    sql += `  department VARCHAR(100),\n`;
-    sql += `  conclusion TEXT,\n`;
-    sql += `  technician_name VARCHAR(150),\n`;
-    sql += `  parameters_json TEXT\n`;
-    sql += `);\n\n`;
-
-    dbLabOrders.forEach((o) => {
-      sql += `INSERT INTO lab_exam_order (id, order_number, partner_id, partner_name, patient_gender, patient_age, prescribing_doctor, sampling_date, status, department, conclusion, technician_name, parameters_json) VALUES (${o.id}, ${escapeSql(o.order_number)}, ${o.partner_id || 'NULL'}, ${escapeSql(o.partner_name)}, ${escapeSql(o.patient_gender)}, ${o.patient_age || 'NULL'}, ${escapeSql(o.prescribing_doctor)}, ${escapeSql(o.sampling_date)}, ${escapeSql(o.status)}, ${escapeSql(o.department)}, ${escapeSql(o.conclusion)}, ${escapeSql(o.technician_name)}, ${escapeSql(o.parameters || [])}) ON DUPLICATE KEY UPDATE order_number = VALUES(order_number);\n`;
+    // 2. Users & Groups
+    sql += `-- 2. Utilisateurs et Groupes RBAC\n`;
+    sql += `CREATE TABLE IF NOT EXISTS res_groups (id INT PRIMARY KEY, name VARCHAR(150) NOT NULL, description TEXT, permissions_json TEXT, created_at VARCHAR(50));\n`;
+    dbGroups.forEach((g: any) => {
+      sql += `INSERT INTO res_groups (id, name, description, permissions_json, created_at) VALUES (${g.id}, ${escapeSql(g.name)}, ${escapeSql(g.description)}, ${escapeSql(g.permissions || [])}, ${escapeSql(g.created_at)});\n`;
+    });
+    sql += `CREATE TABLE IF NOT EXISTS res_users (id INT PRIMARY KEY, name VARCHAR(200) NOT NULL, login VARCHAR(150) NOT NULL UNIQUE, email VARCHAR(200), role VARCHAR(100), department VARCHAR(100), phone VARCHAR(50), active TINYINT(1) DEFAULT 1, group_ids_json TEXT, permissions_json TEXT, created_at VARCHAR(50));\n`;
+    dbUsers.forEach((u: any) => {
+      sql += `INSERT INTO res_users (id, name, login, email, role, department, phone, active, group_ids_json, permissions_json, created_at) VALUES (${u.id}, ${escapeSql(u.name)}, ${escapeSql(u.login)}, ${escapeSql(u.email)}, ${escapeSql(u.role)}, ${escapeSql(u.department)}, ${escapeSql(u.phone)}, ${u.active ? 1 : 0}, ${escapeSql(u.group_ids || [])}, ${escapeSql(u.permissions || [])}, ${escapeSql(u.created_at)});\n`;
     });
     sql += `\n`;
 
-    // 3. Moves / Invoices
-    sql += `-- 3. Table des Factures & Pièces Comptables (${dbMoves.length} enregistrements)\n`;
-    sql += `CREATE TABLE IF NOT EXISTS account_move (\n`;
-    sql += `  id INT PRIMARY KEY,\n`;
-    sql += `  name VARCHAR(100) NOT NULL,\n`;
-    sql += `  move_type VARCHAR(50) NOT NULL,\n`;
-    sql += `  state VARCHAR(50) NOT NULL,\n`;
-    sql += `  partner_id INT,\n`;
-    sql += `  partner_name VARCHAR(255),\n`;
-    sql += `  date VARCHAR(50),\n`;
-    sql += `  invoice_date VARCHAR(50),\n`;
-    sql += `  invoice_date_due VARCHAR(50),\n`;
-    sql += `  amount_untaxed DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  amount_tax DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  amount_total DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  amount_residual DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  payment_state VARCHAR(50)\n`;
-    sql += `);\n\n`;
+    // 3. Company Settings
+    sql += `-- 3. Configuration Établissement\n`;
+    sql += `CREATE TABLE IF NOT EXISTS company_settings (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, slogan VARCHAR(255), logo_url TEXT, primary_color VARCHAR(30), phone VARCHAR(100), email VARCHAR(150), address VARCHAR(255), city VARCHAR(100), country VARCHAR(100), rccm VARCHAR(100), tax_id VARCHAR(100), health_accreditation_number VARCHAR(100), currency_symbol VARCHAR(20), default_tax_rate DECIMAL(5,2) DEFAULT 0.00, tax_exemption_default_reason TEXT, bank_name VARCHAR(150), bank_iban VARCHAR(100), bank_bic VARCHAR(50), mobile_money_numbers TEXT, medical_director_name VARCHAR(200), lab_turnaround_default VARCHAR(150), invoice_footer TEXT, hospital_services_json TEXT);\n`;
+    sql += `INSERT INTO company_settings (id, name, slogan, logo_url, primary_color, phone, email, address, city, country, rccm, tax_id, health_accreditation_number, currency_symbol, default_tax_rate, tax_exemption_default_reason, bank_name, bank_iban, bank_bic, mobile_money_numbers, medical_director_name, lab_turnaround_default, invoice_footer, hospital_services_json) VALUES (1, ${escapeSql(dbCompany.name)}, ${escapeSql(dbCompany.slogan)}, ${escapeSql(dbCompany.logo_url)}, ${escapeSql(dbCompany.primary_color)}, ${escapeSql(dbCompany.phone)}, ${escapeSql(dbCompany.email)}, ${escapeSql(dbCompany.address)}, ${escapeSql(dbCompany.city)}, ${escapeSql(dbCompany.country)}, ${escapeSql(dbCompany.rccm)}, ${escapeSql(dbCompany.tax_id)}, ${escapeSql(dbCompany.health_accreditation_number)}, ${escapeSql(dbCompany.currency_symbol)}, ${dbCompany.default_tax_rate || 0}, ${escapeSql(dbCompany.tax_exemption_default_reason)}, ${escapeSql(dbCompany.bank_name)}, ${escapeSql(dbCompany.bank_iban)}, ${escapeSql(dbCompany.bank_bic)}, ${escapeSql(dbCompany.mobile_money_numbers)}, ${escapeSql(dbCompany.medical_director_name)}, ${escapeSql(dbCompany.lab_turnaround_default)}, ${escapeSql(dbCompany.invoice_footer)}, ${escapeSql(dbCompany.hospital_services_config || DEFAULT_HOSPITAL_SERVICES)});\n\n`;
 
-    dbMoves.forEach((m) => {
-      const pName = (m as any).partner_name || '';
-      sql += `INSERT INTO account_move (id, name, move_type, state, partner_id, partner_name, date, invoice_date, invoice_date_due, amount_untaxed, amount_tax, amount_total, amount_residual, payment_state) VALUES (${m.id}, ${escapeSql(m.name)}, ${escapeSql(m.move_type)}, ${escapeSql(m.state)}, ${m.partner_id || 'NULL'}, ${escapeSql(pName)}, ${escapeSql(m.date)}, ${escapeSql(m.invoice_date)}, ${escapeSql(m.invoice_date_due)}, ${m.amount_untaxed || 0}, ${m.amount_tax || 0}, ${m.amount_total || 0}, ${m.amount_residual || 0}, ${escapeSql(m.payment_state)}) ON DUPLICATE KEY UPDATE name = VALUES(name);\n`;
+    // 4. Partners
+    sql += `-- 4. Table des Patients & Partenaires (${dbPartners.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS res_partner (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, is_company TINYINT(1) DEFAULT 0, email VARCHAR(255), phone VARCHAR(100), street VARCHAR(255), city VARCHAR(100), vat VARCHAR(100), customer_rank INT DEFAULT 0, supplier_rank INT DEFAULT 0, gender VARCHAR(10), age INT, birth_date VARCHAR(50), blood_group VARCHAR(10), emergency_contact VARCHAR(200), social_security_number VARCHAR(100), insurance_company VARCHAR(150), insurance_rate DECIMAL(5,2) DEFAULT 0.00, allergies_json TEXT, chronic_conditions_json TEXT);\n`;
+    dbPartners.forEach((p: any) => {
+      sql += `INSERT INTO res_partner (id, name, is_company, email, phone, street, city, vat, customer_rank, supplier_rank, gender, age, birth_date, blood_group, emergency_contact, social_security_number, insurance_company, insurance_rate, allergies_json, chronic_conditions_json) VALUES (${p.id}, ${escapeSql(p.name)}, ${p.is_company ? 1 : 0}, ${escapeSql(p.email)}, ${escapeSql(p.phone)}, ${escapeSql(p.street)}, ${escapeSql(p.city)}, ${escapeSql(p.vat)}, ${p.customer_rank || 0}, ${p.supplier_rank || 0}, ${escapeSql(p.gender)}, ${p.age || 'NULL'}, ${escapeSql(p.birth_date)}, ${escapeSql(p.blood_group)}, ${escapeSql(p.emergency_contact)}, ${escapeSql(p.social_security_number)}, ${escapeSql(p.insurance_company)}, ${p.insurance_rate || 0}, ${escapeSql(p.allergies || [])}, ${escapeSql(p.chronic_conditions || [])});\n`;
     });
     sql += `\n`;
 
-    // 4. Payments
-    sql += `-- 4. Table des Paiements & Règlements (${dbPayments.length} enregistrements)\n`;
-    sql += `CREATE TABLE IF NOT EXISTS account_payment (\n`;
-    sql += `  id INT PRIMARY KEY,\n`;
-    sql += `  partner_id INT,\n`;
-    sql += `  move_id INT,\n`;
-    sql += `  amount DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  payment_date VARCHAR(50),\n`;
-    sql += `  state VARCHAR(50),\n`;
-    sql += `  payment_method_code VARCHAR(50),\n`;
-    sql += `  journal_name VARCHAR(100)\n`;
-    sql += `);\n\n`;
-
-    dbPayments.forEach((py) => {
-      sql += `INSERT INTO account_payment (id, partner_id, move_id, amount, payment_date, state, payment_method_code, journal_name) VALUES (${py.id}, ${py.partner_id || 'NULL'}, ${py.move_id || 'NULL'}, ${py.amount || 0}, ${escapeSql(py.payment_date)}, ${escapeSql(py.state)}, ${escapeSql(py.payment_method_code)}, ${escapeSql(py.journal_name)}) ON DUPLICATE KEY UPDATE amount = VALUES(amount);\n`;
+    // 5. Products & Acts
+    sql += `-- 5. Table des Prestations, Médicaments & Examens (${dbProductProducts.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS product_product (id INT PRIMARY KEY, name VARCHAR(255) NOT NULL, default_code VARCHAR(100), list_price DECIMAL(15,2) NOT NULL DEFAULT 0.00, standard_price DECIMAL(15,2) DEFAULT 0.00, category_name VARCHAR(150), turnaround_time VARCHAR(100), sample_type VARCHAR(100), active TINYINT(1) DEFAULT 1, parameters_json TEXT);\n`;
+    dbProductProducts.forEach((p: any) => {
+      sql += `INSERT INTO product_product (id, name, default_code, list_price, standard_price, category_name, turnaround_time, sample_type, active, parameters_json) VALUES (${p.id}, ${escapeSql(p.name)}, ${escapeSql(p.default_code)}, ${p.list_price || 0}, ${p.standard_price || 0}, ${escapeSql(p.category_name || p.categ_id)}, ${escapeSql(p.turnaround_time)}, ${escapeSql(p.sample_type)}, ${p.active ? 1 : 0}, ${escapeSql(p.parameters || [])});\n`;
     });
     sql += `\n`;
 
-    // 5. Till Sessions
-    sql += `-- 5. Table des Sessions de Caisse (${dbTillSessions.length} enregistrements)\n`;
-    sql += `CREATE TABLE IF NOT EXISTS till_session (\n`;
-    sql += `  id INT PRIMARY KEY,\n`;
-    sql += `  session_code VARCHAR(100),\n`;
-    sql += `  cashier_name VARCHAR(150),\n`;
-    sql += `  state VARCHAR(50),\n`;
-    sql += `  opening_balance DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  closing_balance DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  total_collected DECIMAL(15,2) DEFAULT 0.00,\n`;
-    sql += `  opening_date VARCHAR(50),\n`;
-    sql += `  closing_date VARCHAR(50)\n`;
-    sql += `);\n\n`;
+    // 6. Taxes
+    sql += `-- 6. Table des Taxes & TVA\n`;
+    sql += `CREATE TABLE IF NOT EXISTS account_tax (id INT PRIMARY KEY, name VARCHAR(100) NOT NULL, amount DECIMAL(8,4) NOT NULL, amount_type VARCHAR(50) DEFAULT 'percent', type_tax_use VARCHAR(50) DEFAULT 'sale', active TINYINT(1) DEFAULT 1, description TEXT);\n`;
+    dbTaxes.forEach((t: any) => {
+      sql += `INSERT INTO account_tax (id, name, amount, amount_type, type_tax_use, active, description) VALUES (${t.id}, ${escapeSql(t.name)}, ${t.amount}, ${escapeSql(t.amount_type || 'percent')}, ${escapeSql(t.type_tax_use || 'sale')}, ${t.active ? 1 : 0}, ${escapeSql(t.description)});\n`;
+    });
+    sql += `\n`;
 
-    dbTillSessions.forEach((ts) => {
-      sql += `INSERT INTO till_session (id, session_code, cashier_name, state, opening_balance, closing_balance, total_collected, opening_date, closing_date) VALUES (${ts.id}, ${escapeSql(ts.session_code)}, ${escapeSql(ts.cashier_name)}, ${escapeSql(ts.state)}, ${ts.opening_balance || 0}, ${ts.closing_actual_cash || 0}, ${ts.total_collected || 0}, ${escapeSql(ts.opening_date)}, ${escapeSql(ts.closing_date)}) ON DUPLICATE KEY UPDATE session_code = VALUES(session_code);\n`;
+    // 7. Moves / Invoices
+    sql += `-- 7. Table des Factures & Pièces Comptables (${dbMoves.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS account_move (id INT PRIMARY KEY, name VARCHAR(100) NOT NULL, move_type VARCHAR(50) NOT NULL, state VARCHAR(50) NOT NULL, partner_id INT, partner_name VARCHAR(255), date VARCHAR(50), invoice_date VARCHAR(50), invoice_date_due VARCHAR(50), amount_untaxed DECIMAL(15,2) DEFAULT 0.00, amount_tax DECIMAL(15,2) DEFAULT 0.00, amount_total DECIMAL(15,2) DEFAULT 0.00, amount_residual DECIMAL(15,2) DEFAULT 0.00, payment_state VARCHAR(50), invoice_user_id INT, invoice_user_name VARCHAR(150), insurance_share DECIMAL(15,2) DEFAULT 0.00, patient_share DECIMAL(15,2) DEFAULT 0.00, insurance_company VARCHAR(150), guarantee_letter_number VARCHAR(100), narration TEXT);\n`;
+    dbMoves.forEach((m: any) => {
+      sql += `INSERT INTO account_move (id, name, move_type, state, partner_id, partner_name, date, invoice_date, invoice_date_due, amount_untaxed, amount_tax, amount_total, amount_residual, payment_state, invoice_user_id, invoice_user_name, insurance_share, patient_share, insurance_company, guarantee_letter_number, narration) VALUES (${m.id}, ${escapeSql(m.name)}, ${escapeSql(m.move_type)}, ${escapeSql(m.state)}, ${m.partner_id || 'NULL'}, ${escapeSql(m.partner_name)}, ${escapeSql(m.date)}, ${escapeSql(m.invoice_date)}, ${escapeSql(m.invoice_date_due)}, ${m.amount_untaxed || 0}, ${m.amount_tax || 0}, ${m.amount_total || 0}, ${m.amount_residual || 0}, ${escapeSql(m.payment_state)}, ${m.invoice_user_id || 'NULL'}, ${escapeSql(m.invoice_user_name)}, ${m.insurance_share || 0}, ${m.patient_share || m.amount_total || 0}, ${escapeSql(m.insurance_company)}, ${escapeSql(m.guarantee_letter_number)}, ${escapeSql(m.narration)});\n`;
+    });
+    sql += `\n`;
+
+    // 8. Move Lines
+    sql += `-- 8. Lignes de Factures (${dbMoveLines.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS account_move_line (id INT PRIMARY KEY, move_id INT NOT NULL, product_id INT, name VARCHAR(255) NOT NULL, quantity DECIMAL(10,2) DEFAULT 1.00, price_unit DECIMAL(15,2) DEFAULT 0.00, discount DECIMAL(5,2) DEFAULT 0.00, price_subtotal DECIMAL(15,2) DEFAULT 0.00, price_total DECIMAL(15,2) DEFAULT 0.00);\n`;
+    dbMoveLines.forEach((l: any) => {
+      sql += `INSERT INTO account_move_line (id, move_id, product_id, name, quantity, price_unit, discount, price_subtotal, price_total) VALUES (${l.id}, ${l.move_id}, ${l.product_id || 'NULL'}, ${escapeSql(l.name)}, ${l.quantity || 1}, ${l.price_unit || 0}, ${l.discount || 0}, ${l.price_subtotal || 0}, ${l.price_total || 0});\n`;
+    });
+    sql += `\n`;
+
+    // 9. Payments
+    sql += `-- 9. Table des Paiements & Règlements (${dbPayments.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS account_payment (id INT PRIMARY KEY, payment_reference VARCHAR(100), partner_id INT, partner_name VARCHAR(255), move_id INT, invoice_name VARCHAR(100), amount DECIMAL(15,2) DEFAULT 0.00, payment_date VARCHAR(50), state VARCHAR(50), payment_method_code VARCHAR(50), journal_name VARCHAR(100), cashier_name VARCHAR(150), transaction_reference VARCHAR(150));\n`;
+    dbPayments.forEach((py: any) => {
+      sql += `INSERT INTO account_payment (id, payment_reference, partner_id, partner_name, move_id, invoice_name, amount, payment_date, state, payment_method_code, journal_name, cashier_name, transaction_reference) VALUES (${py.id}, ${escapeSql(py.payment_reference || py.name)}, ${py.partner_id || 'NULL'}, ${escapeSql(py.partner_name)}, ${py.move_id || 'NULL'}, ${escapeSql(py.invoice_name)}, ${py.amount || 0}, ${escapeSql(py.payment_date)}, ${escapeSql(py.state)}, ${escapeSql(py.payment_method_code)}, ${escapeSql(py.journal_name)}, ${escapeSql(py.cashier_name)}, ${escapeSql(py.transaction_reference)});\n`;
+    });
+    sql += `\n`;
+
+    // 10. Till Sessions
+    sql += `-- 10. Table des Sessions de Caisse (${dbTillSessions.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS till_session (id INT PRIMARY KEY, session_code VARCHAR(100) NOT NULL, user_id INT, cashier_name VARCHAR(150), state VARCHAR(50), opening_balance DECIMAL(15,2) DEFAULT 0.00, closing_balance DECIMAL(15,2) DEFAULT 0.00, total_collected DECIMAL(15,2) DEFAULT 0.00, opening_date VARCHAR(50), closing_date VARCHAR(50), cash_difference DECIMAL(15,2) DEFAULT 0.00, closing_notes TEXT);\n`;
+    dbTillSessions.forEach((ts: any) => {
+      sql += `INSERT INTO till_session (id, session_code, user_id, cashier_name, state, opening_balance, closing_balance, total_collected, opening_date, closing_date, cash_difference, closing_notes) VALUES (${ts.id}, ${escapeSql(ts.session_code)}, ${ts.user_id || 'NULL'}, ${escapeSql(ts.cashier_name)}, ${escapeSql(ts.state)}, ${ts.opening_balance || 0}, ${ts.closing_actual_cash || 0}, ${ts.total_collected || 0}, ${escapeSql(ts.opening_date)}, ${escapeSql(ts.closing_date)}, ${ts.cash_difference || 0}, ${escapeSql(ts.closing_notes)});\n`;
+    });
+    sql += `\n`;
+
+    // 11. Consultations
+    sql += `-- 11. Table des Consultations & Constantes (${dbConsultations.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS medical_consultation (id INT PRIMARY KEY, partner_id INT NOT NULL, patient_name VARCHAR(255), doctor_name VARCHAR(200), specialty VARCHAR(100), date VARCHAR(50), status VARCHAR(50), chief_complaint TEXT, history_of_illness TEXT, blood_pressure VARCHAR(30), heart_rate INT, temperature DECIMAL(4,1), weight DECIMAL(5,2), height DECIMAL(5,2), spO2 INT, blood_glucose DECIMAL(6,2), triage_level INT DEFAULT 3, diagnosis_primary VARCHAR(255), diagnosis_icd10 VARCHAR(50), clinical_notes TEXT, prescriptions_json TEXT, lab_orders_json TEXT, imaging_orders_json TEXT);\n`;
+    dbConsultations.forEach((c: any) => {
+      sql += `INSERT INTO medical_consultation (id, partner_id, patient_name, doctor_name, specialty, date, status, chief_complaint, history_of_illness, blood_pressure, heart_rate, temperature, weight, height, spO2, blood_glucose, triage_level, diagnosis_primary, diagnosis_icd10, clinical_notes, prescriptions_json, lab_orders_json, imaging_orders_json) VALUES (${c.id}, ${c.partner_id}, ${escapeSql(c.patient_name)}, ${escapeSql(c.doctor_name)}, ${escapeSql(c.specialty)}, ${escapeSql(c.date)}, ${escapeSql(c.status)}, ${escapeSql(c.chief_complaint)}, ${escapeSql(c.history_of_illness)}, ${escapeSql(c.blood_pressure)}, ${c.heart_rate || 'NULL'}, ${c.temperature || 'NULL'}, ${c.weight || 'NULL'}, ${c.height || 'NULL'}, ${c.spO2 || 'NULL'}, ${c.blood_glucose || 'NULL'}, ${c.triage_level || 3}, ${escapeSql(c.diagnosis_primary)}, ${escapeSql(c.diagnosis_icd10 || c.diagnosis_code)}, ${escapeSql(c.clinical_notes)}, ${escapeSql(c.prescriptions || [])}, ${escapeSql(c.lab_orders || c.lab_order_ids || [])}, ${escapeSql(c.imaging_orders || [])});\n`;
+    });
+    sql += `\n`;
+
+    // 12. Lab Orders
+    sql += `-- 12. Table des Dossiers et Examens Biologiques (${dbLabOrders.length} enregistrements)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS lab_exam_order (id INT PRIMARY KEY, order_number VARCHAR(100) NOT NULL, partner_id INT, partner_name VARCHAR(255), patient_gender VARCHAR(10), patient_age INT, prescribing_doctor VARCHAR(255), sampling_date VARCHAR(50), status VARCHAR(50), department VARCHAR(100), conclusion TEXT, technician_name VARCHAR(150), parameters_json TEXT);\n`;
+    dbLabOrders.forEach((o: any) => {
+      sql += `INSERT INTO lab_exam_order (id, order_number, partner_id, partner_name, patient_gender, patient_age, prescribing_doctor, sampling_date, status, department, conclusion, technician_name, parameters_json) VALUES (${o.id}, ${escapeSql(o.order_number)}, ${o.partner_id || 'NULL'}, ${escapeSql(o.partner_name)}, ${escapeSql(o.patient_gender)}, ${o.patient_age || 'NULL'}, ${escapeSql(o.prescribing_doctor)}, ${escapeSql(o.sampling_date)}, ${escapeSql(o.status)}, ${escapeSql(o.department)}, ${escapeSql(o.conclusion)}, ${escapeSql(o.technician_name)}, ${escapeSql(o.parameters || [])});\n`;
     });
     sql += `\nSET FOREIGN_KEY_CHECKS = 1;\n`;
 
-    const filename = `dump_base_donnees_${dateStr}.sql`;
+    const diskDumpPath = path.join(process.cwd(), 'database_dump_exhaustive.sql');
+    if (fs.existsSync(diskDumpPath)) {
+      const diskSql = fs.readFileSync(diskDumpPath, 'utf8');
+      const filename = `dump_base_donnees_exhaustive_${dateStr}.sql`;
+      res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(diskSql);
+    }
+
+    const filename = `dump_base_donnees_exhaustive_${dateStr}.sql`;
     res.setHeader('Content-Type', 'application/sql; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(sql);

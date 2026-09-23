@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Clock, ShieldAlert, LogOut, CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 import { AppNavigation, AppView } from './components/AppNavigation';
 import { getUserBillingProfile } from './lib/formatters';
-import { getAllowedViews, isViewServiceActive, getServiceIdForView } from './utils/navigation';
+import { getAllowedViews, isViewServiceActive, getServiceIdForView, getSmartDashboardView } from './utils/navigation';
 import { DEFAULT_HOSPITAL_SERVICES } from './data/defaultHospitalServices';
 import { LoginView } from './components/LoginView';
 import { CompanySettingsView } from './components/CompanySettingsView';
@@ -417,36 +417,40 @@ export default function App() {
   const [forceOpenSessionModal, setForceOpenSessionModal] = useState(false);
 
   // Company Branding & Settings State
-  const [company, setCompany] = useState<CompanySettings>({
-    name: "LABORATOIRE D'ANALYSES MÉDICALES & BIOLOGIE CLINIQUE",
-    slogan: "Biologie Médicale, Diagnostics Spécialisés & Examens de Santé",
-    logo_url: "",
-    primary_color: "#334155",
-    phone: "+225 27 20 22 33 44 / +225 07 08 09 10 11",
-    email: "contact@laboratoire-biologie.ci",
-    address: "Plateau Medical Center, Bd Hassan II",
-    city: "Abidjan",
-    country: "Côte d'Ivoire",
-    rccm: "CI-ABJ-2024-B-12940",
-    tax_id: "CI 01928374 A",
-    health_accreditation_number: "AGR-MSHP-2024-0098",
-    currency_symbol: "FCFA",
-    default_tax_rate: 0,
-    tax_exemption_default_reason: "Exonération légale de TVA sur les prestations de biologie médicale (Art. 355 du Code Général des Impôts).",
-    bank_name: "Société Générale Côte d'Ivoire (SGCI)",
-    bank_iban: "CI93 0100 2000 3000 4000 50",
-    bank_bic: "SGCIX01",
-    mobile_money_numbers: "Wave / Orange Money / Moov : +225 07 08 09 10 11",
-    enabled_payment_methods: ["cash", "wave", "orange_money", "moov_money", "card", "check", "transfer", "insurance"],
-    medical_director_name: "Dr. Aboubacar TOURÉ - Biologiste Médical Specialist",
-    lab_turnaround_default: "2 heures à 24 heures selon la spécialité",
-    invoice_footer: "Document délivré à titre de quittance médicale officielle. Facture exonérée de TVA sur les prestations d'analyses médicales.",
-    default_page_size: 50,
-    flash_news_enabled: true,
-    flash_news_speed: 10,
-    flash_announcements: DEFAULT_FLASH_ANNOUNCEMENTS,
-    hospital_services_config: DEFAULT_HOSPITAL_SERVICES,
-    enabled_hospital_services: DEFAULT_HOSPITAL_SERVICES.map((s) => s.id),
+  const [company, setCompany] = useState<CompanySettings>(() => {
+    const savedLogo = typeof window !== 'undefined' ? localStorage.getItem('app_company_logo_url') : null;
+    const savedName = typeof window !== 'undefined' ? localStorage.getItem('app_company_name') : null;
+    return {
+      name: savedName || "LABORATOIRE D'ANALYSES MÉDICALES & BIOLOGIE CLINIQUE",
+      slogan: "Biologie Médicale, Diagnostics Spécialisés & Examens de Santé",
+      logo_url: savedLogo || "",
+      primary_color: "#334155",
+      phone: "+225 27 20 22 33 44 / +225 07 08 09 10 11",
+      email: "contact@laboratoire-biologie.ci",
+      address: "Plateau Medical Center, Bd Hassan II",
+      city: "Abidjan",
+      country: "Côte d'Ivoire",
+      rccm: "CI-ABJ-2024-B-12940",
+      tax_id: "CI 01928374 A",
+      health_accreditation_number: "AGR-MSHP-2024-0098",
+      currency_symbol: "FCFA",
+      default_tax_rate: 0,
+      tax_exemption_default_reason: "Exonération légale de TVA sur les prestations de biologie médicale (Art. 355 du Code Général des Impôts).",
+      bank_name: "Société Générale Côte d'Ivoire (SGCI)",
+      bank_iban: "CI93 0100 2000 3000 4000 50",
+      bank_bic: "SGCIX01",
+      mobile_money_numbers: "Wave / Orange Money / Moov : +225 07 08 09 10 11",
+      enabled_payment_methods: ["cash", "wave", "orange_money", "moov_money", "card", "check", "transfer", "insurance"],
+      medical_director_name: "Dr. Aboubacar TOURÉ - Biologiste Médical Specialist",
+      lab_turnaround_default: "2 heures à 24 heures selon la spécialité",
+      invoice_footer: "Document délivré à titre de quittance médicale officielle. Facture exonérée de TVA sur les prestations d'analyses médicales.",
+      default_page_size: 50,
+      flash_news_enabled: true,
+      flash_news_speed: 10,
+      flash_announcements: DEFAULT_FLASH_ANNOUNCEMENTS,
+      hospital_services_config: DEFAULT_HOSPITAL_SERVICES,
+      enabled_hospital_services: DEFAULT_HOSPITAL_SERVICES.map((s) => s.id),
+    };
   });
 
   // User & Auth State with localStorage persistence
@@ -729,6 +733,12 @@ export default function App() {
       setSchemaSql(schemaRes?.rawSql || schemaRes?.raw_sql || '');
       setSchemaTables(Array.isArray(schemaRes?.tables) ? schemaRes.tables : []);
       if (companyRes && companyRes.name) {
+        if (companyRes.logo_url) {
+          localStorage.setItem('app_company_logo_url', companyRes.logo_url);
+        }
+        if (companyRes.name) {
+          localStorage.setItem('app_company_name', companyRes.name);
+        }
         setCompany((prev) => ({
           ...prev,
           ...companyRes,
@@ -1033,6 +1043,8 @@ export default function App() {
     // 2. Fallback to local session registry
     return getActiveSessionForCashier(currentUser);
   }, [tillSessions, currentUser]);
+
+  const smartDashboardView = useMemo(() => getSmartDashboardView(currentUser), [currentUser]);
 
   // Invoice Handlers
   const handleSaveMove = async (moveData: any): Promise<AccountMove | null> => {
@@ -1467,6 +1479,14 @@ export default function App() {
 
       // Optimistically update local state & localStorage so UI immediately responds without waiting or crashing
       setCompany(payload);
+      if (payload.logo_url) {
+        localStorage.setItem('app_company_logo_url', payload.logo_url);
+      } else {
+        localStorage.removeItem('app_company_logo_url');
+      }
+      if (payload.name) {
+        localStorage.setItem('app_company_name', payload.name);
+      }
       if (payload.hospital_services_config) {
         try {
           localStorage.setItem('app_hospital_services_config', JSON.stringify(payload.hospital_services_config));
@@ -1580,6 +1600,7 @@ export default function App() {
 
   const hasActiveSession = Boolean(activeUserSession);
   const isCashierProfile = isCashierOnlyProfile(currentUser);
+  const effectiveDashboardView = currentView === 'dashboard' ? smartDashboardView : currentView;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col selection:bg-slate-900 selection:text-white relative overflow-x-hidden">
@@ -1866,7 +1887,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                {currentView === 'infirmier_dashboard' && (
+                {effectiveDashboardView === 'infirmier_dashboard' && (
               <InfirmierDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1885,7 +1906,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'medecin_dashboard' && (
+            {effectiveDashboardView === 'medecin_dashboard' && (
               <MedecinDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1904,7 +1925,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'specialiste_dashboard' && (
+            {effectiveDashboardView === 'specialiste_dashboard' && (
               <SpecialisteDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1923,7 +1944,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'labo_dashboard' && (
+            {effectiveDashboardView === 'labo_dashboard' && (
               <LaboDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1942,7 +1963,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'imagerie_dashboard' && (
+            {effectiveDashboardView === 'imagerie_dashboard' && (
               <ImagerieDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1961,7 +1982,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'hospit_dashboard' && (
+            {effectiveDashboardView === 'hospit_dashboard' && (
               <HospitDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1980,7 +2001,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'superviseur_dashboard' && (
+            {effectiveDashboardView === 'superviseur_dashboard' && (
               <SuperviseurDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -1999,7 +2020,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'caisse_dashboard' && (
+            {effectiveDashboardView === 'caisse_dashboard' && (
               <CaisseDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -2018,7 +2039,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'factures_dashboard' && (
+            {effectiveDashboardView === 'factures_dashboard' && (
               <FacturesDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -2037,7 +2058,7 @@ export default function App() {
               />
             )}
 
-            {currentView === 'caisse_facture_dashboard' && (
+            {effectiveDashboardView === 'caisse_facture_dashboard' && (
               <CaisseFactureDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -2056,7 +2077,7 @@ export default function App() {
               />
             )}
 
-            {(currentView === 'admin_dashboard' || currentView === 'dashboard') && (
+            {effectiveDashboardView === 'admin_dashboard' && (
               <AdminDashboard
                 currentView={currentView}
                 consultations={consultations}
@@ -2290,6 +2311,7 @@ export default function App() {
                   return res;
                 }}
                 onNavigateToInvoices={() => setCurrentView('invoices')}
+                onShowToast={showToast}
               />
             )}
 
@@ -2883,7 +2905,7 @@ export default function App() {
             )}
 
             {/* Pôle Pédiatrie & Santé Infantile */}
-            {currentView === 'pediatrie_dashboard' && (
+            {effectiveDashboardView === 'pediatrie_dashboard' && (
               <PediatrieDashboardView
                 partners={partners}
                 consultations={consultations}
@@ -2942,7 +2964,7 @@ export default function App() {
             )}
 
             {/* Pôle Maternité & Obstétrique */}
-            {currentView === 'maternite_dashboard' && (
+            {effectiveDashboardView === 'maternite_dashboard' && (
               <MaterniteDashboardView
                 partners={partners}
                 consultations={consultations}
@@ -3134,57 +3156,57 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Real-time Toast Notifications Container with smooth motion transitions */}
-      <div className="fixed bottom-6 right-6 z-[99999] flex flex-col space-y-2 pointer-events-none max-w-sm w-full">
+      {/* Real-time Toast Notifications Container positioned at TOP with translucent green/red/orange backgrounds */}
+      <div className="fixed top-4 right-4 sm:top-5 sm:right-5 z-[999999] flex flex-col space-y-2.5 pointer-events-none max-w-md w-full px-2 sm:px-0">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-              className={`pointer-events-auto p-3.5 rounded-xl shadow-2xl border backdrop-blur-sm flex items-start space-x-3 transition ${
+              className={`pointer-events-auto p-4 rounded-xl shadow-2xl border backdrop-blur-md flex items-start space-x-3.5 transition ${
                 toast.type === 'success'
-                  ? 'bg-slate-900/95 text-white border-slate-700/80'
+                  ? 'bg-emerald-600/90 text-white border-emerald-400/40 shadow-emerald-950/20'
                   : toast.type === 'error'
-                  ? 'bg-rose-900/95 text-white border-rose-700/80'
+                  ? 'bg-rose-600/90 text-white border-rose-400/40 shadow-rose-950/20'
                   : toast.type === 'warning'
-                  ? 'bg-amber-900/95 text-white border-amber-700/80'
-                  : 'bg-indigo-950/95 text-white border-indigo-700/80'
+                  ? 'bg-amber-500/95 text-white border-amber-300/50 shadow-amber-950/20'
+                  : 'bg-sky-600/90 text-white border-sky-400/40 shadow-sky-950/20'
               }`}
             >
               <div className="shrink-0 pt-0.5">
                 {toast.type === 'success' && (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-5 h-5 text-emerald-100" />
                 )}
                 {toast.type === 'error' && (
-                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                  <AlertCircle className="w-5 h-5 text-rose-100" />
                 )}
                 {toast.type === 'warning' && (
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  <AlertTriangle className="w-5 h-5 text-amber-100" />
                 )}
                 {toast.type === 'info' && (
-                  <Info className="w-4 h-4 text-blue-400" />
+                  <Info className="w-5 h-5 text-sky-100" />
                 )}
               </div>
               <div className="flex-1 min-w-0 pr-1">
                 {toast.title && (
-                  <div className="text-[11px] font-black uppercase tracking-wider opacity-90 mb-0.5">
+                  <div className="text-[11px] font-black uppercase tracking-wider text-white/90 mb-0.5">
                     {toast.title}
                   </div>
                 )}
-                <div className="text-xs font-semibold leading-snug">
+                <div className="text-xs font-semibold leading-snug text-white">
                   {toast.text}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => removeToast(toast.id)}
-                className="shrink-0 p-1 text-white/60 hover:text-white rounded hover:bg-white/10 transition cursor-pointer"
+                className="shrink-0 p-1 text-white/80 hover:text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
                 title="Fermer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </motion.div>
           ))}

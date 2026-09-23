@@ -1818,20 +1818,40 @@ export const MedecinQueueTableView: React.FC<ClinicalViewProps> = ({
   onRefreshData,
   onSelectConsultation,
 }) => {
-  // Patients ready for doctor consultation (strictly active, non-completed, non-specialist)
+  // Patients ready for doctor consultation (strictly General Medicine: active, non-pediatric, non-maternity, non-specialist)
   const doctorQueue = consultations.filter((c) => {
     if (c.status === 'completed' || c.status === 'cancelled') return false;
 
-    // If transferred to a specialist, exclude from general doctor queue
+    const consultType = ((c as any).consultation_type_id || c.consultation_type || '');
+
+    // Strict Scope: Exclude Pediatric patients (directed to Pédiatre)
+    const isPediatric =
+      (c.patient_age !== undefined && c.patient_age !== null && c.patient_age <= 15) ||
+      (c.specialty && c.specialty.toLowerCase().includes('pédiatr')) ||
+      (consultType && consultType.startsWith('CS-PED')) ||
+      (c.reason && (c.reason.toLowerCase().includes('pédiatr') || c.reason.toLowerCase().includes('nourrisson')));
+    if (isPediatric) return false;
+
+    // Strict Scope: Exclude Maternity / CPN / Gynécologie (directed to Sage-Femme / Maternité)
+    const isMaternity =
+      (c.specialty && (c.specialty.toLowerCase().includes('mater') || c.specialty.toLowerCase().includes('cpn') || c.specialty.toLowerCase().includes('gynéc') || c.specialty.toLowerCase().includes('obstét'))) ||
+      (consultType && (consultType.startsWith('CS-MAT') || consultType.startsWith('CS-GYN'))) ||
+      (c.reason && (c.reason.toLowerCase().includes('grossesse') || c.reason.toLowerCase().includes('cpn') || c.reason.toLowerCase().includes('accouchement')));
+    if (isMaternity) return false;
+
+    // Strict Scope: Exclude Specialist patients (directed to Médecin Spécialiste)
     const isSpecialist =
       (c as any).target_level === 'specialiste' ||
       c.doctor_type === 'specialiste' ||
+      c.status === 'referred' ||
+      (consultType && consultType.startsWith('CS-SPEC')) ||
       (c.specialty && (
         c.specialty.toLowerCase().includes('spécial') ||
         c.specialty.toLowerCase().includes('cardio') ||
-        c.specialty.toLowerCase().includes('pédiatrie') ||
-        c.specialty.toLowerCase().includes('gynéco') ||
-        c.specialty.toLowerCase().includes('ophtalmo')
+        c.specialty.toLowerCase().includes('ophtalmo') ||
+        c.specialty.toLowerCase().includes('dermato') ||
+        c.specialty.toLowerCase().includes('chirurg') ||
+        c.specialty.toLowerCase().includes('neurolog')
       ));
     if (isSpecialist) return false;
 
@@ -1842,7 +1862,6 @@ export const MedecinQueueTableView: React.FC<ClinicalViewProps> = ({
       c.status === 'waiting' ||
       c.status === 'in_consultation' ||
       c.status === 'triage' ||
-      c.status === 'referred' ||
       Boolean((c as any).referred_to_doctor) ||
       (c.status === 'pending_payment' && Boolean(c.has_pending_balance))
     );
@@ -2239,22 +2258,26 @@ export const SpecialisteReferredTableView: React.FC<ClinicalViewProps> = ({
     }
   };
 
-  // Referred consultations or specialty consultations (strictly active, non completed)
+  // Referred consultations or specialty consultations (strictly active, non completed, specialized medical expertise)
   const referredList = consultations.filter((c) => {
     if (c.status === 'completed' || c.status === 'cancelled') return false;
     if (c.status === 'pending_payment' && !c.has_pending_balance) return false;
+
+    const consultType = ((c as any).consultation_type_id || c.consultation_type || '');
 
     return (
       (c as any).target_level === 'specialiste' ||
       c.doctor_type === 'specialiste' ||
       c.status === 'referred' ||
+      (consultType && consultType.startsWith('CS-SPEC')) ||
       Boolean(
         c.specialty && (
           c.specialty.toLowerCase().includes('spécial') ||
           c.specialty.toLowerCase().includes('cardio') ||
-          c.specialty.toLowerCase().includes('pédiatrie') ||
-          c.specialty.toLowerCase().includes('gynéco') ||
-          c.specialty.toLowerCase().includes('ophtalmo')
+          c.specialty.toLowerCase().includes('ophtalmo') ||
+          c.specialty.toLowerCase().includes('dermato') ||
+          c.specialty.toLowerCase().includes('chirurg') ||
+          c.specialty.toLowerCase().includes('neurolog')
         )
       )
     );

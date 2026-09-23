@@ -64,8 +64,12 @@ interface ModuleDashboardProps {
 export const InfirmierDashboard: React.FC<ModuleDashboardProps> = ({
   consultations,
   partners,
+  currentUser,
   onNavigateToView,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'urgent' | 'pending_vitals' | 'vitals_done'>('all');
+
   const waitingTriage = consultations.filter(
     (c) =>
       c.status !== 'completed' &&
@@ -79,128 +83,237 @@ export const InfirmierDashboard: React.FC<ModuleDashboardProps> = ({
   const urgentCases = consultations.filter(c => (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed');
   const careActs = consultations.filter(c => c.care_records && c.care_records.length > 0);
 
+  // Vital signs clinical alerts (High BP > 140/90, Fever > 38.5°C, SaO2 < 95%)
+  const clinicalAlertsCount = consultations.filter(c => {
+    if (!c.vitals) return false;
+    const temp = parseFloat(String(c.vitals.temperature || '0'));
+    const spo2 = parseInt(String(c.vitals.oxygen_saturation || '100'), 10);
+    return (temp >= 38.5) || (spo2 > 0 && spo2 < 95);
+  }).length;
+
+  const filteredConsultations = useMemo(() => {
+    return consultations.filter(c => {
+      const p = partners.find(pt => pt.id === c.partner_id);
+      const matchSearch = !searchTerm || 
+        (c.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p?.ndm || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.reason || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      if (!matchSearch) return false;
+
+      if (filterMode === 'urgent') return c.priority === 'urgent' || c.priority === 'critique';
+      if (filterMode === 'pending_vitals') return !c.vitals?.taken_at && c.status !== 'completed';
+      if (filterMode === 'vitals_done') return Boolean(c.vitals?.taken_at);
+      return true;
+    });
+  }, [consultations, partners, searchTerm, filterMode]);
+
   return (
     <div className="space-y-6">
-      {/* Header épuré */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Poste Infirmier & Triage
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Supervision de la file de triage, constante vitales et administration des soins
-          </p>
+      {/* Hero Header avec profil actif */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
+            <Activity className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">
+                Poste Infirmier &amp; Triage Clinique
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                Session Active • {currentUser?.name || 'Infirmier(ère)'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Évaluation du niveau de gravité, constantes vitales, administration des soins &amp; orientation médicale
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onNavigateToView('infirmier_vitals')}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+            className="px-3.5 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Prendre Constantes</span>
           </button>
           <button
             onClick={() => onNavigateToView('infirmier_triage')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <Stethoscope className="w-4 h-4 text-slate-600" />
+            <Stethoscope className="w-4 h-4 text-slate-300" />
             <span>Évaluer Triage</span>
+          </button>
+          <button
+            onClick={() => onNavigateToView('infirmier_queue')}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+          >
+            <Users className="w-4 h-4 text-slate-600" />
+            <span>File Complète</span>
           </button>
         </div>
       </div>
 
-      {/* Métriques clés en liste de cartes sobres */}
+      {/* Subtle Directive Bar for Nursing Flow */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+          <div>
+            <span className="font-bold text-slate-800 uppercase text-[11px] tracking-wider mr-1.5">Directive Soignant :</span>
+            <span className="text-[11px] text-slate-600">
+              Respectez le circuit d'admission : <strong>1. Relevé des constantes</strong> ➔ <strong>2. Classification CCMU</strong> ➔ <strong>3. Transfert vers le cabinet médical</strong>.
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded shrink-0">
+          Contrôle Séquentiel Actif
+        </span>
+      </div>
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
             <span>En attente de triage</span>
-            <Clock className="w-4 h-4 text-slate-500" />
+            <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">{waitingTriage.length}</p>
-          <span className="text-[11px] text-slate-500">Patients à évaluer</span>
+          <span className="text-[11px] text-amber-700 font-medium">Patients en salle d'accueil</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Constantes relevées</span>
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <span>Constantes Relevées</span>
+            <CheckCircle2 className="w-4 h-4 text-teal-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{vitalsCompletedToday.length}</p>
-          <span className="text-[11px] text-slate-500">Aujourd'hui</span>
+          <p className="text-2xl font-black text-teal-700 mt-2">{vitalsCompletedToday.length}</p>
+          <span className="text-[11px] text-slate-500">Transmis aux médecins</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Cas urgents / critiques</span>
-            <AlertTriangle className="w-4 h-4 text-slate-700" />
+            <span>Urgences (P1 &amp; P2)</span>
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{urgentCases.length}</p>
-          <span className="text-[11px] text-slate-500">Priorité 1 & 2</span>
+          <p className="text-2xl font-black text-rose-600 mt-2">{urgentCases.length}</p>
+          <span className="text-[11px] text-rose-700 font-medium">Prise en charge immédiate</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Soins & Injections</span>
-            <Activity className="w-4 h-4 text-slate-500" />
+            <span>Alertes Cliniques</span>
+            <Activity className="w-4 h-4 text-indigo-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{careActs.length}</p>
-          <span className="text-[11px] text-slate-500">Protocoles actifs</span>
+          <p className="text-2xl font-black text-indigo-700 mt-2">{clinicalAlertsCount || careActs.length}</p>
+          <span className="text-[11px] text-slate-500">Fièvre &gt;38.5°C / SaO2 &lt;95%</span>
         </div>
       </div>
 
-      {/* Liste tabulaire : File active de triage */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-slate-600" />
-            File active de triage et constantes (Liste temps réel)
-          </h2>
-          <button
-            onClick={() => onNavigateToView('infirmier_queue')}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1"
-          >
-            <span>Voir toute la file</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      {/* Liste interactive avec barre de recherche & filtres */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-teal-700" />
+            <h2 className="text-sm font-bold text-slate-900">
+              File Active de Triage et Constantes Vitales
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              {filteredConsultations.length} dossiers
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher patient, NDM..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-44 sm:w-56"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setFilterMode('all')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setFilterMode('urgent')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'urgent' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'
+                }`}
+              >
+                Urgences ({urgentCases.length})
+              </button>
+              <button
+                onClick={() => setFilterMode('pending_vitals')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'pending_vitals' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-700 hover:bg-amber-50'
+                }`}
+              >
+                À relever ({waitingTriage.length})
+              </button>
+              <button
+                onClick={() => setFilterMode('vitals_done')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'vitals_done' ? 'bg-teal-700 text-white shadow-xs' : 'text-teal-700 hover:bg-teal-50'
+                }`}
+              >
+                Prêts ({vitalsCompletedToday.length})
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <th className="py-2.5 px-4">Patient / Dossier</th>
+                <th className="py-2.5 px-4">Patient / NDM</th>
                 <th className="py-2.5 px-4">Motif de consultation</th>
-                <th className="py-2.5 px-4">Priorité</th>
-                <th className="py-2.5 px-4">Statut constantes</th>
+                <th className="py-2.5 px-4">Priorité Triage</th>
+                <th className="py-2.5 px-4">Constantes Relevées</th>
                 <th className="py-2.5 px-4 text-right">Action immédiate</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {waitingTriage.length === 0 ? (
+              {filteredConsultations.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Aucun patient en file d'attente de triage
+                    Aucun dossier correspondant aux critères de recherche
                   </td>
                 </tr>
               ) : (
-                waitingTriage.slice(0, 6).map((c) => {
+                filteredConsultations.slice(0, 8).map((c) => {
                   const partner = partners.find(p => p.id === c.partner_id);
+                  const isFever = c.vitals?.temperature && parseFloat(String(c.vitals.temperature)) >= 38.5;
+                  const isHypox = c.vitals?.oxygen_saturation && parseInt(String(c.vitals.oxygen_saturation), 10) < 95;
+
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition">
                       <td className="py-3 px-4">
                         <div className="font-bold text-slate-900">{c.patient_name}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          {partner?.ndm || `NDM-${c.partner_id}`}
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5">
+                          <span>{partner?.ndm || `NDM-${c.partner_id}`}</span>
+                          {partner?.age && <span>• {partner.age} ans</span>}
+                          {partner?.gender && <span>• ({partner.gender})</span>}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-slate-700 max-w-xs truncate">
+                      <td className="py-3 px-4 text-slate-700 max-w-xs truncate font-medium">
                         {c.reason || 'Consultation générale'}
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                           c.priority === 'critique'
-                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200 ring-2 ring-rose-500/20'
                             : c.priority === 'urgent'
                             ? 'bg-amber-50 text-amber-800 border-amber-200'
                             : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -210,19 +323,34 @@ export const InfirmierDashboard: React.FC<ModuleDashboardProps> = ({
                       </td>
                       <td className="py-3 px-4">
                         {c.vitals?.taken_at ? (
-                          <div className="text-slate-700">
-                            <span className="font-bold">{c.vitals.blood_pressure || '--'}</span> | {c.vitals.pulse ? `${c.vitals.pulse} bpm` : '--'} | {c.vitals.temperature ? `${c.vitals.temperature}°C` : '--'}
+                          <div className="space-y-0.5 font-mono text-[11px]">
+                            <div className="text-slate-800">
+                              <span className="font-bold">{c.vitals.blood_pressure || '--'}</span> | {c.vitals.pulse ? `${c.vitals.pulse} bpm` : '--'}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={isFever ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+                                {c.vitals.temperature ? `${c.vitals.temperature}°C` : '--'}
+                              </span>
+                              {c.vitals.oxygen_saturation && (
+                                <span className={isHypox ? 'text-rose-600 font-bold' : 'text-slate-500'}>
+                                  SpO2: {c.vitals.oxygen_saturation}%
+                                </span>
+                              )}
+                            </div>
                           </div>
                         ) : (
-                          <span className="text-amber-800 font-semibold text-[11px]">À prélever</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            À relever
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => onNavigateToView('infirmier_vitals')}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold text-xs border border-slate-200"
+                          className="px-2.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg font-bold text-xs border border-teal-200 transition inline-flex items-center gap-1"
                         >
-                          Saisir constantes
+                          <Activity className="w-3.5 h-3.5" />
+                          <span>{c.vitals?.taken_at ? 'Modifier Constantes' : 'Saisir Constantes'}</span>
                         </button>
                       </td>
                     </tr>
@@ -243,102 +371,240 @@ export const InfirmierDashboard: React.FC<ModuleDashboardProps> = ({
 export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
   consultations,
   partners,
+  currentUser,
   onNavigateToView,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'waiting' | 'urgent' | 'completed'>('waiting');
+
+  const isGeneralConsultation = (c: MedicalConsultation) => {
+    const consultType = ((c as any).consultation_type_id || c.consultation_type || '');
+
+    // Exclude pediatric
+    const isPediatric =
+      (c.patient_age !== undefined && c.patient_age !== null && c.patient_age <= 15) ||
+      (c.specialty && c.specialty.toLowerCase().includes('pédiatr')) ||
+      (consultType && consultType.startsWith('CS-PED')) ||
+      (c.reason && (c.reason.toLowerCase().includes('pédiatr') || c.reason.toLowerCase().includes('nourrisson')));
+    if (isPediatric) return false;
+
+    // Exclude maternity
+    const isMaternity =
+      (c.specialty && (c.specialty.toLowerCase().includes('mater') || c.specialty.toLowerCase().includes('cpn') || c.specialty.toLowerCase().includes('gynéc') || c.specialty.toLowerCase().includes('obstét'))) ||
+      (consultType && (consultType.startsWith('CS-MAT') || consultType.startsWith('CS-GYN'))) ||
+      (c.reason && (c.reason.toLowerCase().includes('grossesse') || c.reason.toLowerCase().includes('cpn') || c.reason.toLowerCase().includes('accouchement')));
+    if (isMaternity) return false;
+
+    // Exclude specialist
+    const isSpecialist =
+      (c as any).target_level === 'specialiste' ||
+      c.doctor_type === 'specialiste' ||
+      (consultType && consultType.startsWith('CS-SPEC')) ||
+      (c.specialty && (
+        c.specialty.toLowerCase().includes('spécial') ||
+        c.specialty.toLowerCase().includes('cardio') ||
+        c.specialty.toLowerCase().includes('ophtalmo') ||
+        c.specialty.toLowerCase().includes('dermato') ||
+        c.specialty.toLowerCase().includes('chirurg') ||
+        c.specialty.toLowerCase().includes('neurolog')
+      ));
+    if (isSpecialist) return false;
+
+    return true;
+  };
+
   const waitingForDoctor = consultations.filter(
     (c) =>
       c.status !== 'completed' &&
       c.status !== 'done' &&
       c.status !== 'cancelled' &&
-      c.doctor_type !== 'specialiste' &&
+      isGeneralConsultation(c) &&
       (c.status === 'in_consultation' || c.status === 'waiting' || c.status === 'triage' || (c.status === 'pending_payment' && Boolean(c.has_pending_balance)))
   );
-  const completedToday = consultations.filter(c => c.status === 'completed' || c.status === 'done');
-  const urgentCases = consultations.filter(c => (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed' && c.status !== 'done');
-  const prescriptionsIssued = consultations.filter(c => (c.prescriptions && c.prescriptions.length > 0) || (c.prescribed_items && c.prescribed_items.length > 0));
+  const completedToday = consultations.filter(c => (c.status === 'completed' || c.status === 'done') && isGeneralConsultation(c));
+  const urgentCases = consultations.filter(c => (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed' && c.status !== 'done' && isGeneralConsultation(c));
+  const prescriptionsIssued = consultations.filter(c => isGeneralConsultation(c) && ((c.prescriptions && c.prescriptions.length > 0) || (c.prescribed_items && c.prescribed_items.length > 0)));
+
+  const filteredList = useMemo(() => {
+    return consultations.filter(c => {
+      if (!isGeneralConsultation(c)) return false;
+      const p = partners.find(pt => pt.id === c.partner_id);
+      const matchSearch = !searchTerm ||
+        (c.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p?.ndm || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.reason || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!matchSearch) return false;
+      if (filterMode === 'waiting') return c.status !== 'completed' && c.status !== 'done' && c.status !== 'cancelled';
+      if (filterMode === 'urgent') return (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed';
+      if (filterMode === 'completed') return c.status === 'completed' || c.status === 'done';
+      return true;
+    });
+  }, [consultations, partners, searchTerm, filterMode]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <UserCheck className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Médecin Généraliste
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            File d'attente médicale, examens cliniques, prescriptions et suivi des dossiers
-          </p>
+      {/* Hero Header */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <UserCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">
+                Poste Médical • Médecine Générale
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                Dr. {currentUser?.name || 'Praticien'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Salle de consultation, anamnèse, diagnostics cliniques, ordonnances électroniques et prescriptions d'examens
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onNavigateToView('medecin_queue')}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+            className="px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Users className="w-4 h-4" />
             <span>Appeler Prochain Patient</span>
           </button>
           <button
             onClick={() => onNavigateToView('medecin_prescriptions')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <FileText className="w-4 h-4 text-slate-600" />
+            <FileText className="w-4 h-4 text-slate-300" />
             <span>Nouvelle Ordonnance</span>
+          </button>
+          <button
+            onClick={() => onNavigateToView('medecin_consultations')}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+          >
+            <Stethoscope className="w-4 h-4 text-slate-600" />
+            <span>Consultations</span>
           </button>
         </div>
       </div>
 
+      {/* Subtle Directive Bar for Medical Practice Flow */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+          <div>
+            <span className="font-bold text-slate-800 uppercase text-[11px] tracking-wider mr-1.5">Directive Médicale :</span>
+            <span className="text-[11px] text-slate-600">
+              Déroulement de la consultation : <strong>1. Vérification Constantes</strong> ➔ <strong>2. Examen Clinique & CIM-10</strong> ➔ <strong>3. Ordonnances & Choix Circuit (Interne / Externe)</strong>.
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded shrink-0">
+          Workflow Déontologique
+        </span>
+      </div>
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
             <span>En attente de consultation</span>
-            <Users className="w-4 h-4 text-slate-500" />
+            <Users className="w-4 h-4 text-blue-500" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">{waitingForDoctor.length}</p>
-          <span className="text-[11px] text-slate-500">Constantes prêtes</span>
+          <span className="text-[11px] text-blue-700 font-medium">Constantes déjà relevées</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Consultations terminées</span>
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <span>Consultations Terminées</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{completedToday.length}</p>
+          <p className="text-2xl font-black text-emerald-700 mt-2">{completedToday.length}</p>
           <span className="text-[11px] text-slate-500">Aujourd'hui</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Ordonnances émises</span>
-            <FileText className="w-4 h-4 text-slate-500" />
+            <span>Ordonnances Émises</span>
+            <FileText className="w-4 h-4 text-indigo-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{prescriptionsIssued.length}</p>
-          <span className="text-[11px] text-slate-500">Médicaments prescrits</span>
+          <p className="text-2xl font-black text-indigo-700 mt-2">{prescriptionsIssued.length}</p>
+          <span className="text-[11px] text-slate-500">Prescriptions enregistrées</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Cas prioritaires</span>
-            <AlertTriangle className="w-4 h-4 text-slate-700" />
+            <span>Cas Prioritaires / Urgents</span>
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{urgentCases.length}</p>
-          <span className="text-[11px] text-slate-500">À voir en priorité</span>
+          <p className="text-2xl font-black text-rose-600 mt-2">{urgentCases.length}</p>
+          <span className="text-[11px] text-rose-700 font-medium">À recevoir sans délai</span>
         </div>
       </div>
 
-      {/* Liste tabulaire : Salle d'attente médicale */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-slate-600" />
-            Salle d'attente médicale (Constantes vérifiées)
-          </h2>
-          <button
-            onClick={() => onNavigateToView('medecin_queue')}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1"
-          >
-            <span>Voir toute la file</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      {/* Liste interactive des consultations */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Stethoscope className="w-4 h-4 text-blue-700" />
+            <h2 className="text-sm font-bold text-slate-900">
+              Salle d'Attente Médicale &amp; Dossiers Actifs
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              {filteredList.length} dossiers
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher patient, NDM..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-44 sm:w-56"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setFilterMode('waiting')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'waiting' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                En Attente ({waitingForDoctor.length})
+              </button>
+              <button
+                onClick={() => setFilterMode('urgent')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'urgent' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700 hover:bg-rose-50'
+                }`}
+              >
+                Urgences ({urgentCases.length})
+              </button>
+              <button
+                onClick={() => setFilterMode('completed')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'completed' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                Terminés ({completedToday.length})
+              </button>
+              <button
+                onClick={() => setFilterMode('all')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  filterMode === 'all' ? 'bg-blue-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tous
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -346,21 +612,21 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
             <thead>
               <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <th className="py-2.5 px-4">Patient / NDM</th>
-                <th className="py-2.5 px-4">Motif & Anamnèse</th>
-                <th className="py-2.5 px-4">Paramètres vitaux</th>
+                <th className="py-2.5 px-4">Motif &amp; Anamnèse</th>
+                <th className="py-2.5 px-4">Paramètres Vitaux</th>
                 <th className="py-2.5 px-4">Priorité</th>
-                <th className="py-2.5 px-4 text-right">Action médicale</th>
+                <th className="py-2.5 px-4 text-right">Action Médicale</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {waitingForDoctor.length === 0 ? (
+              {filteredList.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Aucun patient en attente de consultation
+                    Aucun patient dans cette sélection
                   </td>
                 </tr>
               ) : (
-                waitingForDoctor.slice(0, 6).map((c) => {
+                filteredList.slice(0, 8).map((c) => {
                   const partner = partners.find(p => p.id === c.partner_id);
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition">
@@ -370,20 +636,24 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
                           {partner?.ndm || `NDM-${c.partner_id}`}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-slate-700 max-w-xs truncate">
+                      <td className="py-3 px-4 text-slate-700 max-w-xs truncate font-medium">
                         {c.reason || 'Consultation de médecine générale'}
                       </td>
                       <td className="py-3 px-4 font-mono text-[11px]">
                         {c.vitals?.taken_at ? (
-                          <span>TA: {c.vitals.blood_pressure || '--'} | FC: {c.vitals.pulse || '--'} | T°: {c.vitals.temperature || '--'}°C</span>
+                          <span className="text-slate-800">
+                            TA: <strong className="text-slate-900">{c.vitals.blood_pressure || '--'}</strong> | FC: {c.vitals.pulse || '--'} | T°: {c.vitals.temperature || '--'}°C
+                          </span>
                         ) : (
-                          <span className="text-slate-400 italic">Constantes non saisies</span>
+                          <span className="text-amber-800 font-semibold text-[10px] px-1.5 py-0.5 bg-amber-50 rounded border border-amber-200">
+                            Constantes en attente
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                           c.priority === 'critique'
-                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200 ring-2 ring-rose-500/20'
                             : c.priority === 'urgent'
                             ? 'bg-amber-50 text-amber-800 border-amber-200'
                             : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -394,9 +664,10 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => onNavigateToView('medecin_consultations')}
-                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded font-semibold text-xs transition"
+                          className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-bold text-xs transition inline-flex items-center gap-1 shadow-xs"
                         >
-                          Démarrer Examen
+                          <Stethoscope className="w-3.5 h-3.5" />
+                          <span>Démarrer Consultation</span>
                         </button>
                       </td>
                     </tr>
@@ -417,8 +688,12 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
 export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
   consultations,
   partners,
+  currentUser,
   onNavigateToView,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState<string>('all');
+
   const referredPatients = consultations.filter(
     (c) =>
       c.orientation === 'specialiste' ||
@@ -436,29 +711,56 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
   );
   const followupCases = consultations.filter(c => c.status === 'completed' || c.status === 'done');
 
+  const filteredReferred = useMemo(() => {
+    return referredPatients.filter(c => {
+      const p = partners.find(pt => pt.id === c.partner_id);
+      const matchSearch = !searchTerm ||
+        (c.patient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p?.ndm || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.reason || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.specialty || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!matchSearch) return false;
+      if (specialtyFilter !== 'all') {
+        return (c.specialty || '').toLowerCase().includes(specialtyFilter.toLowerCase());
+      }
+      return true;
+    });
+  }, [referredPatients, partners, searchTerm, specialtyFilter]);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Stethoscope className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Médecin Spécialiste
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Consultations spécialisées, patients référés par des confrères et suivi longitudinal
-          </p>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+            <Stethoscope className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">
+                Poste Médical • Médecine Spécialisée
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                Dr. {currentUser?.name || 'Spécialiste'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Consultations spécialisées de 2nd recours, avis d'experts, explorations fonctionnelles et suivi longitudinal
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onNavigateToView('specialiste_referred')}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+            className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
             <Users className="w-4 h-4" />
             <span>Patients Référés ({referredPatients.length})</span>
           </button>
           <button
             onClick={() => onNavigateToView('specialiste_followup')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
           >
             <Calendar className="w-4 h-4 text-slate-600" />
             <span>Suivi Chronique</span>
@@ -469,57 +771,103 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Patients référés reçus</span>
-            <Users className="w-4 h-4 text-slate-500" />
+            <span>Patients Référés</span>
+            <Users className="w-4 h-4 text-purple-500" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">{referredPatients.length}</p>
-          <span className="text-[11px] text-slate-500">Par confrères</span>
+          <span className="text-[11px] text-purple-700 font-medium">Par confrères / urgences</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Consultations de spécialité</span>
+            <span>Consultations Programmées</span>
             <Stethoscope className="w-4 h-4 text-slate-500" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">{scheduledSpecial.length}</p>
-          <span className="text-[11px] text-slate-500">Programmées</span>
+          <span className="text-[11px] text-slate-500">Créneaux du jour</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Patients suivis</span>
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <span>Dossiers Suivis</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{followupCases.length}</p>
-          <span className="text-[11px] text-slate-500">Dossiers actifs</span>
+          <p className="text-2xl font-black text-emerald-700 mt-2">{followupCases.length}</p>
+          <span className="text-[11px] text-slate-500">File active chronique</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Prescriptions spécialisées</span>
-            <FileText className="w-4 h-4 text-slate-500" />
+            <span>Prescriptions &amp; Protocoles</span>
+            <FileText className="w-4 h-4 text-indigo-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">
+          <p className="text-2xl font-black text-indigo-700 mt-2">
             {consultations.reduce((sum, c) => sum + (c.prescriptions?.length || 0), 0)}
           </p>
-          <span className="text-[11px] text-slate-500">Actes & protocoles</span>
+          <span className="text-[11px] text-slate-500">Lignes d'ordonnances</span>
         </div>
       </div>
 
-      {/* Table des patients orientés */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-slate-600" />
-            Liste des patients référés pour avis spécialisé
-          </h2>
-          <button
-            onClick={() => onNavigateToView('specialiste_referred')}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1"
-          >
-            <span>Voir tout</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      {/* Table des patients orientés avec recherche et filtres de spécialité */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-purple-700" />
+            <h2 className="text-sm font-bold text-slate-900">
+              Patients Adressés pour Avis Spécialisé &amp; Deuxième Intention
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              {filteredReferred.length} dossiers
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher patient, NDM..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 w-44 sm:w-56"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setSpecialtyFilter('all')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  specialtyFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setSpecialtyFilter('cardio')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  specialtyFilter === 'cardio' ? 'bg-purple-700 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-50'
+                }`}
+              >
+                Cardio
+              </button>
+              <button
+                onClick={() => setSpecialtyFilter('gyneco')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  specialtyFilter === 'gyneco' ? 'bg-purple-700 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-50'
+                }`}
+              >
+                Gynéco
+              </button>
+              <button
+                onClick={() => setSpecialtyFilter('pediat')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  specialtyFilter === 'pediat' ? 'bg-purple-700 text-white shadow-xs' : 'text-purple-700 hover:bg-purple-50'
+                }`}
+              >
+                Pédiatrie
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -527,21 +875,21 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
             <thead>
               <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <th className="py-2.5 px-4">Patient / NDM</th>
-                <th className="py-2.5 px-4">Médecin référent</th>
-                <th className="py-2.5 px-4">Motif d'adressage</th>
-                <th className="py-2.5 px-4">Date transfert</th>
+                <th className="py-2.5 px-4">Médecin Référent</th>
+                <th className="py-2.5 px-4">Motif d'Adressage</th>
+                <th className="py-2.5 px-4">Date Transfert</th>
                 <th className="py-2.5 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {referredPatients.length === 0 ? (
+              {filteredReferred.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Aucun patient référé en attente
+                    Aucun patient référé correspondant aux filtres
                   </td>
                 </tr>
               ) : (
-                referredPatients.slice(0, 5).map((c) => {
+                filteredReferred.slice(0, 6).map((c) => {
                   const partner = partners.find(p => p.id === c.partner_id);
                   return (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition">
@@ -554,7 +902,7 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
                       <td className="py-3 px-4 text-slate-700 font-medium">
                         Dr. {c.doctor_name || 'Généraliste - Service Accueil'}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate font-medium">
                         {c.reason || 'Avis spécialisé requis pour bilan complémentaire'}
                       </td>
                       <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
@@ -563,9 +911,10 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => onNavigateToView('specialiste_consultations')}
-                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded font-semibold text-xs transition"
+                          className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-bold text-xs transition inline-flex items-center gap-1 shadow-xs"
                         >
-                          Consulter
+                          <Stethoscope className="w-3.5 h-3.5" />
+                          <span>Consulter</span>
                         </button>
                       </td>
                     </tr>
@@ -586,39 +935,78 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
 export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
   labOrders,
   partners,
+  currentUser,
   onNavigateToView,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'done' | 'urgent'>('all');
+
   const pendingSampling = labOrders.filter(o => o.state === 'draft' || o.state === 'pending' || !o.barcode);
   const inProgress = labOrders.filter(o => o.state === 'in_progress' || (o.barcode && o.state !== 'done'));
   const completed = labOrders.filter(o => o.state === 'done');
   const urgentOrders = labOrders.filter(o => o.priority === 'urgent');
 
+  const filteredOrders = useMemo(() => {
+    return labOrders.filter(o => {
+      const partner = partners.find(p => p.id === o.partner_id);
+      const matchSearch = !searchTerm ||
+        (o.barcode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.partner_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (partner?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.exam_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!matchSearch) return false;
+      if (statusFilter === 'pending') return o.state === 'draft' || o.state === 'pending' || !o.barcode;
+      if (statusFilter === 'in_progress') return o.state === 'in_progress' || (o.barcode && o.state !== 'done');
+      if (statusFilter === 'done') return o.state === 'done';
+      if (statusFilter === 'urgent') return o.priority === 'urgent';
+      return true;
+    });
+  }, [labOrders, partners, searchTerm, statusFilter]);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <FlaskConical className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Laboratoire d'Analyses Médicales
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Gestion du flux des prélèvements, passages sur automate, saisie des résultats et validation biologiste
-          </p>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+            <FlaskConical className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">
+                Laboratoire d'Analyses Médicales &amp; Biologie
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                Poste Actif • {currentUser?.name || 'Biologiste'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Gestion du flux des prélèvements, passages sur automate, saisie des résultats et validation biologiste
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onNavigateToView('labo_sampling')}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+            className="px-3.5 py-2 bg-amber-700 hover:bg-amber-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>Nouveau Prélèvement</span>
           </button>
           <button
             onClick={() => onNavigateToView('labo_validation')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <CheckCircle2 className="w-4 h-4 text-slate-300" />
             <span>Validation Biologiste</span>
+          </button>
+          <button
+            onClick={() => onNavigateToView('labo_results')}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
+          >
+            <FlaskConical className="w-4 h-4 text-slate-600" />
+            <span>Toutes les Analyses</span>
           </button>
         </div>
       </div>
@@ -626,55 +1014,101 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>À prélever</span>
-            <Clock className="w-4 h-4 text-slate-500" />
+            <span>À Prélever</span>
+            <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">{pendingSampling.length}</p>
-          <span className="text-[11px] text-slate-500">Échantillons en attente</span>
+          <span className="text-[11px] text-amber-700 font-medium">Échantillons en attente</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Analyses en cours</span>
-            <FlaskConical className="w-4 h-4 text-slate-600" />
+            <span>Analyses en Cours</span>
+            <FlaskConical className="w-4 h-4 text-indigo-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{inProgress.length}</p>
+          <p className="text-2xl font-black text-indigo-700 mt-2">{inProgress.length}</p>
           <span className="text-[11px] text-slate-500">Automates actifs</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Résultats validés</span>
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <span>Résultats Validés</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{completed.length}</p>
-          <span className="text-[11px] text-slate-500">Prêts pour impression</span>
+          <p className="text-2xl font-black text-emerald-700 mt-2">{completed.length}</p>
+          <span className="text-[11px] text-slate-500">Prêts pour délivrance</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Analyses urgentes</span>
-            <AlertTriangle className="w-4 h-4 text-slate-700" />
+            <span>Analyses Urgentes</span>
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{urgentOrders.length}</p>
-          <span className="text-[11px] text-slate-500">Priorité maximale</span>
+          <p className="text-2xl font-black text-rose-600 mt-2">{urgentOrders.length}</p>
+          <span className="text-[11px] text-rose-700 font-medium">Priorité maximale</span>
         </div>
       </div>
 
       {/* Table de travail du laboratoire */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <FlaskConical className="w-4 h-4 text-slate-600" />
-            Poste de travail du jour (Échantillons et Analyses)
-          </h2>
-          <button
-            onClick={() => onNavigateToView('labo_results')}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1"
-          >
-            <span>Voir toutes les analyses</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-amber-700" />
+            <h2 className="text-sm font-bold text-slate-900">
+              Paillasse &amp; Poste de Travail Biologique
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              {filteredOrders.length} dossiers
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher code barre, patient..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 w-44 sm:w-56"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  statusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setStatusFilter('pending')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  statusFilter === 'pending' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-700 hover:bg-amber-50'
+                }`}
+              >
+                À Prélever ({pendingSampling.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('in_progress')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  statusFilter === 'in_progress' ? 'bg-indigo-600 text-white shadow-xs' : 'text-indigo-700 hover:bg-indigo-50'
+                }`}
+              >
+                En Cours ({inProgress.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('done')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  statusFilter === 'done' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'
+                }`}
+              >
+                Validés ({completed.length})
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -683,20 +1117,20 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
               <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <th className="py-2.5 px-4">N° Échantillon</th>
                 <th className="py-2.5 px-4">Patient</th>
-                <th className="py-2.5 px-4">Examen demandé</th>
-                <th className="py-2.5 px-4">Statut analyse</th>
+                <th className="py-2.5 px-4">Examen Demandé</th>
+                <th className="py-2.5 px-4">Statut Analyse</th>
                 <th className="py-2.5 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {labOrders.length === 0 ? (
+              {filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Aucune analyse enregistrée dans le poste de laboratoire
+                    Aucune analyse enregistrée dans cette sélection
                   </td>
                 </tr>
               ) : (
-                labOrders.slice(0, 6).map((order) => {
+                filteredOrders.slice(0, 8).map((order) => {
                   const partner = partners.find(p => p.id === order.partner_id);
                   return (
                     <tr key={order.id} className="hover:bg-slate-50/80 transition">
@@ -711,11 +1145,11 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
                         {order.exam_name || 'Bilan biologique standard'}
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                           order.state === 'done'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             : order.state === 'in_progress'
-                            ? 'bg-slate-100 text-slate-800 border-slate-300'
+                            ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
                             : 'bg-amber-50 text-amber-800 border-amber-200'
                         }`}>
                           {order.state === 'done' ? 'Validé' : order.state === 'in_progress' ? 'En cours' : 'À prélever'}
@@ -724,9 +1158,10 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => onNavigateToView('labo_results')}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold text-xs border border-slate-200"
+                          className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg font-bold text-xs transition inline-flex items-center gap-1 shadow-xs"
                         >
-                          Saisir résultat
+                          <FlaskConical className="w-3.5 h-3.5" />
+                          <span>Saisir Résultats</span>
                         </button>
                       </td>
                     </tr>
@@ -747,35 +1182,69 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
 export const ImagerieDashboard: React.FC<ModuleDashboardProps> = ({
   consultations,
   partners,
+  currentUser,
   onNavigateToView,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [modalityFilter, setModalityFilter] = useState<'all' | 'radio' | 'echo' | 'scanner'>('all');
+
   const imagingExams = consultations.filter(c => c.reason?.toLowerCase().includes('radio') || c.reason?.toLowerCase().includes('écho') || c.reason?.toLowerCase().includes('scanner') || c.orientation === 'imagerie');
+
+  const demoItems = [
+    { id: 1, name: 'Koffi Marie-Claire', ndm: 'NDM-0089', modalite: 'Échographie Abdomino-Pelvienne', type: 'echo', presc: 'Dr. Toure', status: 'À réaliser' },
+    { id: 2, name: 'Diallo Oumar', ndm: 'NDM-0092', modalite: 'Radiographie Thoracique Face/Profil', type: 'radio', presc: 'Dr. Koné', status: 'Réalisé - En attente CR' },
+    { id: 3, name: 'Bamba Awa', ndm: 'NDM-0104', modalite: 'Scanner Cérébral Sans Injection', type: 'scanner', presc: 'Dr. N\'Guessan', status: 'Validé' },
+    { id: 4, name: 'Traoré Seydou', ndm: 'NDM-0112', modalite: 'Échographie Obstétricale T3', type: 'echo', presc: 'Dr. Toure', status: 'À réaliser' },
+    { id: 5, name: 'Konaté Fatoumata', ndm: 'NDM-0125', modalite: 'Radiographie Rachis Lombaire', type: 'radio', presc: 'Dr. Kouassi', status: 'Validé' },
+  ];
+
+  const filteredItems = demoItems.filter(item => {
+    const matchSearch = !searchTerm ||
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.ndm.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.modalite.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.presc.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchSearch) return false;
+    if (modalityFilter !== 'all' && item.type !== modalityFilter) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Microscope className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Imagerie Médicale & PACS
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Programmation des actes, acquisition manipulateur, rédaction de comptes-rendus et validation radiologique
-          </p>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
+            <Microscope className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">
+                Imagerie Médicale, Radiologie &amp; PACS
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                Poste Radiologue • {currentUser?.name || 'Radiologue'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Programmation des actes, acquisition manipulateur, rédaction de comptes-rendus et validation radiologique
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onNavigateToView('imagerie_scheduled')}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+            className="px-3.5 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
             <Calendar className="w-4 h-4" />
             <span>Planning des Examens</span>
           </button>
           <button
             onClick={() => onNavigateToView('imagerie_reports')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
-            <FileText className="w-4 h-4 text-slate-600" />
+            <FileText className="w-4 h-4 text-slate-300" />
             <span>Rédiger Compte Rendu</span>
           </button>
         </div>
@@ -784,55 +1253,101 @@ export const ImagerieDashboard: React.FC<ModuleDashboardProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Examens programmés</span>
-            <Calendar className="w-4 h-4 text-slate-500" />
+            <span>Examens Programmés</span>
+            <Calendar className="w-4 h-4 text-teal-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{Math.max(imagingExams.length, 3)}</p>
+          <p className="text-2xl font-black text-slate-900 mt-2">{Math.max(imagingExams.length, 5)}</p>
           <span className="text-[11px] text-slate-500">Radio, Écho, Scanner</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Examens réalisés</span>
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <span>Examens Réalisés</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">5</p>
+          <p className="text-2xl font-black text-emerald-700 mt-2">8</p>
           <span className="text-[11px] text-slate-500">Acquis au manipulateur</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Comptes-rendus en attente</span>
-            <Clock className="w-4 h-4 text-slate-500" />
+            <span>CR en Attente</span>
+            <Clock className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">2</p>
-          <span className="text-[11px] text-slate-500">À dicter par radiologue</span>
+          <p className="text-2xl font-black text-amber-700 mt-2">3</p>
+          <span className="text-[11px] text-amber-700 font-medium">À dicter par radiologue</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Validés & Diffusés</span>
-            <FileText className="w-4 h-4 text-slate-600" />
+            <span>Validés &amp; Diffusés</span>
+            <FileText className="w-4 h-4 text-indigo-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">12</p>
+          <p className="text-2xl font-black text-indigo-700 mt-2">14</p>
           <span className="text-[11px] text-slate-500">Transmis aux prescripteurs</span>
         </div>
       </div>
 
-      {/* Liste tabulaire : File active d'imagerie */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Microscope className="w-4 h-4 text-slate-600" />
-            File active des actes d'imagerie médicale
-          </h2>
-          <button
-            onClick={() => onNavigateToView('imagerie_queue')}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1"
-          >
-            <span>Voir toute la file</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      {/* Liste tabulaire : File active d'imagerie avec filtres et recherche */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Microscope className="w-4 h-4 text-teal-700" />
+            <h2 className="text-sm font-bold text-slate-900">
+              File Active des Actes d'Imagerie Médicale &amp; Clichés PACS
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              {filteredItems.length} actes
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher patient, NDM, examen..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 w-44 sm:w-56"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setModalityFilter('all')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  modalityFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Toutes
+              </button>
+              <button
+                onClick={() => setModalityFilter('radio')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  modalityFilter === 'radio' ? 'bg-teal-700 text-white shadow-xs' : 'text-teal-700 hover:bg-teal-50'
+                }`}
+              >
+                Radios
+              </button>
+              <button
+                onClick={() => setModalityFilter('echo')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  modalityFilter === 'echo' ? 'bg-teal-700 text-white shadow-xs' : 'text-teal-700 hover:bg-teal-50'
+                }`}
+              >
+                Échographies
+              </button>
+              <button
+                onClick={() => setModalityFilter('scanner')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  modalityFilter === 'scanner' ? 'bg-teal-700 text-white shadow-xs' : 'text-teal-700 hover:bg-teal-50'
+                }`}
+              >
+                Scanner
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -840,50 +1355,55 @@ export const ImagerieDashboard: React.FC<ModuleDashboardProps> = ({
             <thead>
               <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <th className="py-2.5 px-4">Patient / NDM</th>
-                <th className="py-2.5 px-4">Modalité & Examen</th>
+                <th className="py-2.5 px-4">Modalité &amp; Examen</th>
                 <th className="py-2.5 px-4">Prescripteur</th>
-                <th className="py-2.5 px-4">Statut d'imagerie</th>
+                <th className="py-2.5 px-4">Statut d'Imagerie</th>
                 <th className="py-2.5 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {[
-                { id: 1, name: 'Koffi Marie-Claire', ndm: 'NDM-0089', modalite: 'Échographie Abdomino-Pelvienne', presc: 'Dr. Toure', status: 'À réaliser' },
-                { id: 2, name: 'Diallo Oumar', ndm: 'NDM-0092', modalite: 'Radiographie Thoracique Face/Profil', presc: 'Dr. Koné', status: 'Réalisé - En attente CR' },
-                { id: 3, name: 'Bamba Awa', ndm: 'NDM-0104', modalite: 'Scanner Cérébral Sans Injection', presc: 'Dr. N\'Guessan', status: 'Validé' },
-              ].map((row) => (
-                <tr key={row.id} className="hover:bg-slate-50/80 transition">
-                  <td className="py-3 px-4 font-bold text-slate-900">
-                    {row.name}
-                    <span className="block text-[11px] text-slate-500 font-mono font-normal">{row.ndm}</span>
-                  </td>
-                  <td className="py-3 px-4 font-semibold text-slate-800">
-                    {row.modalite}
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">
-                    {row.presc}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                      row.status.includes('Validé')
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : row.status.includes('Réalisé')
-                        ? 'bg-slate-100 text-slate-800 border-slate-300'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
-                    }`}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => onNavigateToView('imagerie_reports')}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold text-xs border border-slate-200"
-                    >
-                      Consulter / CR
-                    </button>
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400">
+                    Aucun examen d'imagerie dans cette sélection
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredItems.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {row.name}
+                      <span className="block text-[11px] text-slate-500 font-mono font-normal">{row.ndm}</span>
+                    </td>
+                    <td className="py-3 px-4 font-semibold text-slate-800">
+                      {row.modalite}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 font-medium">
+                      {row.presc}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                        row.status.includes('Validé')
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : row.status.includes('Réalisé')
+                          ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={() => onNavigateToView('imagerie_reports')}
+                        className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg font-bold text-xs transition inline-flex items-center gap-1 shadow-xs"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Compte Rendu</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -898,38 +1418,71 @@ export const ImagerieDashboard: React.FC<ModuleDashboardProps> = ({
 export const HospitDashboard: React.FC<ModuleDashboardProps> = ({
   consultations,
   partners,
+  currentUser,
   onNavigateToView,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [serviceFilter, setServiceFilter] = useState<'all' | 'medecine' | 'chirurgie' | 'cardio' | 'maternite'>('all');
+
   const totalBeds = 24;
   const occupiedBeds = 16;
   const freeBeds = totalBeds - occupiedBeds;
   const occupancyRate = Math.round((occupiedBeds / totalBeds) * 100);
 
+  const hospitalizedPatients = [
+    { id: 1, chambre: 'Ch. 102 - Lit A', patient: 'Kouassi Yao Patrick', ndm: 'NDM-0051', service: 'Médecine Interne', serviceKey: 'medecine', date: '12/09/2026', medecin: 'Dr. Toure', vitals: 'TA: 120/80 | SpO2: 98%' },
+    { id: 2, chambre: 'Ch. 104 - Lit B', patient: 'Touré Fanta', ndm: 'NDM-0063', service: 'Chirurgie Générale', serviceKey: 'chirurgie', date: '14/09/2026', medecin: 'Dr. Koné', vitals: 'TA: 110/70 | T°: 37.2°C' },
+    { id: 3, chambre: 'Ch. 201 - VIP', patient: 'Brou Jean-Marc', ndm: 'NDM-0078', service: 'Cardiologie', serviceKey: 'cardio', date: '15/09/2026', medecin: 'Dr. N\'Guessan', vitals: 'TA: 145/95 | FC: 88 bpm' },
+    { id: 4, chambre: 'Ch. 108 - Lit A', patient: 'Coulibaly Salimata', ndm: 'NDM-0084', service: 'Maternité & Gynéco', serviceKey: 'maternite', date: '16/09/2026', medecin: 'Dr. Toure', vitals: 'TA: 115/75 | T°: 36.8°C' },
+  ];
+
+  const filteredPatients = hospitalizedPatients.filter(p => {
+    const matchSearch = !searchTerm ||
+      p.patient.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.ndm.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.chambre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.service.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchSearch) return false;
+    if (serviceFilter !== 'all' && p.serviceKey !== serviceFilter) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Bed className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Gestion des Hospitalisations
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Occupation des lits par unité, formalités d'admission, transferts inter-services et sorties médicales
-          </p>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+            <Bed className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black text-slate-900">
+                Gestion des Hospitalisations &amp; Lits
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                Service Hospitalier • {currentUser?.name || 'Major de Service'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Occupation des lits par unité, formalités d'admission, transferts inter-services et sorties médicales
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onNavigateToView('hospit_admissions')}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+            className="px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>Nouvelle Admission</span>
           </button>
           <button
             onClick={() => onNavigateToView('hospit_beds')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
-            <Bed className="w-4 h-4 text-slate-600" />
+            <Bed className="w-4 h-4 text-slate-300" />
             <span>Plan des Lits</span>
           </button>
         </div>
@@ -938,55 +1491,101 @@ export const HospitDashboard: React.FC<ModuleDashboardProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Taux d'occupation</span>
-            <Bed className="w-4 h-4 text-slate-500" />
+            <span>Taux d'Occupation</span>
+            <Bed className="w-4 h-4 text-blue-600" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">{occupancyRate}%</p>
-          <span className="text-[11px] text-slate-500">{occupiedBeds} lits occupés sur {totalBeds}</span>
+          <span className="text-[11px] text-blue-700 font-medium">{occupiedBeds} lits occupés sur {totalBeds}</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Lits disponibles</span>
-            <CheckCircle2 className="w-4 h-4 text-slate-600" />
+            <span>Lits Disponibles</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{freeBeds}</p>
+          <p className="text-2xl font-black text-emerald-700 mt-2">{freeBeds}</p>
           <span className="text-[11px] text-slate-500">Prêts pour admission</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Entrées du jour</span>
-            <Users className="w-4 h-4 text-slate-500" />
+            <span>Entrées du Jour</span>
+            <Users className="w-4 h-4 text-indigo-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">4</p>
+          <p className="text-2xl font-black text-indigo-700 mt-2">4</p>
           <span className="text-[11px] text-slate-500">Admissions enregistrées</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-            <span>Sorties prévues</span>
-            <Clock className="w-4 h-4 text-slate-500" />
+            <span>Sorties Prévues</span>
+            <Clock className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">3</p>
+          <p className="text-2xl font-black text-amber-700 mt-2">3</p>
           <span className="text-[11px] text-slate-500">En cours de régularisation</span>
         </div>
       </div>
 
-      {/* Liste des patients hospitalisés */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Bed className="w-4 h-4 text-slate-600" />
-            Patients actuellement alités par chambre et unité
-          </h2>
-          <button
-            onClick={() => onNavigateToView('hospit_patients')}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1"
-          >
-            <span>Voir tous les hospitalisés</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      {/* Liste des patients hospitalisés avec recherche et filtres de service */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50">
+          <div className="flex items-center gap-2">
+            <Bed className="w-4 h-4 text-blue-700" />
+            <h2 className="text-sm font-bold text-slate-900">
+              Patients Actuellement Alités par Chambre &amp; Unité de Soins
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+              {filteredPatients.length} hospitalisés
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher lit, patient, NDM..."
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-44 sm:w-56"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                onClick={() => setServiceFilter('all')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  serviceFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setServiceFilter('medecine')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  serviceFilter === 'medecine' ? 'bg-blue-700 text-white shadow-xs' : 'text-blue-700 hover:bg-blue-50'
+                }`}
+              >
+                Médecine
+              </button>
+              <button
+                onClick={() => setServiceFilter('chirurgie')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  serviceFilter === 'chirurgie' ? 'bg-blue-700 text-white shadow-xs' : 'text-blue-700 hover:bg-blue-50'
+                }`}
+              >
+                Chirurgie
+              </button>
+              <button
+                onClick={() => setServiceFilter('cardio')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition ${
+                  serviceFilter === 'cardio' ? 'bg-blue-700 text-white shadow-xs' : 'text-blue-700 hover:bg-blue-50'
+                }`}
+              >
+                Cardio
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -996,44 +1595,49 @@ export const HospitDashboard: React.FC<ModuleDashboardProps> = ({
                 <th className="py-2.5 px-4">Chambre / Lit</th>
                 <th className="py-2.5 px-4">Patient / NDM</th>
                 <th className="py-2.5 px-4">Unité / Service</th>
-                <th className="py-2.5 px-4">Date admission</th>
-                <th className="py-2.5 px-4">Médecin référent</th>
+                <th className="py-2.5 px-4">Date d'Admission</th>
+                <th className="py-2.5 px-4">Médecin Référent</th>
                 <th className="py-2.5 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {[
-                { chambre: 'Ch. 102 - Lit A', patient: 'Kouassi Yao Patrick', ndm: 'NDM-0051', service: 'Médecine Interne', date: '12/09/2026', medecin: 'Dr. Toure' },
-                { chambre: 'Ch. 104 - Lit B', patient: 'Touré Fanta', ndm: 'NDM-0063', service: 'Chirurgie Générale', date: '14/09/2026', medecin: 'Dr. Koné' },
-                { chambre: 'Ch. 201 - VIP', patient: 'Brou Jean-Marc', ndm: 'NDM-0078', service: 'Cardiologie', date: '15/09/2026', medecin: 'Dr. N\'Guessan' },
-              ].map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/80 transition">
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                    {row.chambre}
-                  </td>
-                  <td className="py-3 px-4 font-bold text-slate-900">
-                    {row.patient}
-                    <span className="block text-[11px] text-slate-500 font-mono font-normal">{row.ndm}</span>
-                  </td>
-                  <td className="py-3 px-4 text-slate-700 font-medium">
-                    {row.service}
-                  </td>
-                  <td className="py-3 px-4 text-slate-600 font-mono">
-                    {row.date}
-                  </td>
-                  <td className="py-3 px-4 text-slate-700">
-                    {row.medecin}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => onNavigateToView('hospit_monitoring')}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold text-xs border border-slate-200"
-                    >
-                      Dossier de Soins
-                    </button>
+              {filteredPatients.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                    Aucun patient alité dans cette sélection
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredPatients.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                      {row.chambre}
+                    </td>
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {row.patient}
+                      <span className="block text-[11px] text-slate-500 font-mono font-normal">{row.ndm}</span>
+                    </td>
+                    <td className="py-3 px-4 text-slate-700 font-medium">
+                      {row.service}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 font-mono">
+                      {row.date}
+                    </td>
+                    <td className="py-3 px-4 text-slate-700 font-medium">
+                      {row.medecin}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={() => onNavigateToView('hospit_monitoring')}
+                        className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-bold text-xs transition inline-flex items-center gap-1 shadow-xs"
+                      >
+                        <Bed className="w-3.5 h-3.5" />
+                        <span>Dossier de Soins</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

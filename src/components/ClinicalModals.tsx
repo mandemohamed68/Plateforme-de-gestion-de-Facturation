@@ -203,6 +203,16 @@ export const VitalsModal: React.FC<VitalsModalProps> = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6 text-xs">
+          {/* Subtle Directive Bar */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex items-center justify-between text-[11px] text-slate-600">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+              <span className="font-bold text-slate-800 uppercase tracking-wider">Directive d'Accueil :</span>
+              <span>Relevez les constantes hémodynamiques et la température pour orienter le patient dans le circuit approprié.</span>
+            </div>
+            <span className="font-semibold text-slate-500">Étape 1/2</span>
+          </div>
+
           {feedback && (
             <div className={`p-3 rounded-lg text-xs font-semibold flex items-center gap-2 ${
               feedback.includes('succès') || feedback.includes('transféré')
@@ -217,7 +227,7 @@ export const VitalsModal: React.FC<VitalsModalProps> = ({
           {/* Section 1: Hémodynamique & Température */}
           <div>
             <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">
-              1. Paramètres Hémodynamiques & Température
+              1. Paramètres Hémodynamiques &amp; Température
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1">
@@ -531,6 +541,16 @@ export const TriageModal: React.FC<TriageModalProps> = ({
         </div>
 
         <div className="p-6 space-y-4 text-xs">
+          {/* Subtle Directive Bar */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex items-center justify-between text-[11px] text-slate-600">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+              <span className="font-bold text-slate-800 uppercase tracking-wider">Directive Triage :</span>
+              <span>Classez le degré d'urgence CCMU et orientez le patient vers le box médical adéquat.</span>
+            </div>
+            <span className="font-semibold text-slate-500">Étape 2/2</span>
+          </div>
+
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-600">Classification CCMU</label>
             <select

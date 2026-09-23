@@ -485,6 +485,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
         { id: 'admin_roles', label: 'Rôles & profils', icon: ShieldCheck, description: 'Rôles & profils' },
         { id: 'admin_permissions', label: 'Permissions (RBAC)', icon: Lock, description: 'Matrice dynamique des droits' },
         { id: 'admin_company', label: 'Établissement', icon: Settings, description: 'Infos structure' },
+        { id: 'insurance_claims', label: 'Assurances & Conventions Partenaires', icon: ShieldCheck, description: 'Gestion des compagnies d\'assurance, conventions d\'entreprises et taux de prise en charge' },
         { id: 'admin_pricing', label: 'Tarifs & prestations', icon: CreditCard, description: 'Catalogue tarifs' },
         { id: 'labo_catalog', label: 'Catalogue des examens', icon: FlaskConical, description: 'Nomenclature, cotations & analyses LIMS' },
         { id: 'scenarios_s01_s50', label: 'Simulateur Scénarios (S01-S50)', icon: ScrollText, description: 'Validation des flux & scénarios hospitaliers' },
@@ -518,6 +519,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       ...cat,
       items: cat.items
         .filter((item) => isViewServiceActive(item.id as string, company))
+        // RÈGLE STRICTE RBAC : Le groupe parent doit être explicitement autorisé pour l'utilisateur
+        .filter((item) => isViewAllowed(item.id as string))
         .map((item) => {
           if (item.children) {
             const visibleChildren = item.children
@@ -530,7 +533,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           }
           return item;
         })
-        .filter((item) => isViewAllowed(item.id as string) || (item.children && item.children.length > 0)),
+        .filter((item) => !item.children || item.children.length > 0),
     }))
     .filter((cat) => cat.items.length > 0);
 
