@@ -3,7 +3,6 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import xlsx from 'xlsx';
-import { createServer as createViteServer } from 'vite';
 import {
   initialCountries,
   initialCurrencies,
@@ -5102,6 +5101,7 @@ async function startServer() {
     if (!process.env.NODE_ENV) {
       process.env.NODE_ENV = 'development';
     }
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
