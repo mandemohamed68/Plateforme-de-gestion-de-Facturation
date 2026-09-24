@@ -302,6 +302,7 @@ export default function App() {
   const [autoOpenInvoiceCreate, setAutoOpenInvoiceCreate] = useState(false);
   const [autoOpenPaymentModal, setAutoOpenPaymentModal] = useState(false);
   const [returnToSessionMode, setReturnToSessionMode] = useState(false);
+  const [selectedPartnerForNewInvoice, setSelectedPartnerForNewInvoice] = useState<ResPartner | null>(null);
 
   // Datasets
   const [moves, setMoves] = useState<AccountMove[]>([]);
@@ -2136,6 +2137,8 @@ export default function App() {
                 }
                 initialMove={selectedMoveForPayment}
                 onClearInitialMove={() => setSelectedMoveForPayment(null)}
+                initialPartner={selectedPartnerForNewInvoice}
+                onClearInitialPartner={() => setSelectedPartnerForNewInvoice(null)}
                 onFinishAndReturnToSession={returnToSessionMode ? handleReturnToSession : undefined}
                 onSavePartner={handleSavePartner}
                 onSaveProduct={handleSaveProduct}
@@ -2163,10 +2166,12 @@ export default function App() {
                     : invoicePaymentFilter
                 }
                 setPaymentFilter={setInvoicePaymentFilter}
+                currentView={currentView}
+                onNavigateToView={(v) => setCurrentView(v)}
               />
             )}
 
-            {(currentView === 'lab_results' || currentView === 'labo_in_progress' || currentView === 'labo_results') && (
+            {(currentView === 'lab_results' || currentView === 'labo_results') && (
               <LabResultsView
                 labOrders={labOrders}
                 partners={partners}
@@ -2821,7 +2826,7 @@ export default function App() {
               />
             )}
 
-            {(currentView === 'imagerie_reports' || currentView === 'imagerie_completed' || currentView === 'imagerie_validation') && (
+            {(currentView === 'imagerie_reports' || currentView === 'imagerie_completed') && (
               <ImagerieReportsTableView
                 currentView={currentView}
                 partners={partners}
@@ -3057,6 +3062,13 @@ export default function App() {
           onNavigateToView={(view) => {
             setIsLookupOpen(false);
             setCurrentView(view);
+          }}
+          onNewInvoice={(partner) => {
+            setIsLookupOpen(false);
+            setLookupPatient(null);
+            setSelectedPartnerForNewInvoice(partner);
+            setCurrentView('factures_new_invoice');
+            setAutoOpenInvoiceCreate(true);
           }}
         />
       )}

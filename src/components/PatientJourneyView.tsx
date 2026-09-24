@@ -249,7 +249,20 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
     }
   ]);
 
+  // Solvability blocking modal in PatientJourneyView
+  const [solvencyBlockedItem, setSolvencyBlockedItem] = useState<InterserviceQueueItem | null>(null);
+
   const handleExecuteTransfer = (item: InterserviceQueueItem) => {
+    // If payment required and not going to caisse, trigger solvability gatekeeper
+    if (item.solvencyStatus === 'Paiement Requis' && item.targetView !== 'invoices') {
+      setSolvencyBlockedItem(item);
+      return;
+    }
+
+    proceedTransfer(item);
+  };
+
+  const proceedTransfer = (item: InterserviceQueueItem) => {
     const msg = `Patient ${item.name} aiguillé avec succès vers ${item.targetService}. Notification transmise.`;
     setActionNotice(msg);
     if (onShowToast) onShowToast(msg, 'success');
@@ -259,7 +272,7 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
     setTimeout(() => {
       setActionNotice(null);
       onNavigateToView(item.targetView);
-    }, 1200);
+    }, 1000);
   };
 
   const filteredQueue = useMemo(() => {
@@ -1242,6 +1255,99 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Solvability Gatekeeper Modal */}
+      {solvencyBlockedItem && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 bg-rose-900 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-rose-300" />
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">Contrôle de Solvabilité Requis</h3>
+                  <p className="text-[11px] text-rose-200">Règlement préalable obligatoire avant admission</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSolvencyBlockedItem(null)}
+                className="text-rose-300 hover:text-white p-1 rounded-lg transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Patient :</span>
+                  <span className="font-bold text-slate-900">{solvencyBlockedItem.name} ({solvencyBlockedItem.ndm})</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Service de Destination :</span>
+                  <span className="font-bold text-indigo-700">{solvencyBlockedItem.targetService}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                  <span className="font-bold text-rose-700">Statut Quittance :</span>
+                  <span className="font-black text-rose-800 bg-rose-100 px-2 py-0.5 rounded">
+                    Paiement Requis à la Caisse
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>Règle Hospitalière :</span>
+                </div>
+                <p>
+                  Ce patient est en statut « Paiement Requis ». Veuillez émettre sa quittance de caisse pour sécuriser l&apos;encaissement de la prestation avant son entrée en salle de soins.
+                </p>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSolvencyBlockedItem(null);
+                    onNavigateToView('invoices');
+                  }}
+                  className="w-full p-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition flex items-center justify-between cursor-pointer shadow-xs"
+                >
+                  <div className="flex items-center space-x-2">
+                    <CreditCard className="w-4 h-4 text-sky-400" />
+                    <span>1. Diriger vers la Caisse (Émettre Facture &amp; Encaisser)</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = solvencyBlockedItem;
+                    setSolvencyBlockedItem(null);
+                    proceedTransfer(item);
+                  }}
+                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>2. Dérogation Urgence Médicale (Force Majeure)</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSolvencyBlockedItem(null)}
+                className="px-4 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

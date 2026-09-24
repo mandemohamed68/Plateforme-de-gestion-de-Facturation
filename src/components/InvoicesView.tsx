@@ -109,6 +109,10 @@ interface InvoicesViewProps {
   setStateFilter?: (s: string) => void;
   paymentFilter?: string;
   setPaymentFilter?: (s: string) => void;
+  currentView?: string;
+  onNavigateToView?: (view: any) => void;
+  initialPartner?: ResPartner | null;
+  onClearInitialPartner?: () => void;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
@@ -132,6 +136,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   autoOpenCreate,
   initialMove,
   onClearInitialMove,
+  initialPartner,
+  onClearInitialPartner,
   onFinishAndReturnToSession,
   onSavePartner,
   onSaveProduct,
@@ -147,6 +153,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   setStateFilter: setExternalStateFilter,
   paymentFilter: externalPaymentFilter,
   setPaymentFilter: setExternalPaymentFilter,
+  currentView,
+  onNavigateToView,
 }) => {
   const notify = (
     text: string,
@@ -192,19 +200,67 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     if (onClearInitialMove) {
       onClearInitialMove();
     }
+    if ((currentView === 'factures_new_invoice' || currentView === 'caisse_facture_new_invoice') && onNavigateToView) {
+      onNavigateToView('factures_all');
+    }
   };
 
   useEffect(() => {
-    if (autoOpenCreate) {
+    if (autoOpenCreate || currentView === 'factures_new_invoice' || currentView === 'caisse_facture_new_invoice') {
       handleOpenCreateModal(true);
     }
-  }, [autoOpenCreate]);
+  }, [autoOpenCreate, currentView]);
+
+  // Synchronize internal and external filter state based on current submenu
+  useEffect(() => {
+    if (currentView === 'factures_draft' || currentView === 'caisse_facture_draft') {
+      setInternalStateFilter('draft');
+      setInternalPaymentFilter('all');
+      if (setExternalStateFilter) setExternalStateFilter('draft');
+      if (setExternalPaymentFilter) setExternalPaymentFilter('all');
+    } else if (currentView === 'factures_paid' || currentView === 'caisse_facture_paid') {
+      setInternalStateFilter('all');
+      setInternalPaymentFilter('paid');
+      if (setExternalStateFilter) setExternalStateFilter('all');
+      if (setExternalPaymentFilter) setExternalPaymentFilter('paid');
+    } else if (currentView === 'factures_unpaid' || currentView === 'caisse_facture_unpaid') {
+      setInternalStateFilter('all');
+      setInternalPaymentFilter('not_paid');
+      if (setExternalStateFilter) setExternalStateFilter('all');
+      if (setExternalPaymentFilter) setExternalPaymentFilter('not_paid');
+    } else if (currentView === 'factures_cancelled' || currentView === 'caisse_facture_cancelled') {
+      setInternalStateFilter('cancel');
+      setInternalPaymentFilter('all');
+      if (setExternalStateFilter) setExternalStateFilter('cancel');
+      if (setExternalPaymentFilter) setExternalPaymentFilter('all');
+    } else if (currentView === 'factures_all' || currentView === 'invoices' || currentView === 'caisse_facture_all_invoices') {
+      setInternalStateFilter('all');
+      setInternalPaymentFilter('all');
+      if (setExternalStateFilter) setExternalStateFilter('all');
+      if (setExternalPaymentFilter) setExternalPaymentFilter('all');
+    }
+  }, [currentView]);
 
   useEffect(() => {
     if (initialMove) {
       handleOpenEditModal(initialMove);
     }
   }, [initialMove]);
+
+  useEffect(() => {
+    if (initialPartner) {
+      handleOpenCreateModal(true);
+      setPartnerId(initialPartner.id);
+      setPartnerNameInput(initialPartner.name);
+      if (initialPartner.phone) setPatientPhone(initialPartner.phone);
+      if (initialPartner.ndm) setNdm(initialPartner.ndm);
+      if (initialPartner.age) setPatientAgeY(initialPartner.age);
+      if (initialPartner.gender) setNewPatientGender(initialPartner.gender as any);
+      if (onClearInitialPartner) {
+        onClearInitialPartner();
+      }
+    }
+  }, [initialPartner]);
 
   // Safe In-App Delete Modal State
   const [moveToDelete, setMoveToDelete] = useState<AccountMove | null>(null);
@@ -1697,6 +1753,67 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
     { num: 3, label: '3. Transmission Réussie', short: '3. Terminé', icon: CheckCircle2 },
   ];
 
+  const isCreationView = currentView === 'factures_new_invoice' || currentView === 'caisse_facture_new_invoice';
+  const isDraftView = currentView === 'factures_draft' || currentView === 'caisse_facture_draft';
+  const isPaidView = currentView === 'factures_paid' || currentView === 'caisse_facture_paid';
+  const isUnpaidView = currentView === 'factures_unpaid' || currentView === 'caisse_facture_unpaid';
+  const isCancelledView = currentView === 'factures_cancelled' || currentView === 'caisse_facture_cancelled';
+
+  const getViewInfo = () => {
+    if (isCreationView) {
+      return {
+        title: 'Nouvelle Facture Patient & Émission de Quittance',
+        badge: 'Mode Saisie Directe',
+        badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        desc: 'Saisie des actes médicaux, calcul automatique de la prise en charge tiers-payant et encaissement direct au guichet.',
+      };
+    }
+    if (isDraftView) {
+      return {
+        title: 'Factures en Attente de Paiement / Brouillons',
+        badge: `${filteredMoves.length} en attente`,
+        badgeColor: 'bg-amber-100 text-amber-800 border-amber-300',
+        desc: 'Factures établies nécessitant un règlement préalable à la caisse ou une validation comptable.',
+      };
+    }
+    if (isPaidView) {
+      return {
+        title: 'Factures Encaissées & Quittances Soldées',
+        badge: `${filteredMoves.length} soldées`,
+        badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        desc: 'Registre des factures et quittances entièrement réglées à la caisse avec quittance disponible.',
+      };
+    }
+    if (isUnpaidView) {
+      return {
+        title: 'Factures Impayées & Restes à Recouvrer',
+        badge: `${filteredMoves.length} impayées`,
+        badgeColor: 'bg-rose-100 text-rose-800 border-rose-300',
+        desc: 'Factures présentant un solde restant dû par le patient ou par l’organisme assureur.',
+      };
+    }
+    if (isCancelledView) {
+      return {
+        title: 'Factures Annulées & Rejets',
+        badge: `${filteredMoves.length} annulées`,
+        badgeColor: 'bg-slate-200 text-slate-700 border-slate-300',
+        desc: 'Historique des factures invalidées avec archivage du motif obligatoire d’annulation.',
+      };
+    }
+    return {
+      title: moveTypeFilter === 'out_invoice' ? 'Toutes les Factures Patients & Décomptes Assurances' : 'Factures Fournisseurs & Achats',
+      badge: `${filteredMoves.length} factures`,
+      badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+      desc: profile === 'facture'
+        ? 'Affichage strict : Uniquement les factures que vous avez établies.'
+        : profile === 'caisse'
+        ? 'Affichage caisse : Factures en attente d’encaissement.'
+        : 'Flux direct : Saisie facture → Règlement Caisse → Reçu & Plateau Laboratoire.',
+    };
+  };
+
+  const viewInfo = getViewInfo();
+
   return (
     <div className="space-y-4 pb-12 max-w-full">
       {/* Session Required Warning Banner for Cashier / Biller */}
@@ -1750,20 +1867,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <h2 className="text-base font-black text-slate-900">
-              {moveTypeFilter === 'out_invoice'
-                ? 'Factures Patients & Décomptes Assurances'
-                : 'Factures Fournisseurs & Achats'}
+              {viewInfo.title}
             </h2>
-            <span className="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-0.5 rounded-md border border-slate-200">
-              {filteredMoves.length} factures
+            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-md border ${viewInfo.badgeColor}`}>
+              {viewInfo.badge}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            {profile === 'facture'
-              ? 'Affichage strict : Uniquement les factures que vous avez établies.'
-              : profile === 'caisse'
-              ? 'Affichage caisse : Factures en attente d’encaissement.'
-              : 'Flux direct : Saisie facture → Règlement Caisse → Reçu & Plateau Laboratoire.'}
+            {viewInfo.desc}
           </p>
         </div>
 
@@ -1779,6 +1890,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             </button>
           )}
 
+          {isCreationView && onNavigateToView && (
+            <button
+              type="button"
+              onClick={() => onNavigateToView('factures_all')}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold rounded-md flex items-center space-x-1.5 transition cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Toutes les Factures</span>
+            </button>
+          )}
+
           {isBiller && (
             <button
               type="button"
@@ -1786,11 +1908,169 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-md flex items-center space-x-1.5 transition shadow-sm cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Nouvelle Facture Patient</span>
+              <span>{isCreationView ? 'Démarrer la Saisie' : 'Nouvelle Facture Patient'}</span>
             </button>
           )}
         </div>
       </div>
+
+      {/* DEDICATED STUDIO VIEW FOR NOUVELLE FACTURE WHEN FORM MODAL IS CLOSED */}
+      {isCreationView && !isFormOpen && (
+        <div className="space-y-4">
+          {/* Main Action Banner */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-6 text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 rounded-md text-xs font-semibold text-slate-200">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Formulaire de Facturation & Émission de Quittance Prêt</span>
+              </div>
+              <h3 className="text-xl font-black tracking-tight">
+                Établir une Nouvelle Facture Patient
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Saisissez les actes médicaux, appliquez les barèmes conventionnés tiers-payant (assurances/mutuelles) et générez la quittance de paiement pour libérer les accès aux prestations.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleOpenCreateModal(true)}
+                className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-lg shadow-lg flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ouvrir le Formulaire de Saisie</span>
+              </button>
+              {onNavigateToView && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToView('factures_all')}
+                  className="w-full sm:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-lg border border-white/20 transition cursor-pointer"
+                >
+                  Voir Toutes les Factures
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Launchers by Specialty */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div
+              onClick={() => {
+                setInvoiceCategory('consultation');
+                setSelectedConsultationTypeId('c_gen_jour');
+                handleOpenCreateModal(true);
+              }}
+              className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs hover:border-slate-400 transition cursor-pointer flex items-center space-x-3.5 group"
+            >
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition">
+                <Stethoscope className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-slate-900">Consultation Générale</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">Visite médecin de jour ou garde</p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                setInvoiceCategory('consultation');
+                setSelectedConsultationTypeId('c_pediatrie');
+                handleOpenCreateModal(true);
+              }}
+              className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs hover:border-slate-400 transition cursor-pointer flex items-center space-x-3.5 group"
+            >
+              <div className="p-3 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition">
+                <HeartHandshake className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-slate-900">Pédiatrie & Maternité</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">Consultation pédiatrique ou CPN</p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                setInvoiceCategory('exam');
+                handleOpenCreateModal(true);
+              }}
+              className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs hover:border-slate-400 transition cursor-pointer flex items-center space-x-3.5 group"
+            >
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
+                <FlaskConical className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-slate-900">Laboratoire & Biologie</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">NFS, paludisme, biochimie</p>
+              </div>
+            </div>
+
+            <div
+              onClick={() => {
+                setBillingViewTab('prescriptions');
+              }}
+              className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs hover:border-slate-400 transition cursor-pointer flex items-center space-x-3.5 group"
+            >
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-lg group-hover:bg-amber-600 group-hover:text-white transition">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-xs font-black text-slate-900">Prescriptions en Attente</h4>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                    {pendingPrescriptionConsultations.length}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">Ordonnances médicales prêtes</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contextual Banner for Filtered Views */}
+      {!isCreationView && (isDraftView || isPaidView || isUnpaidView || isCancelledView) && (
+        <div
+          className={`p-3 rounded-md border flex items-center justify-between text-xs shadow-xs ${
+            isDraftView
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : isPaidView
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : isUnpaidView
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : 'bg-slate-100 border-slate-200 text-slate-800'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5">
+            {isDraftView && <Clock className="w-4 h-4 text-amber-600 shrink-0" />}
+            {isPaidView && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+            {isUnpaidView && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+            {isCancelledView && <AlertTriangle className="w-4 h-4 text-slate-600 shrink-0" />}
+            <div>
+              <span className="font-black">
+                {isDraftView && `File d'attente caisse : ${filteredMoves.length} facture(s) en attente d'encaissement.`}
+                {isPaidView && `Quittances soldées : ${filteredMoves.length} facture(s) entièrement encaissée(s).`}
+                {isUnpaidView && `Créances à recouvrer : ${filteredMoves.length} facture(s) avec solde impayé.`}
+                {isCancelledView && `Factures invalidées : ${filteredMoves.length} facture(s) annulée(s) ou rejetée(s).`}
+              </span>
+              <span className="ml-1 opacity-80">
+                {isDraftView && 'Enregistrez le règlement au comptoir pour libérer les accès aux soins.'}
+                {isPaidView && 'Vous pouvez réimprimer les quittances ou exporter le récapitulatif comptable.'}
+                {isUnpaidView && 'Effectuez les relances patient ou émettez les bordereaux de recouvrement assurance.'}
+                {isCancelledView && 'Consultez le motif obligatoire et la traçabilité superviseur.'}
+              </span>
+            </div>
+          </div>
+          {onNavigateToView && (
+            <button
+              type="button"
+              onClick={() => onNavigateToView('factures_all')}
+              className="px-2.5 py-1 bg-white hover:bg-slate-50 border rounded font-bold text-xs transition cursor-pointer whitespace-nowrap ml-2 shadow-2xs"
+            >
+              Afficher Tout
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Module Tabs (Registre des Factures vs Prescriptions Médicales à Facturer) */}
       <div className="flex border-b border-slate-200 gap-6 text-xs font-semibold px-1">

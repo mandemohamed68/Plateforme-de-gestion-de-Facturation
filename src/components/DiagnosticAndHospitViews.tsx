@@ -516,26 +516,44 @@ export const ImagerieScheduledTableView: React.FC<DiagnosticHospitProps> = () =>
 };
 
 export const ImagerieReportsTableView: React.FC<DiagnosticHospitProps> = ({
+  currentView,
   onNavigateToView,
 }) => {
+  const isCompletedView = currentView === 'imagerie_completed';
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-slate-700" />
-            Comptes-Rendus Radiologiques Structurés
+            {isCompletedView ? 'Examens Radiologiques Réalisés & Clichés Acquis' : 'Comptes-Rendus Radiologiques Structurés'}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Rédaction, validation médicale et impression des comptes-rendus d'imagerie
+            {isCompletedView
+              ? 'Registre des actes d’imagerie exécutés avec archivage des clichés DICOM et traçabilité des manipulateurs'
+              : 'Rédaction, validation médicale et impression des comptes-rendus officiels d’imagerie médicale'}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 bg-slate-100 text-slate-800 border border-slate-200 rounded-lg text-xs font-bold">
+            {isCompletedView ? 'Historique des Clichés' : 'Registre des Comptes-Rendus'}
+          </span>
+          {onNavigateToView && (
+            <button
+              onClick={() => onNavigateToView('imaging_pacs')}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+            >
+              Console PACS
+            </button>
+          )}
         </div>
       </div>
 
       <div id="imaging-results-container" className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Registre des comptes-rendus
+            {isCompletedView ? 'Registre des examens exécutés' : 'Registre des comptes-rendus'}
           </span>
         </div>
 

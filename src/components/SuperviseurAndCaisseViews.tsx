@@ -510,11 +510,13 @@ export const SuperviseurCaissesView: React.FC<BillingViewProps> = ({
 // 3. SUPERVISEUR: RAPPORTS FINANCIERS CONSOLIDÉS
 // -------------------------------------------------------------
 export const SuperviseurReportsView: React.FC<BillingViewProps> = ({
+  currentView,
   moves = [],
   payments = [],
   company,
 }) => {
   const [showGuideBanner, setShowGuideBanner] = useState(true);
+  const isAdminView = currentView === 'admin_reports';
   const totalInvoiced = moves.filter(m => m.move_type === 'out_invoice').reduce((sum, m) => sum + (m.amount_total || 0), 0);
   const totalCollected = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
   const unpaidTotal = totalInvoiced - totalCollected;
@@ -527,16 +529,26 @@ export const SuperviseurReportsView: React.FC<BillingViewProps> = ({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-50 text-sky-900 border border-sky-200">
-                  📊 Rapprochement Financier &amp; Statistiques
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                  isAdminView
+                    ? 'bg-purple-50 text-purple-900 border-purple-200'
+                    : 'bg-sky-50 text-sky-900 border-sky-200'
+                }`}>
+                  {isAdminView ? '🏛️ Direction & Administration Générale' : '📊 Rapprochement Financier & Statistiques'}
                 </span>
-                <span className="text-xs text-slate-500">Synthèse financière</span>
+                <span className="text-xs text-slate-500">
+                  {isAdminView ? 'Pilotage stratégique' : 'Synthèse financière caisse'}
+                </span>
               </div>
               <h2 className="text-base font-extrabold text-slate-900">
-                Synthèse Financière Globale, Ventilation des Encaissements &amp; Recouvrement
+                {isAdminView
+                  ? 'États Décisionnels, Performance Économique & Trésorerie Consolidée'
+                  : 'Synthèse Financière Globale, Ventilation des Encaissements & Recouvrement'}
               </h2>
               <p className="text-xs text-slate-600 max-w-4xl leading-relaxed">
-                Ce tableau de bord financier consolide l'ensemble des revenus hospitaliers. Il permet de ventiler le chiffre d'affaires entre le ticket modérateur payé au comptant par les patients (Cash, Mobile Money, Cartes) et les créances à recouvrer auprès des sociétés d'assurance et mutuelles conventionnées.
+                {isAdminView
+                  ? 'Ce tableau de bord d’administration offre à la direction de l’établissement une vue consolidée sur l’équilibre médico-financier : volume de facturation global, taux d’encaissement réel, niveau d’endettement tiers-payant et charges opérationnelles.'
+                  : 'Ce tableau de bord financier consolide l’ensemble des revenus hospitaliers. Il permet de ventiler le chiffre d’affaires entre le ticket modérateur payé au comptant par les patients (Cash, Mobile Money, Cartes) et les créances à recouvrer auprès des sociétés d’assurance et mutuelles conventionnées.'}
               </p>
             </div>
             <button
@@ -554,19 +566,30 @@ export const SuperviseurReportsView: React.FC<BillingViewProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-slate-700" />
-            Rapports &amp; États de Synthèse Financière
+            {isAdminView
+              ? 'Rapports d’Activité & États Décisionnels de l’Établissement'
+              : 'Rapports & États de Synthèse Financière'}
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Ventilation des recettes, rapprochement bancaire, parts assurances et indicateurs d'activité
+            {isAdminView
+              ? 'Pilotage stratégique, performance médico-économique globale et comptabilité de gestion'
+              : 'Ventilation des recettes, rapprochement bancaire, parts assurances et indicateurs d’activité'}
           </p>
         </div>
-        <button
-          onClick={() => printDocumentById('superviseur-synthese-report', 'Synthese_Financiere')}
-          className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs"
-        >
-          <Printer className="w-4 h-4 text-emerald-400" />
-          <span>Imprimer Synthèse</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${
+            isAdminView ? 'bg-purple-50 text-purple-900 border-purple-200' : 'bg-slate-100 text-slate-800 border-slate-200'
+          }`}>
+            {isAdminView ? 'Rapports Direction' : 'Contrôle Caisse'}
+          </span>
+          <button
+            onClick={() => printDocumentById('superviseur-synthese-report', isAdminView ? 'Rapport_Direction_Generale' : 'Synthese_Financiere')}
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs"
+          >
+            <Printer className="w-4 h-4 text-emerald-400" />
+            <span>Imprimer Synthèse</span>
+          </button>
+        </div>
       </div>
 
       <div id="superviseur-synthese-report" className="space-y-6">
