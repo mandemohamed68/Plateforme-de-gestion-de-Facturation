@@ -44,6 +44,21 @@ interface PatientDossiersDirectoryViewProps {
   onNavigateToView?: (view: any) => void;
 }
 
+const formatPatientFullName = (p: ResPartner | null | undefined): string => {
+  if (!p) return '';
+  const rawName = (p.name || '').trim();
+  const firstName = (p.first_name || '').trim();
+  if (!firstName) return rawName;
+  if (!rawName) return firstName;
+  if (rawName.toLowerCase().includes(firstName.toLowerCase())) {
+    return rawName;
+  }
+  if (firstName.toLowerCase().includes(rawName.toLowerCase())) {
+    return firstName;
+  }
+  return `${rawName} ${firstName}`;
+};
+
 export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryViewProps> = ({
   partners = [],
   moves = [],
@@ -346,7 +361,7 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  Dossier patient (DPI)
+                  Dossier patient
                 </h1>
               </div>
             </div>
@@ -367,7 +382,7 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
                 className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition flex items-center space-x-1.5 shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5 text-slate-200" />
-                <span>Nouvelle Consultation</span>
+                <span>Nouvelle consultation</span>
               </button>
             )}
           </div>
@@ -538,7 +553,7 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
                           <h4 className="text-xs font-bold text-slate-900 truncate">
-                            {p.name} {p.first_name || ''}
+                            {formatPatientFullName(p)}
                           </h4>
                           {isSelected && (
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"></span>
@@ -609,7 +624,7 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
                     <div className="space-y-0.5 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                          {activePatient.name} {activePatient.first_name || ''}
+                          {formatPatientFullName(activePatient)}
                         </h2>
                         {activePatient.gender && (
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">

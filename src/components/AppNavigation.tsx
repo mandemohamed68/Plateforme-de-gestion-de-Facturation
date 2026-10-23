@@ -625,43 +625,12 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           </button>
         </div>
 
-        {/* Current User Profile & Role Card (Clean 100% Human Design) */}
-        <div 
-          style={{ borderColor: theme.sidebarBorder }}
-          className={`p-3 border-b space-y-2.5 ${theme.isDarkSidebar ? 'bg-white/5' : 'bg-slate-50/70'}`}
-        >
-          {/* User Info Row */}
-          <div className="flex items-center space-x-2.5">
-            <div 
-              style={{ backgroundColor: theme.primary }}
-              className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 tracking-wider"
-            >
-              {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-1">
-                <div 
-                  style={{ color: theme.sidebarText }}
-                  className="text-xs font-bold truncate leading-tight"
-                >
-                  {currentUser?.name || 'Session active'}
-                </div>
-                <span
-                  style={{
-                    backgroundColor: theme.isDarkSidebar ? 'rgba(255, 255, 255, 0.12)' : '#f1f5f9',
-                    color: theme.isDarkSidebar ? '#f8fafc' : '#334155',
-                    borderColor: theme.sidebarBorder
-                  }}
-                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0"
-                >
-                  {currentUser?.role?.toLowerCase().includes('super') ? 'Super Admin' : (currentUser?.role || 'Utilisateur')}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Session requirement banner for billers / cashiers */}
-          {isSessionRequiredProfile && (
+        {/* Session requirement banner for billers / cashiers */}
+        {isSessionRequiredProfile && (
+          <div 
+            style={{ borderColor: theme.sidebarBorder }}
+            className={`p-3 border-b ${theme.isDarkSidebar ? 'bg-white/5' : 'bg-slate-50/70'}`}
+          >
             <div className={`p-2 rounded-lg border text-[11px] font-medium transition-all ${
               hasActiveSession 
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' 
@@ -681,8 +650,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                 )}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Vertical Structured Navigation List (Clean Sidebar) */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
@@ -866,31 +835,6 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
               </div>
             );
           })}
-
-          {/* Role access limit notice */}
-          {allowedViews.length < 8 && (
-            <div 
-              style={{
-                backgroundColor: theme.isDarkSidebar ? 'rgba(0, 0, 0, 0.3)' : '#f8fafc',
-                borderColor: theme.sidebarBorder,
-              }}
-              className="mt-4 p-3 rounded-xl border text-[11px] space-y-1"
-            >
-              <div 
-                style={{ color: theme.sidebarText }}
-                className="flex items-center space-x-1 font-bold"
-              >
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Accès spécifique à votre profil</span>
-              </div>
-              <p 
-                style={{ color: theme.sidebarTextMuted }}
-                className="text-[10px] leading-relaxed"
-              >
-                Vous êtes connecté en tant que <strong>{currentUser?.role}</strong>. Les modules hors de votre périmètre d'action sont sécurisés et masqués.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Sidebar Footer: User Switcher & Logout */}
@@ -1070,28 +1014,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
               id="btn-open-omnibox"
               onClick={() => setIsOmniboxOpen(true)}
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer shadow-2xs"
-              title="Recherche universelle et raccourcis rapides (Ctrl + K)"
+              title="Recherche rapide (Ctrl + K)"
             >
               <Search className="w-3.5 h-3.5 text-slate-500" />
               <span className="hidden lg:inline text-[11px]">Recherche rapide</span>
               <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-white border border-slate-300 rounded shadow-2xs text-slate-600">
                 Ctrl K
               </kbd>
-            </button>
-
-            {/* Interservice Matching & Care Pathway Shortcut */}
-            <button
-              id="btn-header-patient-journey"
-              onClick={() => setCurrentView('patient_journey')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 cursor-pointer shadow-2xs border ${
-                currentView === 'patient_journey'
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
-              }`}
-              title="Parcours patient"
-            >
-              <Compass className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden xl:inline text-[11px]">Parcours</span>
             </button>
           </div>
 

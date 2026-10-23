@@ -177,18 +177,15 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FlaskConical className="w-5 h-5 text-slate-700" />
-            File d'Attente des Prélèvements - Laboratoire
+            Prélèvements
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Accueil des patients munis d'un bon d'analyse validé pour prélèvement biologique et étiquetage des tubes
-          </p>
         </div>
         <button
           onClick={() => onNavigateToView('labo_sampling')}
           className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          <span>Nouveau Bon de Prélèvement</span>
+          <span>Nouveau prélèvement</span>
         </button>
       </div>
 
@@ -286,17 +283,14 @@ export const LaboInProgressTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FlaskConical className="w-5 h-5 text-slate-700" />
-            Analyses Biologiques en Cours sur Automates
+            Analyses en cours
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Worklist technique : séries d'hématologie, biochimie et immunologie en cours d'exécution
-          </p>
         </div>
         <button
           onClick={() => onNavigateToView('labo_results')}
           className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition"
         >
-          Saisie & Validation des Résultats
+          Saisie des résultats
         </button>
       </div>
 
@@ -380,17 +374,14 @@ export const ImagerieQueueTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Radio className="w-5 h-5 text-slate-700" />
-            File d'Attente - Imagerie Médicale & Radiologie
+            Examens d'imagerie
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            File active des patients en attente de réalisation de clichés : Radiographie, Échographie, Scanner
-          </p>
         </div>
         <button
           onClick={() => onNavigateToView('imaging_pacs')}
           className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
         >
-          <span>Visualiseur PACS DICOM</span>
+          <span>Visionneuse PACS</span>
         </button>
       </div>
 
@@ -451,18 +442,15 @@ export const ImagerieScheduledTableView: React.FC<DiagnosticHospitProps> = () =>
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-slate-700" />
-            Planning des Examens d'Imagerie Programmés
+            Planning d'imagerie
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Créneaux réservés avec préparation spécifique (jeûne, produit de contraste)
-          </p>
         </div>
         <button
           onClick={() => printDocumentById('imaging-schedule-container', 'Planning_Examens_Imagerie')}
           className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 flex items-center gap-1.5 cursor-pointer"
         >
           <Printer className="w-3.5 h-3.5 text-slate-600" />
-          <span>Imprimer Planning</span>
+          <span>Imprimer</span>
         </button>
       </div>
 
@@ -527,24 +515,16 @@ export const ImagerieReportsTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-slate-700" />
-            {isCompletedView ? 'Examens Radiologiques Réalisés & Clichés Acquis' : 'Comptes-Rendus Radiologiques Structurés'}
+            {isCompletedView ? 'Examens réalisés' : 'Comptes-rendus d\'imagerie'}
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {isCompletedView
-              ? 'Registre des actes d’imagerie exécutés avec archivage des clichés DICOM et traçabilité des manipulateurs'
-              : 'Rédaction, validation médicale et impression des comptes-rendus officiels d’imagerie médicale'}
-          </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 bg-slate-100 text-slate-800 border border-slate-200 rounded-lg text-xs font-bold">
-            {isCompletedView ? 'Historique des Clichés' : 'Registre des Comptes-Rendus'}
-          </span>
           {onNavigateToView && (
             <button
               onClick={() => onNavigateToView('imaging_pacs')}
               className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer"
             >
-              Console PACS
+              Visionneuse PACS
             </button>
           )}
         </div>
@@ -1024,15 +1004,9 @@ export const ImageriePrescriptionsTableView: React.FC<DiagnosticHospitProps> = (
           <div className="flex items-center gap-2">
             <Radio className="w-5 h-5 text-slate-700" />
             <h1 className="text-lg font-bold tracking-tight text-slate-900">
-              Prescriptions & Demandes d'Examens d'Imagerie Médicale
+              Prescriptions d'imagerie
             </h1>
-            <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
-              Pôle Imagerie & PACS
-            </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Centralisation des bons de prescription radiologique (Radio, Échographie, Scanner, IRM, Doppler), gestion des priorités et traçabilité de prise en charge.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1041,21 +1015,21 @@ export const ImageriePrescriptionsTableView: React.FC<DiagnosticHospitProps> = (
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Nouvelle Demande d'Examen</span>
+            <span>Nouvelle demande</span>
           </button>
           <button
             onClick={() => onNavigateToView('imaging_pacs')}
             className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5 text-slate-600" />
-            <span>Visualiseur PACS</span>
+            <span>Visionneuse PACS</span>
           </button>
           <button
             onClick={() => printDocumentById('imaging-prescriptions-table', 'Registre_Prescriptions_Imagerie')}
             className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" />
-            <span>Imprimer Registre</span>
+            <span>Imprimer</span>
           </button>
         </div>
       </div>
@@ -1774,11 +1748,8 @@ export const HospitAdmissionsTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Bed className="w-5 h-5 text-slate-700" />
-            Formalités &amp; Entrées d&apos;Admission en Hospitalisation
+            Admissions
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Attribution des chambres et formalités d&apos;admission pour prise en charge alitée
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1786,14 +1757,14 @@ export const HospitAdmissionsTableView: React.FC<DiagnosticHospitProps> = ({
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-slate-200 cursor-pointer"
           >
             <Bed className="w-3.5 h-3.5 text-slate-600" />
-            <span>Consulter Plan des Lits</span>
+            <span>Plan des lits</span>
           </button>
           <button
             onClick={() => setShowNewAdmissionModal(true)}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Nouvelle Admission</span>
+            <span>Nouvelle admission</span>
           </button>
         </div>
       </div>
@@ -2212,11 +2183,8 @@ export const HospitPatientsTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Bed className="w-5 h-5 text-slate-700" />
-            Recensement des Patients Actuellement Hospitalisés
+            Patients hospitalisés
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Surveillance clinique, durée de séjour et accès complet au dossier de soins infirmiers
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2224,14 +2192,14 @@ export const HospitPatientsTableView: React.FC<DiagnosticHospitProps> = ({
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 flex items-center gap-1.5 cursor-pointer"
           >
             <Activity className="w-3.5 h-3.5 text-slate-600" />
-            <span>Suivi des Séjours</span>
+            <span>Suivi des séjours</span>
           </button>
           <button
             onClick={() => onNavigateToView('hospit_discharges')}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Gestion des Sorties</span>
+            <span>Sorties</span>
           </button>
         </div>
       </div>
@@ -2727,11 +2695,8 @@ export const HospitDischargesTableView: React.FC<DiagnosticHospitProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-slate-700" />
-            Procédure &amp; Clôture des Sorties d&apos;Hospitalisation
+            Sorties d'hospitalisation
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Contrôle médical, vérification obligatoire du solde financier et édition du billet de sortie officiel
-          </p>
         </div>
       </div>
 
@@ -2739,9 +2704,6 @@ export const HospitDischargesTableView: React.FC<DiagnosticHospitProps> = ({
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
           <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
             Dossiers de sortie programmés ou clôturés ({discharges.length})
-          </span>
-          <span className="text-[11px] font-semibold text-slate-500">
-            Contrôle financier automatisé avant délivrance du billet
           </span>
         </div>
 

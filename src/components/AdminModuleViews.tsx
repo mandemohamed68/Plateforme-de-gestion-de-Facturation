@@ -482,9 +482,7 @@ export const AdminServicesManagementView: React.FC<AdminViewsProps> = ({
                           <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
                             {service.capacity_beds} lits
                           </span>
-                        ) : (
-                          <span className="text-slate-300 text-[11px]">—</span>
-                        )}
+                        ) : null}
                       </td>
 
                       {/* Toggle status */}
