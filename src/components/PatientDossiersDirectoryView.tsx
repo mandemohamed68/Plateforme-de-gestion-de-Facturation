@@ -346,15 +346,9 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  Dossier Patient Informatisé (DPI 360°)
+                  Dossier patient (DPI)
                 </h1>
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded-md">
-                  Accès Praticiens Tous Services
-                </span>
               </div>
-              <p className="text-xs text-slate-500 truncate">
-                Consultation universelle de l'historique médical, biologique, radiologique et thérapeutique.
-              </p>
             </div>
           </div>
 
@@ -784,7 +778,7 @@ export const PatientDossiersDirectoryView: React.FC<PatientDossiersDirectoryView
                     }`}
                   >
                     <Clock className="w-3.5 h-3.5" />
-                    <span>Chronologie 360°</span>
+                    <span>Chronologie</span>
                   </button>
 
                   <button

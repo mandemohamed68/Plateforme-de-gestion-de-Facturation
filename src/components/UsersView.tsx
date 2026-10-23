@@ -34,7 +34,7 @@ interface UsersViewProps {
   onDeleteGroup: (id: number) => Promise<void>;
 }
 
-export const EXHAUSTIVE_PERMISSIONS = [
+export const PERMISSIONS_LIST = [
   { key: 'can_manage_invoices', label: 'Facturation & Ordonnances', description: 'Création et modification des factures et dossiers patients' },
   { key: 'can_validate_invoices', label: 'Validation Comptable', description: 'Comptabilisation et verrouillage des pièces au Grand Livre' },
   { key: 'can_delete_invoices', label: 'Suppression Factures', description: 'Autorisation de supprimer des brouillons et écritures non validées' },
@@ -47,6 +47,8 @@ export const EXHAUSTIVE_PERMISSIONS = [
   { key: 'can_manage_settings', label: 'Branding & Paramètres Labo', description: 'Modification du logo, coordonnées, banque et mentions légales' },
   { key: 'can_manage_users', label: 'Gestion des Utilisateurs & Droits', description: 'Création des comptes, attribution des rôles et des habilitations' },
 ];
+
+export const EXHAUSTIVE_PERMISSIONS = PERMISSIONS_LIST;
 
 export const ALL_NAVIGATION_MENUS = [
   // 1. ACCUEIL
@@ -426,15 +428,12 @@ export const UsersView: React.FC<UsersViewProps> = ({
         <div>
           <div className="flex items-center space-x-2">
             <h2 className="text-base sm:text-lg font-black text-slate-900">
-              Utilisateurs &amp; Droits d'Accès Exhaustifs
+              Utilisateurs
             </h2>
             <span className="bg-slate-100 text-slate-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
               {users.length} comptes
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Gestion du personnel (Biologistes, Techniciens, Caissiers, Comptables) et matrice des habilitations de laboratoire.
-          </p>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -445,7 +444,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
               className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md transition active:scale-95 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              <span>Créer un Utilisateur</span>
+              <span>Ajouter</span>
             </button>
           ) : (
             <button
@@ -454,7 +453,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
               className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md transition active:scale-95 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              <span>Ajouter un Profil de Rôle</span>
+              <span>Nouveau rôle</span>
             </button>
           )}
         </div>
@@ -470,7 +469,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Comptes Utilisateurs ({users.length})
+          Utilisateurs ({users.length})
         </button>
         <button
           onClick={() => setActiveTab('roles')}
@@ -480,7 +479,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Rôles &amp; Habilitations Métier ({groups.length})
+          Rôles ({groups.length})
         </button>
         <button
           onClick={() => setActiveTab('matrix')}
@@ -490,7 +489,7 @@ export const UsersView: React.FC<UsersViewProps> = ({
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Matrice Exhaustive des Permissions
+          Permissions
         </button>
       </div>
 
@@ -616,9 +615,9 @@ export const UsersView: React.FC<UsersViewProps> = ({
             <table className="w-full text-left text-xs border-collapse table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-                  <th className="py-3 px-4 w-[28%]">Rôle / Groupe Métier</th>
-                  <th className="py-3 px-3 w-[30%] hidden md:table-cell">Description Opérationnelle</th>
-                  <th className="py-3 px-3 w-[32%]">Droits Exhaustifs Associés</th>
+                  <th className="py-3 px-4 w-[28%]">Rôle</th>
+                  <th className="py-3 px-3 w-[30%] hidden md:table-cell">Description</th>
+                  <th className="py-3 px-3 w-[32%]">Droits associés</th>
                   <th className="py-3 px-4 text-center w-[10%]">Actions</th>
                 </tr>
               </thead>

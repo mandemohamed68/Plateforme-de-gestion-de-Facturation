@@ -105,8 +105,8 @@
         "instruction_note": "Validation du bon de prise en charge avec la compagnie"
       }
     ],
-    "show_watermark": true,
-    "watermark_text": "DOCUMENT CONFIDENTIEL ET OFFICIEL",
+    "show_watermark": false,
+    "watermark_text": "",
     "watermark_type": "logo",
     "watermark_opacity": 0.05,
     "watermark_position": "center",
@@ -133,6 +133,141 @@
     "medical_director_name": "Dr. Aboubacar TOURÉ - Biologiste Médical Specialist",
     "lab_turnaround_default": "2 heures à 24 heures selon la spécialité",
     "invoice_footer": "Document délivré à titre de quittance médicale officielle. Facture exonérée de TVA sur les prestations d'analyses médicales.",
+    "default_page_size": 50,
+    "hospital_services_config": [
+      {
+        "id": "medecine_generale",
+        "name": "Médecine Générale & Consultations",
+        "code": "MED",
+        "category": "clinical",
+        "description": "Premier recours médical, consultations polyvalentes, suivi des maladies chroniques et aiguës.",
+        "enabled": true,
+        "icon": "Stethoscope",
+        "head_doctor": "Dr. Ibrahim Traoré",
+        "location": "Bâtiment Principal - RDC",
+        "capacity_beds": 0
+      },
+      {
+        "id": "pediatrie",
+        "name": "Pédiatrie & Néonatologie",
+        "code": "PED",
+        "category": "clinical",
+        "description": "Santé infantile, consultations nouveau-nés et enfants, carnet vaccinal PEV, suivi de croissance OMS et nutrition.",
+        "enabled": true,
+        "icon": "Baby",
+        "head_doctor": "Dr. Aminata Diallo",
+        "location": "Pavillon Mère-Enfant - RDC",
+        "capacity_beds": 14
+      },
+      {
+        "id": "maternite",
+        "name": "Maternité & Gynéco-Obstétrique",
+        "code": "MAT",
+        "category": "clinical",
+        "description": "Suivi prénatal (CPN1-4+), salle de naissance, accouchements, partogramme et surveillance post-partum.",
+        "enabled": true,
+        "icon": "Heart",
+        "head_doctor": "Dr. Barry Fatoumata",
+        "location": "Pavillon Mère-Enfant - 1er étage",
+        "capacity_beds": 18
+      },
+      {
+        "id": "specialiste",
+        "name": "Consultations Spécialisées",
+        "code": "SPEC",
+        "category": "clinical",
+        "description": "Cardiologie, Chirurgie, Pneumologie, Neurologie, Gastro-entérologie et avis spécialisés référés.",
+        "enabled": true,
+        "icon": "ShieldCheck",
+        "head_doctor": "Dr. Aboubacar Touré",
+        "location": "Bâtiment B - 2e étage",
+        "capacity_beds": 0
+      },
+      {
+        "id": "urgences",
+        "name": "Urgences & Triage Infirmier",
+        "code": "URG",
+        "category": "clinical",
+        "description": "Accueil 24/7, triage avec constantes vitales, déchocage et mise en observation d'urgence.",
+        "enabled": true,
+        "icon": "Activity",
+        "head_doctor": "Dr. Soro Kévin",
+        "location": "Bâtiment Urgences - Entrée Ambulances",
+        "capacity_beds": 8
+      },
+      {
+        "id": "hospitalisation",
+        "name": "Hospitalisation & Gestion des Lits",
+        "code": "HOSP",
+        "category": "inpatient",
+        "description": "Séjours en médecine, chirurgie et soins continus, affectation des lits, surveillance et protocoles de sortie.",
+        "enabled": true,
+        "icon": "Bed",
+        "head_doctor": "Dr. Moussa Keita",
+        "location": "Bâtiments B & C (1er au 3e étage)",
+        "capacity_beds": 45
+      },
+      {
+        "id": "laboratoire",
+        "name": "Laboratoire d'Analyses Médicales",
+        "code": "LAB",
+        "category": "diagnostic",
+        "description": "Analyses biochimiques, hématologie, sérologie, microbiologie et validation biologique officielle.",
+        "enabled": true,
+        "icon": "FlaskConical",
+        "head_doctor": "Dr. Aboubacar Touré (Biologiste)",
+        "location": "Plateau Technique - RDC",
+        "capacity_beds": 0
+      },
+      {
+        "id": "imagerie",
+        "name": "Imagerie Médicale & Radiologie",
+        "code": "RAD",
+        "category": "diagnostic",
+        "description": "Radiographie numérique, échographie générale et obstétricale, scanner TDM et télé-radiologie.",
+        "enabled": true,
+        "icon": "Microscope",
+        "head_doctor": "Dr. Yves Kouamé",
+        "location": "Plateau Technique - Sous-sol",
+        "capacity_beds": 0
+      },
+      {
+        "id": "caisse_facturation",
+        "name": "Caisse & Facturation Médicale",
+        "code": "FIN",
+        "category": "financial",
+        "description": "Guichets d'encaissement, facturation tiers-payeur / mutuelles, quittances et clôtures de sessions.",
+        "enabled": true,
+        "icon": "CreditCard",
+        "head_doctor": "Mme. Yao Christine (Chef Comptable)",
+        "location": "Hall d'Accueil Principal",
+        "capacity_beds": 0
+      },
+      {
+        "id": "pharmacie",
+        "name": "Pharmacie Hospitalière & Délivrance",
+        "code": "PHAR",
+        "category": "pharmacy",
+        "description": "Gestion des stocks de médicaments, dispensation sur ordonnance, consommables et trousses d'urgence.",
+        "enabled": true,
+        "icon": "Pill",
+        "head_doctor": "Dr. Pharm. Adjoua Clarisse",
+        "location": "Bâtiment A - Aile Est",
+        "capacity_beds": 0
+      }
+    ],
+    "enabled_hospital_services": [
+      "medecine_generale",
+      "pediatrie",
+      "maternite",
+      "specialiste",
+      "urgences",
+      "hospitalisation",
+      "laboratoire",
+      "imagerie",
+      "caisse_facturation",
+      "pharmacie"
+    ],
     "sidebar_color": "#4c0519",
     "secondary_color": "#10b981",
     "ndm_prefix": "NDM-",
@@ -242,7 +377,7 @@
     },
     {
       "id": 2,
-      "name": "Facturier (Profil Facture)",
+      "name": "Facturation",
       "description": "Établit exclusivement les factures patients (statut Non réglé). Ne peut en aucun cas encaisser de paiement.",
       "permissions": [
         "can_manage_invoices",
@@ -252,7 +387,7 @@
     },
     {
       "id": 3,
-      "name": "Caissier (Profil Caisse)",
+      "name": "Caisse",
       "description": "N établit pas de facture. Encaisse exclusivement les paiements des factures établies par le Facturier, édite les reçus et clôture la caisse.",
       "permissions": [
         "can_register_payments",
@@ -262,7 +397,7 @@
     },
     {
       "id": 4,
-      "name": "Facture / Caisse (Polyvalent)",
+      "name": "Caisse & Facturation",
       "description": "Profil polyvalent : Établit les factures patients ET encaisse directement les règlements correspondants.",
       "permissions": [
         "can_manage_invoices",
@@ -5413,6 +5548,78 @@
       "active": true,
       "created_at": "2026-01-01T00:00:00Z",
       "updated_at": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": 101,
+      "product_tmpl_id": 101,
+      "default_code": "PRD-101",
+      "barcode": "376000000101",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.781Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 102,
+      "product_tmpl_id": 102,
+      "default_code": "PRD-102",
+      "barcode": "376000000102",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 103,
+      "product_tmpl_id": 103,
+      "default_code": "PRD-103",
+      "barcode": "376000000103",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 104,
+      "product_tmpl_id": 104,
+      "default_code": "PRD-104",
+      "barcode": "376000000104",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 105,
+      "product_tmpl_id": 105,
+      "default_code": "PRD-105",
+      "barcode": "376000000105",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 106,
+      "product_tmpl_id": 106,
+      "default_code": "PRD-106",
+      "barcode": "376000000106",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 107,
+      "product_tmpl_id": 107,
+      "default_code": "PRD-107",
+      "barcode": "376000000107",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
+    },
+    {
+      "id": 108,
+      "product_tmpl_id": 108,
+      "default_code": "PRD-108",
+      "barcode": "376000000108",
+      "active": true,
+      "created_at": "2026-10-23T14:40:30.782Z",
+      "updated_at": "2026-10-23T14:40:30.782Z"
     }
   ],
   "dbMoves": [
@@ -15238,7 +15445,7 @@
       "session_code": "SESSION00801",
       "till_name": "Guichet Caisse 1",
       "cashier_id": 4,
-      "cashier_name": "Sophie Polyvalente (Facture / Caisse)",
+      "cashier_name": "K. Diarra",
       "state": "in_progress",
       "opening_date": "11/09/2026 12:47:02",
       "closing_date": null,
@@ -15264,7 +15471,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Sophie Polyvalente (Facture / Caisse)",
+          "cashier_name": "K. Diarra",
           "id_line": "8201"
         }
       ],
@@ -15272,21 +15479,21 @@
         {
           "id": "log-1789130847158",
           "timestamp": "11/09/2026 12:47:27",
-          "author": "Sophie Polyvalente (Facture / Caisse)",
+          "author": "K. Diarra",
           "message": "Enregistrement règlement patient CNAM - Couverture Maladie Universelle (CMU) (46,000 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789130822266",
           "timestamp": "11/09/2026 12:47:02",
-          "author": "Sophie Polyvalente (Facture / Caisse)",
+          "author": "K. Diarra",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 50,000 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789130822267",
           "timestamp": "11/09/2026 12:47:02",
-          "author": "Sophie Polyvalente (Facture / Caisse)",
+          "author": "K. Diarra",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15297,7 +15504,7 @@
       "session_code": "SESSION00800",
       "till_name": "Poste Facturation 1",
       "cashier_id": 3,
-      "cashier_name": "Marcelle Caissière (Profil Caisse)",
+      "cashier_name": "M. Koné",
       "state": "in_progress",
       "opening_date": "11/09/2026 12:43:27",
       "closing_date": null,
@@ -15323,7 +15530,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8210"
         },
         {
@@ -15338,7 +15545,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8209"
         },
         {
@@ -15353,7 +15560,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8208"
         },
         {
@@ -15368,7 +15575,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8207"
         },
         {
@@ -15383,7 +15590,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8206"
         },
         {
@@ -15398,7 +15605,7 @@
           "payment_method_code": "transfer",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8205"
         },
         {
@@ -15413,7 +15620,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8204"
         },
         {
@@ -15428,7 +15635,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8203"
         },
         {
@@ -15443,7 +15650,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8202"
         },
         {
@@ -15458,7 +15665,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8201"
         }
       ],
@@ -15466,84 +15673,84 @@
         {
           "id": "log-1789393449216",
           "timestamp": "14/09/2026 13:44:09",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient M. Paul N'Guessan (10,850 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789393439750",
           "timestamp": "14/09/2026 13:43:59",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient Mme Clarisse N'Dri (25,600 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789393365576",
           "timestamp": "14/09/2026 13:42:45",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient M. Jean-Luc Koffi (20,800 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789392727428",
           "timestamp": "14/09/2026 13:32:07",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient MANDE mohamed (5,000 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789392711192",
           "timestamp": "14/09/2026 13:31:51",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient Mme Aminata Diallo (10,000 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789391395357",
           "timestamp": "14/09/2026 13:09:55",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient M. Ibrahim Touré (38,250 FCFA - Virement Bancaire)",
           "type": "payment"
         },
         {
           "id": "log-1789391117236",
           "timestamp": "14/09/2026 13:05:17",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient M. Ibrahim Touré (15,300 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789146364704",
           "timestamp": "11/09/2026 17:06:04",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient MANDE mohamed (11,000 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789139118980",
           "timestamp": "11/09/2026 15:05:18",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient MANDE mohamed (56,500 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789130623291",
           "timestamp": "11/09/2026 12:43:43",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient ASCOMA Côte d'Ivoire (Tiers-Payeur) (70,500 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789130607437",
           "timestamp": "11/09/2026 12:43:27",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 0 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789130607438",
           "timestamp": "11/09/2026 12:43:27",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15554,7 +15761,7 @@
       "session_code": "SESSION00799",
       "till_name": "Guichet Caisse 1",
       "cashier_id": 2,
-      "cashier_name": "Jean Facturier (Profil Facture)",
+      "cashier_name": "A. Touré",
       "state": "in_progress",
       "opening_date": "11/09/2026 12:40:13",
       "closing_date": null,
@@ -15580,7 +15787,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Jean Facturier (Profil Facture)",
+          "cashier_name": "A. Touré",
           "id_line": "8202"
         },
         {
@@ -15595,7 +15802,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Jean Facturier (Profil Facture)",
+          "cashier_name": "A. Touré",
           "id_line": "8201"
         }
       ],
@@ -15603,28 +15810,28 @@
         {
           "id": "log-1789569611464",
           "timestamp": "16/09/2026 14:40:11",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Enregistrement règlement patient BB TASSINE KADHISA (6,980 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789563686501",
           "timestamp": "16/09/2026 13:01:26",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Enregistrement règlement patient Mme Aminata Diallo (19,600 FCFA - Espèces (Caisse))",
           "type": "payment"
         },
         {
           "id": "log-1789130413729",
           "timestamp": "11/09/2026 12:40:13",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 50,000 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789130413730",
           "timestamp": "11/09/2026 12:40:13",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15635,7 +15842,7 @@
       "session_code": "SESSION00798",
       "till_name": "Guichet Caisse 1",
       "cashier_id": 3,
-      "cashier_name": "Marcelle Caissière (Profil Caisse)",
+      "cashier_name": "M. Koné",
       "state": "closed",
       "opening_date": "11/09/2026 12:34:22",
       "closing_date": "11/09/2026 12:39:48",
@@ -15653,21 +15860,21 @@
         {
           "id": "log-1789130388597",
           "timestamp": "11/09/2026 12:39:48",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Clôture définitive de la session. Fond théorique: 50,000 FCFA, Réel compté: 50,000 FCFA (Écart: +0 FCFA).",
           "type": "closure"
         },
         {
           "id": "log-1789130062217",
           "timestamp": "11/09/2026 12:34:22",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 50,000 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789130062218",
           "timestamp": "11/09/2026 12:34:22",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15681,7 +15888,7 @@
       "session_code": "SESSION00797",
       "till_name": "Poste Facturation 1",
       "cashier_id": 2,
-      "cashier_name": "Jean Facturier (Profil Facture)",
+      "cashier_name": "A. Touré",
       "state": "closed",
       "opening_date": "11/09/2026 12:28:45",
       "closing_date": "11/09/2026 12:39:44",
@@ -15699,21 +15906,21 @@
         {
           "id": "log-1789130384043",
           "timestamp": "11/09/2026 12:39:44",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Clôture définitive de la session. Fond théorique: 0 FCFA, Réel compté: 0 FCFA (Écart: +0 FCFA).",
           "type": "closure"
         },
         {
           "id": "log-1789129725704",
           "timestamp": "11/09/2026 12:28:45",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 0 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789129725709",
           "timestamp": "11/09/2026 12:28:45",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15727,7 +15934,7 @@
       "session_code": "SESSION00796",
       "till_name": "Poste Facturation 1",
       "cashier_id": 3,
-      "cashier_name": "Marcelle Caissière (Profil Caisse)",
+      "cashier_name": "M. Koné",
       "state": "closed",
       "opening_date": "11/09/2026 12:27:52",
       "closing_date": "11/09/2026 12:34:17",
@@ -15745,21 +15952,21 @@
         {
           "id": "log-1789130057089",
           "timestamp": "11/09/2026 12:34:17",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Clôture définitive de la session. Fond théorique: 0 FCFA, Réel compté: 0 FCFA (Écart: +0 FCFA).",
           "type": "closure"
         },
         {
           "id": "log-1789129672133",
           "timestamp": "11/09/2026 12:27:52",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 0 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789129672134",
           "timestamp": "11/09/2026 12:27:52",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15773,7 +15980,7 @@
       "session_code": "SESSION00795",
       "till_name": "Caisse 1",
       "cashier_id": 3,
-      "cashier_name": "Marcelle Caissière (Profil Caisse)",
+      "cashier_name": "M. Koné",
       "state": "closed",
       "opening_date": "11/09/2026 11:33:48",
       "closing_date": "11/09/2026 12:22:06",
@@ -15799,7 +16006,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8206"
         },
         {
@@ -15814,7 +16021,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8205"
         },
         {
@@ -15829,7 +16036,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8204"
         },
         {
@@ -15844,7 +16051,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8203"
         },
         {
@@ -15859,7 +16066,7 @@
           "payment_method_code": "cash",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8202"
         },
         {
@@ -15874,7 +16081,7 @@
           "payment_method_code": "transfer",
           "type": "invoice",
           "state": "reconciled",
-          "cashier_name": "Marcelle Caissière (Profil Caisse)",
+          "cashier_name": "M. Koné",
           "id_line": "8201"
         }
       ],
@@ -15882,63 +16089,63 @@
         {
           "id": "log-1789129326794",
           "timestamp": "11/09/2026 12:22:06",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Clôture définitive de la session. Fond théorique: 73,280 FCFA, Réel compté: 73,280 FCFA (Écart: +0 FCFA).",
           "type": "closure"
         },
         {
           "id": "log-1789128421466",
           "timestamp": "11/09/2026 12:07:01",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient SUNU Assurances Santé (5,600 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789128392357",
           "timestamp": "11/09/2026 12:06:32",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient SUNU Assurances Santé (5,600 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789128364607",
           "timestamp": "11/09/2026 12:06:04",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient ASCOMA Côte d'Ivoire (Tiers-Payeur) (3,000 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789128356825",
           "timestamp": "11/09/2026 12:05:56",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient SUNU Assurances Santé (5,600 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789126559748",
           "timestamp": "11/09/2026 11:35:59",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient AXA Assurances Côte d'Ivoire (3,480 FCFA - Espèces Caisse)",
           "type": "payment"
         },
         {
           "id": "log-1789126528971",
           "timestamp": "11/09/2026 11:35:28",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Enregistrement règlement patient ASCOMA Côte d'Ivoire (Tiers-Payeur) (6,000 FCFA - Virement Bancaire)",
           "type": "payment"
         },
         {
           "id": "log-1789126428407",
           "timestamp": "11/09/2026 11:33:48",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 50,000 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789126428412",
           "timestamp": "11/09/2026 11:33:48",
-          "author": "Marcelle Caissière (Profil Caisse)",
+          "author": "M. Koné",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -15952,7 +16159,7 @@
       "session_code": "SESSION00794",
       "till_name": "Poste Facturation 1",
       "cashier_id": 2,
-      "cashier_name": "Jean Facturier (Profil Facture)",
+      "cashier_name": "A. Touré",
       "state": "closed",
       "opening_date": "11/09/2026 11:30:28",
       "closing_date": "11/09/2026 12:20:32",
@@ -15970,21 +16177,21 @@
         {
           "id": "log-1789129232982",
           "timestamp": "11/09/2026 12:20:32",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Clôture définitive de la session. Fond théorique: 0 FCFA, Réel compté: 0 FCFA (Écart: +0 FCFA).",
           "type": "closure"
         },
         {
           "id": "log-1789126228750",
           "timestamp": "11/09/2026 11:30:28",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Création et ouverture de la session de caisse avec un fond de roulement de 0 FCFA.",
           "type": "creation"
         },
         {
           "id": "log-1789126228751",
           "timestamp": "11/09/2026 11:30:28",
-          "author": "Jean Facturier (Profil Facture)",
+          "author": "A. Touré",
           "message": "Changement d'état : Nouveau ➔ En cours",
           "type": "status_change"
         }
@@ -16911,5 +17118,5 @@
   "nextTillSessionSeq": 804,
   "nextPartnerReductionId": 4,
   "nextConsultationId": 51,
-  "savedAt": "2026-09-16T14:43:32.121Z"
+  "savedAt": "2026-10-23T14:40:30.784Z"
 }

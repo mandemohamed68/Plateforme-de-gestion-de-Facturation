@@ -58,44 +58,44 @@ export function getUserBillingProfile(user: ResUser | null): 'facture' | 'caisse
 }
 
 export function getUserMissionDescription(user: ResUser | null): string {
-  if (!user) return "Accès aux services de l'établissement.";
+  if (!user) return "Services généraux.";
   const login = (user.login || '').toLowerCase().trim();
   const role = (user.role || '').toLowerCase().trim();
   const department = (user.department || '').toLowerCase().trim();
 
   if (login === 'mandemohamed68@gmail.com' || login === 'super_admin' || role.includes('super admin') || role.includes('universel') || role.includes('directeur')) {
-    return "Pilotage stratégique, supervision globale et administration de l'ensemble de l'établissement.";
+    return "Administration.";
   }
   if (login === 'laboratoire' || role.includes('biologiste') || role.includes('technicien') || role.includes('laboratoire') || department.includes('lab')) {
-    return "Réception des prélèvements biologiques, analyses médicales et validation des résultats.";
+    return "Laboratoire et analyses.";
   }
   if (login === 'imagerie' || role.includes('imagerie') || role.includes('radiologue') || role.includes('radio')) {
-    return "Réalisation des examens radiologiques, imagerie médicale et archivage PACS des clichés.";
+    return "Imagerie et radiologie.";
   }
   if (login === 'infirmier' || role.includes('infirmier') || role.includes('infirmière') || role.includes('nurse')) {
-    return "Accueil et triage des patients, relevé des constantes vitales et administration des soins.";
+    return "Triage et soins infirmiers.";
   }
   if (login === 'specialiste' || role.includes('spécialiste') || role.includes('specialiste')) {
-    return "Consultations de spécialité approfondies, prescriptions et suivi clinique spécialisé.";
+    return "Consultations spécialisées.";
   }
   if (login === 'medecin' || role.includes('médecin') || role.includes('medecin') || role.includes('docteur')) {
-    return "Consultations médicales générales, diagnostics cliniques et suivi des dossiers patients.";
+    return "Consultations médicales.";
   }
   if (login === 'hospitalisation' || role.includes('hospit')) {
-    return "Gestion des admissions, attribution des lits d'hospitalisation et suivi des séjours.";
+    return "Hospitalisation et lits.";
   }
   if (login === 'superviseur' || role.includes('superviseur')) {
-    return "Contrôle des flux d'encaissement, suivi des sessions de caisse et supervision de la facturation.";
+    return "Supervision de caisse.";
   }
   if (login === 'caissier' || (role.includes('caiss') && !role.includes('factur'))) {
-    return "Gestion rigoureuse des encaissements, des sessions de caisse et de l'arrêté journalier.";
+    return "Encaissement de caisse.";
   }
   if (login === 'facturier' || (role.includes('factur') && !role.includes('caiss'))) {
-    return "Accueil des patients, saisie des actes et prestations, et émission des factures.";
+    return "Facturation des actes.";
   }
   if (login === 'caisse_facture' || (role.includes('caiss') && role.includes('factur')) || role.includes('polyvalent')) {
-    return "Gestion polyvalente du dossier patient : facturation des prestations et encaissement des règlements.";
+    return "Facturation et caisse.";
   }
-  return "Pilotage opérationnel et réalisation des actes liés à votre habilitation.";
+  return "Opérations autorisées.";
 }
 

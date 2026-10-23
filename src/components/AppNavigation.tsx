@@ -243,15 +243,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       items: [
         {
           id: 'dashboard',
-          label: 'Tableau de bord général',
+          label: 'Tableau de bord',
           icon: BarChart3,
-          description: 'Vue d’ensemble de l’activité hospitalière'
         },
         {
           id: 'patient_journey',
-          label: 'Suivi Optimal - Parcours 360°',
+          label: 'Parcours patient',
           icon: Heart,
-          description: 'Suivi de l\'arrivée à la sortie du patient',
           badge: 3
         }
       ]
@@ -477,21 +475,21 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
       icon: Settings,
       requiredModule: 'admin_module',
       items: [
-        { id: 'admin_dashboard', label: 'Tableau de bord', icon: BarChart3, description: 'Pilotage administratif' },
-        { id: 'alert_settings', label: 'Gestion des Alertes', icon: Bell, description: 'Paramètres & canaux de notification' },
-        { id: 'flash_announcements', label: 'Annonces & Flash Info', icon: Megaphone, description: 'Bandeaux défilants & messages d\'urgence' },
-        { id: 'admin_services', label: 'Modules & Services', icon: Sliders, description: 'Activation / désactivation des modules' },
-        { id: 'admin_users', label: 'Utilisateurs', icon: Users, description: 'Gestion personnel' },
-        { id: 'admin_roles', label: 'Rôles & profils', icon: ShieldCheck, description: 'Rôles & profils' },
-        { id: 'admin_permissions', label: 'Permissions (RBAC)', icon: Lock, description: 'Matrice dynamique des droits' },
-        { id: 'admin_company', label: 'Établissement', icon: Settings, description: 'Infos structure' },
-        { id: 'insurance_claims', label: 'Assurances & Conventions Partenaires', icon: ShieldCheck, description: 'Gestion des compagnies d\'assurance, conventions d\'entreprises et taux de prise en charge' },
-        { id: 'admin_pricing', label: 'Tarifs & prestations', icon: CreditCard, description: 'Catalogue tarifs' },
-        { id: 'labo_catalog', label: 'Catalogue des examens', icon: FlaskConical, description: 'Nomenclature, cotations & analyses LIMS' },
-        { id: 'scenarios_s01_s50', label: 'Simulateur Scénarios (S01-S50)', icon: ScrollText, description: 'Validation des flux & scénarios hospitaliers' },
-        { id: 'admin_medical_settings', label: 'Paramètres cliniques', icon: Stethoscope, description: 'Unités de soins & seuils vitaux' },
-        { id: 'admin_reports', label: 'Rapports', icon: FileText, description: 'Rapports d\'activité' },
-        { id: 'admin_audit', label: 'Journal & sécurité', icon: ShieldCheck, description: 'Logs audit' },
+        { id: 'admin_dashboard', label: 'Tableau de bord', icon: BarChart3 },
+        { id: 'alert_settings', label: 'Alertes', icon: Bell },
+        { id: 'flash_announcements', label: 'Annonces', icon: Megaphone },
+        { id: 'admin_services', label: 'Modules', icon: Sliders },
+        { id: 'admin_users', label: 'Utilisateurs', icon: Users },
+        { id: 'admin_roles', label: 'Rôles', icon: ShieldCheck },
+        { id: 'admin_permissions', label: 'Permissions', icon: Lock },
+        { id: 'admin_company', label: 'Établissement', icon: Settings },
+        { id: 'insurance_claims', label: 'Assurances', icon: ShieldCheck },
+        { id: 'admin_pricing', label: 'Tarifs', icon: CreditCard },
+        { id: 'labo_catalog', label: 'Catalogue examens', icon: FlaskConical },
+        { id: 'scenarios_s01_s50', label: 'Simulateur', icon: ScrollText },
+        { id: 'admin_medical_settings', label: 'Paramètres cliniques', icon: Stethoscope },
+        { id: 'admin_reports', label: 'Rapports', icon: FileText },
+        { id: 'admin_audit', label: 'Journal d\'audit', icon: ShieldCheck },
       ]
     }
   ];
@@ -659,15 +657,6 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                   {currentUser?.role?.toLowerCase().includes('super') ? 'Super Admin' : (currentUser?.role || 'Utilisateur')}
                 </span>
               </div>
-              <div 
-                style={{ color: theme.sidebarTextMuted }}
-                className="text-[10px] flex items-center space-x-1 mt-0.5"
-              >
-                <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span className="truncate font-medium">
-                  {allowedViews.length} module{allowedViews.length > 1 ? 's' : ''} autorisé{allowedViews.length > 1 ? 's' : ''}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -682,45 +671,17 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                 {hasActiveSession ? (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span>Vacation Active Déverrouillée</span>
+                    <span>Vacation active</span>
                   </>
                 ) : (
                   <>
                     <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>Session Non Ouverte</span>
+                    <span>Session fermée</span>
                   </>
                 )}
               </div>
-              <p className="text-[10px] mt-0.5 opacity-90 leading-tight">
-                {hasActiveSession 
-                  ? "Opérations autorisées sur vos menus."
-                  : "Ouvrez votre session journalière pour débloquer les menus."}
-              </p>
             </div>
           )}
-          
-          {/* Mission Card */}
-          <div 
-            style={{ 
-              backgroundColor: theme.isDarkSidebar ? 'rgba(0, 0, 0, 0.2)' : '#ffffff',
-              borderColor: theme.sidebarBorder,
-            }}
-            className="p-2.5 rounded-lg border shadow-xs"
-          >
-            <div 
-              style={{ color: theme.sidebarTextMuted }}
-              className="text-[9px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1"
-            >
-              <Compass className="w-2.5 h-2.5 text-slate-400" />
-              <span>Mission Active</span>
-            </div>
-            <div 
-              style={{ color: theme.sidebarText }}
-              className="text-[10.5px] font-normal leading-relaxed"
-            >
-              {getUserMissionDescription(currentUser)}
-            </div>
-          </div>
         </div>
 
         {/* Vertical Structured Navigation List (Clean Sidebar) */}
@@ -1127,10 +1088,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
                   ? 'bg-slate-900 text-white border-slate-900'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
               }`}
-              title="Filière de Soins & Parcours Patient 360°"
+              title="Parcours patient"
             >
               <Compass className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden xl:inline text-[11px]">Parcours 360°</span>
+              <span className="hidden xl:inline text-[11px]">Parcours</span>
             </button>
           </div>
 

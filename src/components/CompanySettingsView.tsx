@@ -118,11 +118,11 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
     primary_color: company.primary_color || '#0f172a',
     sidebar_color: company.sidebar_color || '',
     secondary_color: company.secondary_color || '#10b981',
-    show_watermark: company.show_watermark !== false,
-    watermark_text: company.watermark_text || "DOCUMENT CONFIDENTIEL ET OFFICIEL",
-    watermark_type: company.watermark_type || 'both',
-    watermark_opacity: company.watermark_opacity || 0.12,
-    watermark_position: company.watermark_position || 'diagonal',
+    show_watermark: company.show_watermark === true,
+    watermark_text: company.watermark_text || "",
+    watermark_type: company.watermark_type || 'logo',
+    watermark_opacity: company.watermark_opacity || 0.05,
+    watermark_position: company.watermark_position || 'center',
     flash_news_enabled: company.flash_news_enabled !== false,
     flash_news_speed: company.flash_news_speed || 10,
     flash_announcements: company.flash_announcements && company.flash_announcements.length > 0 ? company.flash_announcements : DEFAULT_FLASH_ANNOUNCEMENTS,
@@ -229,20 +229,11 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
         className="text-white rounded-md p-4 sm:p-6 shadow-md space-y-4"
       >
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <span className="bg-white/20 text-white border border-white/30 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded">
-                Back-Office Administrateur Central
-              </span>
-              <span className="text-white/80 text-xs font-mono">• Port 3000 Node.js Engine</span>
-            </div>
+          <div>
             <h1 className="text-lg sm:text-xl font-black tracking-tight flex items-center space-x-2">
               <Settings className="w-5 h-5 text-white shrink-0" />
-              <span>Paramétrage Intégral de la Plateforme &amp; Marque</span>
+              <span>Paramètres établissement</span>
             </h1>
-            <p className="text-xs text-white/90">
-              Gérez le moindre détail de votre système : identité de marque, logos officiels, moyens de paiement autorisés, régime fiscal, coordonnées bancaires et mentions d'impression.
-            </p>
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
@@ -646,11 +637,8 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                     <Award className="w-4 h-4 text-slate-900 shrink-0" />
                     <div>
                       <h3 className="text-sm font-bold text-slate-900">
-                        C. Logo de la Structure en Filigrane (Arrière-Plan de l'Application &amp; Documents)
+                        Filigrane de document
                       </h3>
-                      <p className="text-[11px] text-slate-500">
-                        Affiche le logo de l'établissement en arrière-plan transparent (filigrane) sur l'écran d'accueil et les documents.
-                      </p>
                     </div>
                   </div>
                   <label className="flex items-center space-x-2 cursor-pointer shrink-0 bg-slate-100 px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-200 transition">
@@ -1622,7 +1610,7 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
                       </div>
                       <div>
                         <div className="text-xs font-black text-slate-900 group-hover:text-emerald-900">
-                          Télécharger Dump SQL Exhaustif
+                          Télécharger dump SQL
                         </div>
                         <div className="text-[11px] text-slate-500">
                           Toutes les tables DDL + données DML complètes (.SQL)

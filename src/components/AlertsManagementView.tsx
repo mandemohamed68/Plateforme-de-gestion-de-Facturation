@@ -381,7 +381,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 shadow-2xs">
             <div className="text-[10px] uppercase font-bold text-slate-500">Aperçu Inter-Module</div>
             <div className="text-lg font-black text-amber-700 mt-0.5">
-              {allowCrossModulePreview ? 'Autorisé 360°' : 'Restreint'}
+              {allowCrossModulePreview ? 'Autorisé' : 'Restreint'}
             </div>
           </div>
 
@@ -710,7 +710,7 @@ export const AlertsManagementView: React.FC<AlertsManagementViewProps> = ({
                   : 'bg-slate-200 text-slate-700'
               }`}
             >
-              {allowCrossModulePreview ? 'Aperçu 360° Actif' : 'Aperçu Désactivé'}
+              {allowCrossModulePreview ? 'Aperçu actif' : 'Aperçu inactif'}
             </button>
           </div>
 

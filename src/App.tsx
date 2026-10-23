@@ -1605,40 +1605,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col selection:bg-slate-900 selection:text-white relative overflow-x-hidden">
-      {/* Background Watermark Logo Layer (Filigrane visible et discret en fond z-0, non bloquant z-10) */}
-      {company.show_watermark !== false && (
-        <div
-          className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center overflow-hidden lg:pl-64 select-none"
-          aria-hidden="true"
-        >
-          {company.logo_url ? (
-            <div className="flex flex-col items-center justify-center -rotate-12 transition-transform pointer-events-none">
-              <img
-                src={company.logo_url}
-                alt=""
-                style={{ opacity: Math.min(company.watermark_opacity || 0.04, 0.06) }}
-                className="w-96 h-96 sm:w-[520px] sm:h-[520px] object-contain select-none pointer-events-none"
-              />
-              {company.watermark_text && (
-                <div
-                  style={{ opacity: Math.min((company.watermark_opacity || 0.04) * 1.5, 0.08) }}
-                  className="mt-3 text-center font-black uppercase text-slate-900 tracking-widest text-xs sm:text-sm select-none pointer-events-none"
-                >
-                  {company.watermark_text}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div
-              style={{ opacity: Math.min(company.watermark_opacity || 0.04, 0.06) }}
-              className="text-center font-black uppercase text-slate-900 tracking-widest text-3xl sm:text-5xl select-none -rotate-12 max-w-xl px-6 leading-tight pointer-events-none"
-            >
-              {company.watermark_text || company.name || "POLYCLINIQUE ET LABORATOIRE"}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Structured Left Sidebar & Top Status Header Navigation */}
       {(() => {
         const pendingPaymentsCount = moves.filter(

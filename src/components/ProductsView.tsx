@@ -824,10 +824,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 type="button"
                 onClick={handleSeedComprehensiveCatalog}
                 className="px-3 py-2 border border-indigo-200 hover:border-indigo-300 text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 text-xs font-bold rounded-md shadow-xs transition duration-200 flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer"
-                title="Charger les données de démonstration exhaustives (médicaments, radios, soins, bilans...)"
+                title="Charger la nomenclature des actes et analyses"
               >
                 <Sparkles className="w-4 h-4 shrink-0 text-indigo-600" />
-                <span>Générer Catalogue Exhaustif</span>
+                <span>Charger catalogue</span>
               </button>
 
               <button

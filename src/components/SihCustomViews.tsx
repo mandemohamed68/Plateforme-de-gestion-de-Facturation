@@ -334,11 +334,8 @@ export const BedManagementView: React.FC<SihViewProps> = ({ partners }) => {
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Bed className="w-5 h-5 text-slate-700" />
-            Planification &amp; Gestion Optimale des Lits d&apos;Hospitalisation
+            Gestion des lits
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Cartographie temps réel des chambres, taux d&apos;occupation des lits et gestion des désinfections
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -1429,7 +1426,7 @@ export const LettersReferralsView: React.FC<SihViewProps> = ({ partners }) => {
               <textarea 
                 rows={4}
                 className="w-full p-2.5 border border-slate-200 rounded-lg bg-slate-50"
-                placeholder="Ex : Arrêt de travail prescrit de 5 jours à compter du... suite à une angine bactérienne."
+                placeholder="Ex : Arrêt de travail prescrit de 5 jours suite à une angine bactérienne."
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
               />

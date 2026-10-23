@@ -787,9 +787,8 @@ export const PatientDossierModal: React.FC<PatientDossierModalProps> = ({
                     >
                       <div className="flex items-center space-x-2">
                         <ArrowRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition" />
-                        <span className="font-bold text-xs">Ouvrir Parcours 360°</span>
+                        <span className="font-bold text-xs">Parcours patient</span>
                       </div>
-                      <p className="text-[10px] text-slate-300 mt-1">Vue complète des 7 jalons métier</p>
                     </button>
                   </div>
                 </div>

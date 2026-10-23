@@ -119,15 +119,12 @@ export const InfirmierDashboard: React.FC<ModuleDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Poste Infirmier &amp; Triage Clinique
+                Soins infirmiers
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                Session Active • {currentUser?.name || 'Infirmier(ère)'}
+                {currentUser?.name || 'Infirmier'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Évaluation du niveau de gravité, constantes vitales, administration des soins &amp; orientation médicale
-            </p>
           </div>
         </div>
 
@@ -453,15 +450,12 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Poste Médical • Médecine Générale
+                Médecine générale
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
                 Dr. {currentUser?.name || 'Praticien'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Salle de consultation, anamnèse, diagnostics cliniques, ordonnances électroniques et prescriptions d'examens
-            </p>
           </div>
         </div>
 
@@ -738,15 +732,12 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Poste Médical • Médecine Spécialisée
+                Médecine spécialisée
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
                 Dr. {currentUser?.name || 'Spécialiste'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Consultations spécialisées de 2nd recours, avis d'experts, explorations fonctionnelles et suivi longitudinal
-            </p>
           </div>
         </div>
 
@@ -974,15 +965,12 @@ export const LaboDashboard: React.FC<ModuleDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Laboratoire d'Analyses Médicales &amp; Biologie
+                Laboratoire
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                Poste Actif • {currentUser?.name || 'Biologiste'}
+                {currentUser?.name || 'Biologiste'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Gestion du flux des prélèvements, passages sur automate, saisie des résultats et validation biologiste
-            </p>
           </div>
         </div>
 
@@ -1220,15 +1208,12 @@ export const ImagerieDashboard: React.FC<ModuleDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Imagerie Médicale, Radiologie &amp; PACS
+                Imagerie
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                Poste Radiologue • {currentUser?.name || 'Radiologue'}
+                {currentUser?.name || 'Radiologue'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Programmation des actes, acquisition manipulateur, rédaction de comptes-rendus et validation radiologique
-            </p>
           </div>
         </div>
 
@@ -1458,15 +1443,12 @@ export const HospitDashboard: React.FC<ModuleDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Gestion des Hospitalisations &amp; Lits
+                Hospitalisation
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                Service Hospitalier • {currentUser?.name || 'Major de Service'}
+                {currentUser?.name || 'Responsable'}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Occupation des lits par unité, formalités d'admission, transferts inter-services et sorties médicales
-            </p>
           </div>
         </div>
 
@@ -1667,11 +1649,8 @@ export const SuperviseurDashboard: React.FC<ModuleDashboardProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Superviseur de Facturation & Caisses
+            Supervision caisse
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Supervision des encaissements, contrôle des écarts de caisse, audit des sessions et validation des clôtures
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1679,14 +1658,14 @@ export const SuperviseurDashboard: React.FC<ModuleDashboardProps> = ({
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
           >
             <CreditCard className="w-4 h-4" />
-            <span>Contrôle Sessions ({activeSessions.length} ouvertes)</span>
+            <span>Sessions ({activeSessions.length})</span>
           </button>
           <button
             onClick={() => onNavigateToView('superviseur_reports')}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
           >
             <BarChart3 className="w-4 h-4 text-slate-600" />
-            <span>Rapports Financiers</span>
+            <span>Rapports</span>
           </button>
         </div>
       </div>
@@ -2040,64 +2019,13 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Pedagogical Guidance Banner */}
-      {showGuideBanner && (
-        <div className="bg-white text-slate-900 p-5 rounded-2xl shadow-xs border border-slate-200 relative overflow-hidden">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-900 border border-emerald-200">
-                  🎯 Guide Pratique • Guichet Caisse
-                </span>
-                <span className="text-xs text-slate-500">Guide de caisse</span>
-              </div>
-              <h2 className="text-base font-extrabold text-slate-900">
-                Gestion des Encaissements Directs, Fonds de Roulement et Quittances Patients
-              </h2>
-              <p className="text-xs text-slate-600 max-w-4xl leading-relaxed">
-                Cette interface permet au caissier d'enregistrer les règlements de soins (tickets modérateurs, consultations, actes de laboratoire, imagerie, hospitalisation), d'éditer instantanément les quittances / reçus officiels avec N° NDM, et de gérer le cycle journalier de sa caisse (ouverture le matin, suivi du tiroir-caisse et billetage de clôture transmis au superviseur).
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 text-[11px]">
-                <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-start gap-2">
-                  <span className="font-bold text-emerald-700">1. Ouverture</span>
-                  <span className="text-slate-600">Déclarer le fond de caisse initial (ex: 50 000 FCFA) remis par le Superviseur.</span>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-start gap-2">
-                  <span className="font-bold text-sky-700">2. Encaissement</span>
-                  <span className="text-slate-600">Rechercher le patient (Nom/NDM) ou la facture et percevoir les espèces/Wave/OM.</span>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 flex items-start gap-2">
-                  <span className="font-bold text-amber-700">3. Clôture</span>
-                  <span className="text-slate-600">Réaliser le billetage physique le soir et valider l'arrêté avec le Superviseur.</span>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setShowGuideBanner(false);
-                try {
-                  localStorage.setItem('caisse_guide_banner_dismissed', 'true');
-                } catch (_) {}
-              }}
-              className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition cursor-pointer"
-              title="Masquer le guide"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Header View */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Guichet Caisse
+            Caisse
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Opérations d'encaissement direct, identification des patients et arrêté journalier
-          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {!myActiveSession ? (
@@ -2106,7 +2034,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Ouvrir une Session de Caisse</span>
+              <span>Ouvrir session</span>
             </button>
           ) : (
             <button
@@ -2114,7 +2042,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-slate-600" />
-              <span>Clôturer ma Caisse</span>
+              <span>Clôturer caisse</span>
             </button>
           )}
 
@@ -2130,7 +2058,7 @@ export const CaisseDashboard: React.FC<ModuleDashboardProps> = ({
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>Nouvel Encaissement</span>
+            <span>Encaissement</span>
           </button>
         </div>
       </div>
@@ -2598,33 +2526,12 @@ export const FacturesDashboard: React.FC<ModuleDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Guidance Banner */}
-      <div className="bg-white text-slate-900 p-5 rounded-2xl shadow-xs border border-slate-200">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-50 text-sky-900 border border-sky-200">
-              🎯 Guide • Gestion des Factures
-            </span>
-            <span className="text-xs text-slate-500">Facturation hospitalière</span>
-          </div>
-          <h2 className="text-base font-extrabold text-slate-900">
-            Facturation des Prestations Médicales, Conventions Assurances &amp; Recouvrement
-          </h2>
-          <p className="text-xs text-slate-600 max-w-4xl leading-relaxed">
-            Cette interface centralise l'émission des factures d'honoraires, consultations, examens et séjours, l'application automatique des taux de prise en charge conventionnés (entreprises et mutuelles) et le suivi des factures impayées à recouvrer.
-          </p>
-        </div>
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Gestion des Factures
+            Facturation
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Émission, validation, suivi des prises en charge assurances et recouvrement des créances
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2635,14 +2542,14 @@ export const FacturesDashboard: React.FC<ModuleDashboardProps> = ({
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Nouvelle Facture</span>
+            <span>Nouvelle facture</span>
           </button>
           <button
             onClick={() => onNavigateToView('factures_unpaid')}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
           >
             <AlertTriangle className="w-4 h-4 text-slate-600" />
-            <span>Factures Impayées</span>
+            <span>Impayés</span>
           </button>
         </div>
       </div>
@@ -2801,33 +2708,12 @@ export const CaisseFactureDashboard: React.FC<ModuleDashboardProps> = (props) =>
 
   return (
     <div className="space-y-6">
-      {/* Guidance Banner */}
-      <div className="bg-white text-slate-900 p-5 rounded-2xl shadow-xs border border-slate-200">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-900 border border-indigo-200">
-              🎯 Guide • Profil Polyvalent Caisse &amp; Facture
-            </span>
-            <span className="text-xs text-slate-500">Guichet unique</span>
-          </div>
-          <h2 className="text-base font-extrabold text-slate-900">
-            Guichet Unique : Saisie Immédiate de Facture et Encaissement Direct
-          </h2>
-          <p className="text-xs text-slate-600 max-w-4xl leading-relaxed">
-            Ce profil permet à un agent polyvalent de réaliser en une seule étape la facturation des actes médicaux et la perception du ticket modérateur ou du montant total, sans obliger le patient à faire la navette entre plusieurs guichets.
-          </p>
-        </div>
-      </div>
-
       <div className="bg-white p-5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Caisse &amp; Facture Polyvalent
+            Caisse et facturation
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Gestion combinée de la facturation des actes médicaux et encaissement direct au guichet
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2887,28 +2773,25 @@ export const CaisseFactureDashboard: React.FC<ModuleDashboardProps> = (props) =>
 
       {/* Raccourcis de flux direct */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">Workflow Caisse &amp; Facture rapide</h2>
+        <h2 className="text-sm font-bold text-slate-900 mb-3">Actions rapides</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             onClick={() => props.onNavigateToView('caisse_facture_new_invoice')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">1. Saisir Facture Patient</span>
-            <span className="text-[11px] text-slate-500">Ajout des actes médicaux et part assurance</span>
+            <span className="text-xs font-bold text-slate-900 block">Nouvelle facture</span>
           </button>
           <button
             onClick={() => props.onNavigateToView('caisse_facture_new_payment')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">2. Encaisser Ticket / Part Patient</span>
-            <span className="text-[11px] text-slate-500">Paiement espèces, Wave ou Orange Money</span>
+            <span className="text-xs font-bold text-slate-900 block">Encaissement</span>
           </button>
           <button
             onClick={() => props.onNavigateToView('caisse_facture_cloture')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">3. Clôturer la Session</span>
-            <span className="text-[11px] text-slate-500">Billetage et transmission au superviseur</span>
+            <span className="text-xs font-bold text-slate-900 block">Clôture caisse</span>
           </button>
         </div>
       </div>
@@ -2933,11 +2816,8 @@ export const AdminDashboard: React.FC<ModuleDashboardProps> = ({
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Building2 className="w-5 h-5 text-slate-700" />
-            Tableau de bord - Administration & Gouvernance
+            Administration
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Pilotage institutionnel, gestion des comptes, paramètres de l'établissement et journal de sécurité
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2945,14 +2825,14 @@ export const AdminDashboard: React.FC<ModuleDashboardProps> = ({
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
           >
             <Users className="w-4 h-4" />
-            <span>Gestion Utilisateurs</span>
+            <span>Utilisateurs</span>
           </button>
           <button
             onClick={() => onNavigateToView('admin_audit')}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-2 border border-slate-200"
           >
             <Shield className="w-4 h-4 text-slate-600" />
-            <span>Journal d'Audit</span>
+            <span>Journal d'audit</span>
           </button>
         </div>
       </div>
@@ -2991,41 +2871,37 @@ export const AdminDashboard: React.FC<ModuleDashboardProps> = ({
             <Shield className="w-4 h-4 text-slate-700" />
           </div>
           <p className="text-2xl font-black text-slate-900 mt-2">11</p>
-          <span className="text-[11px] text-slate-500">Profils métiers cloisonnés</span>
+          <span className="text-[11px] text-slate-500">Profils métiers</span>
         </div>
       </div>
 
       {/* Modules et paramètres du système */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <h2 className="text-sm font-bold text-slate-900 mb-3">Raccourcis de configuration administrative</h2>
+        <h2 className="text-sm font-bold text-slate-900 mb-3">Configuration</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <button
             onClick={() => onNavigateToView('admin_users')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">Comptes Utilisateurs</span>
-            <span className="text-[11px] text-slate-500">Créer et révoquer des accès soignants</span>
+            <span className="text-xs font-bold text-slate-900 block">Utilisateurs</span>
           </button>
           <button
             onClick={() => onNavigateToView('admin_company')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">Coordonnées Établissement</span>
-            <span className="text-[11px] text-slate-500">RCCM, Compte contribuable, Logo & entête</span>
+            <span className="text-xs font-bold text-slate-900 block">Établissement</span>
           </button>
           <button
             onClick={() => onNavigateToView('admin_pricing')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">Nomenclature & Tarifs</span>
-            <span className="text-[11px] text-slate-500">Catalogue des actes, analyses et consultations</span>
+            <span className="text-xs font-bold text-slate-900 block">Tarifs</span>
           </button>
           <button
             onClick={() => onNavigateToView('admin_audit')}
             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-left transition"
           >
-            <span className="text-xs font-bold text-slate-900 block">Journal & Traçabilité</span>
-            <span className="text-[11px] text-slate-500">Audit exhaustif des accès et transactions</span>
+            <span className="text-xs font-bold text-slate-900 block">Journal d'audit</span>
           </button>
         </div>
       </div>

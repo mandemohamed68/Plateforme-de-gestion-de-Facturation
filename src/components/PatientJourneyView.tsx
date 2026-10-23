@@ -308,7 +308,7 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
         `Couverture : ${currentPatient?.insurance_name ? `${currentPatient.insurance_name} (${currentPatient.insurance_coverage_rate || 80}%)` : 'Patient Privé (Comptant)'}`
       ],
       metrics: [
-        { label: 'Attente accueil', value: '3 min', badge: 'Optimal' }
+        { label: 'Attente accueil', value: '3 min', badge: 'Normal' }
       ],
       targetView: 'partners',
       actionLabel: 'Modifier dossier patient'
@@ -371,7 +371,7 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
         `Prescriptions associées : ${latestConsultation?.prescribed_items?.length || 2} acte(s) et ordonnance`
       ],
       metrics: [
-        { label: 'Durée consult.', value: '18 min', badge: 'Exhaustif' }
+        { label: 'Durée consult.', value: '18 min', badge: 'Conforme' }
       ],
       targetView: 'consultations',
       actionLabel: 'Ouvrir Consultation'
@@ -483,19 +483,13 @@ export const PatientJourneyView: React.FC<PatientJourneyProps> = ({
       {/* Main Header */}
       <div className="rounded-xl bg-white p-5 text-slate-900 shadow-xs border border-slate-200">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
+          <div>
             <div className="flex items-center gap-2">
               <Compass className="w-5 h-5 text-slate-700" />
               <h1 className="text-lg font-bold tracking-tight text-slate-900">
-                Filières de Soins &amp; Matching Interservice
+                Parcours patient
               </h1>
-              <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
-                Parcours 360°
-              </span>
             </div>
-            <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
-              Orchestration temps réel des flux patients et communication fluide entre services. Aiguillage automatique entre Accueil, Caisse, Triage, Consultations, Laboratoire LIMS, Pharmacie et Hospitalisation.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">

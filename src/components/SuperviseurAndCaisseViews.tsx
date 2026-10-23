@@ -523,58 +523,12 @@ export const SuperviseurReportsView: React.FC<BillingViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Pedagogical Guidance Banner */}
-      {showGuideBanner && (
-        <div className="bg-white text-slate-900 p-5 rounded-2xl shadow-xs border border-slate-200 relative">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                  isAdminView
-                    ? 'bg-purple-50 text-purple-900 border-purple-200'
-                    : 'bg-sky-50 text-sky-900 border-sky-200'
-                }`}>
-                  {isAdminView ? '🏛️ Direction & Administration Générale' : '📊 Rapprochement Financier & Statistiques'}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {isAdminView ? 'Pilotage stratégique' : 'Synthèse financière caisse'}
-                </span>
-              </div>
-              <h2 className="text-base font-extrabold text-slate-900">
-                {isAdminView
-                  ? 'États Décisionnels, Performance Économique & Trésorerie Consolidée'
-                  : 'Synthèse Financière Globale, Ventilation des Encaissements & Recouvrement'}
-              </h2>
-              <p className="text-xs text-slate-600 max-w-4xl leading-relaxed">
-                {isAdminView
-                  ? 'Ce tableau de bord d’administration offre à la direction de l’établissement une vue consolidée sur l’équilibre médico-financier : volume de facturation global, taux d’encaissement réel, niveau d’endettement tiers-payant et charges opérationnelles.'
-                  : 'Ce tableau de bord financier consolide l’ensemble des revenus hospitaliers. Il permet de ventiler le chiffre d’affaires entre le ticket modérateur payé au comptant par les patients (Cash, Mobile Money, Cartes) et les créances à recouvrer auprès des sociétés d’assurance et mutuelles conventionnées.'}
-              </p>
-            </div>
-            <button
-              onClick={() => setShowGuideBanner(false)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
-              title="Masquer le guide"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <FileText className="w-5 h-5 text-slate-700" />
-            {isAdminView
-              ? 'Rapports d’Activité & États Décisionnels de l’Établissement'
-              : 'Rapports & États de Synthèse Financière'}
+            {isAdminView ? 'Rapports administratifs' : 'Rapports financiers'}
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {isAdminView
-              ? 'Pilotage stratégique, performance médico-économique globale et comptabilité de gestion'
-              : 'Ventilation des recettes, rapprochement bancaire, parts assurances et indicateurs d’activité'}
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${

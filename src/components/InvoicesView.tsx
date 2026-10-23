@@ -1748,7 +1748,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   };
 
   const stepsList = [
-    { num: 1, label: '1. Facturation (Saisie Intégrale)', short: '1. Facture', icon: FileText },
+    { num: 1, label: '1. Facturation', short: '1. Facture', icon: FileText },
     { num: 2, label: '2. Envoi à la Caisse', short: '2. Envoi Caisse', icon: CreditCard },
     { num: 3, label: '3. Transmission Réussie', short: '3. Terminé', icon: CheckCircle2 },
   ];
