@@ -50,6 +50,7 @@ import { MobileMoneyAggregatorModal } from './MobileMoneyAggregatorModal';
 interface CompanySettingsViewProps {
   company: CompanySettings;
   onSaveCompany: (updated: CompanySettings) => Promise<void>;
+  onNavigateToProduction?: () => void;
 }
 
 const PRIMARY_COLOR_PRESETS = [
@@ -112,6 +113,7 @@ const DEFAULT_PAYMENT_METHOD_ITEMS: PaymentMethodItem[] = [
 export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
   company,
   onSaveCompany,
+  onNavigateToProduction,
 }) => {
   const [formData, setFormData] = useState<CompanySettings>({
     ...company,
@@ -237,6 +239,18 @@ export const CompanySettingsView: React.FC<CompanySettingsViewProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
+            {onNavigateToProduction && (
+              <button
+                type="button"
+                onClick={onNavigateToProduction}
+                className="flex items-center space-x-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-3 py-2 rounded-md shadow-sm transition"
+                title="Accéder au centre de contrôle et bascule en Mode Production"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Mode Production</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleExportJson}

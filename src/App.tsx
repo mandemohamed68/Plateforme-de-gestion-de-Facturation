@@ -88,6 +88,7 @@ import {
   AdminRolesTableView,
   AdminPermissionsTableView,
   AdminMedicalSettingsTableView,
+  AdminProductionModeView,
 } from './components/AdminModuleViews';
 import {
   PediatrieDashboardView,
@@ -172,6 +173,7 @@ const VIEW_TO_PATH_MAP: Record<string, string> = {
   products: '/catalogue-prestations',
   users: '/utilisateurs',
   company: '/configuration',
+  admin_production: '/mise-en-production',
   flash_announcements: '/annonces-flash',
   notifications: '/notifications',
   alert_settings: '/alertes-parametres',
@@ -644,7 +646,7 @@ export default function App() {
   // Enforce RBAC: If currentView is not allowed for the user, redirect to their first allowed view
   useEffect(() => {
     if (currentUser) {
-      const allowed = getAllowedViews(currentUser);
+      const allowed = getAllowedViews(currentUser, groups);
       if (!allowed.includes(currentView)) {
         // Find the first view that is NOT a group ID (for rendering)
         const nextView = allowed.find(v => !v.endsWith('_group')) || allowed[0] || 'dashboard';
@@ -1372,7 +1374,7 @@ export default function App() {
         if (currentUser && (currentUser.id === savedUser.id || currentUser.login === savedUser.login)) {
           setCurrentUser(savedUser);
           localStorage.setItem('app_saved_user', JSON.stringify(savedUser));
-          const allowed = getAllowedViews(savedUser);
+          const allowed = getAllowedViews(savedUser, groups);
           if (!allowed.includes(currentView)) {
             const next = allowed[0] || 'dashboard';
             setCurrentView(next);
@@ -1565,7 +1567,7 @@ export default function App() {
       setCurrentView('caisse_sessions');
       localStorage.setItem('app_current_view', 'caisse_sessions');
     } else {
-      const allowed = getAllowedViews(user);
+      const allowed = getAllowedViews(user, groups);
       if (!allowed.includes(currentView)) {
         const next = allowed[0] || 'dashboard';
         setCurrentView(next);
@@ -1657,7 +1659,7 @@ export default function App() {
                 return;
               }
 
-              const allowed = getAllowedViews(currentUser);
+              const allowed = getAllowedViews(currentUser, groups);
               if (allowed.includes(view)) {
                 if (view === 'invoices') {
                   setSelectedMoveForPayment(null);
@@ -1676,7 +1678,7 @@ export default function App() {
             onSelectUser={(u) => {
               setCurrentUser(u);
               localStorage.setItem('app_saved_user', JSON.stringify(u));
-              const allowed = getAllowedViews(u);
+              const allowed = getAllowedViews(u, groups);
               const rLower = (u.role || '').toLowerCase();
               const lLower = (u.login || '').toLowerCase();
               const eLower = (u.email || '').toLowerCase();
@@ -1749,6 +1751,9 @@ export default function App() {
             onMarkNotificationAsRead={handleMarkAppNotificationAsRead}
             onMarkAllNotificationsAsRead={handleMarkAllAppNotificationsAsRead}
             onClearAllNotifications={handleClearAllAppNotifications}
+            consultations={consultations}
+            labOrders={labOrders}
+            prescriptions={[]}
           />
         );
       })()}
@@ -2145,6 +2150,7 @@ export default function App() {
                 company={company}
                 onSaveLabOrder={handleSaveLabOrder}
                 onDeleteLabOrder={handleDeleteLabOrder}
+                onRefreshData={() => fetchAllData(true)}
               />
             )}
 
@@ -2382,6 +2388,7 @@ export default function App() {
                 onNavigateToView={(v) => setCurrentView(v)}
                 onSaveCompany={handleSaveCompany}
                 onShowToast={showToast}
+                onRefreshData={() => fetchAllData(true)}
               />
             )}
 
@@ -2394,6 +2401,7 @@ export default function App() {
                 onNavigateToView={(v) => setCurrentView(v)}
                 onSaveCompany={handleSaveCompany}
                 onShowToast={showToast}
+                onRefreshData={() => fetchAllData(true)}
               />
             )}
 
@@ -2401,6 +2409,20 @@ export default function App() {
               <CompanySettingsView
                 company={company}
                 onSaveCompany={handleSaveCompany}
+                onNavigateToProduction={() => setCurrentView('admin_production')}
+              />
+            )}
+
+            {currentView === 'admin_production' && (
+              <AdminProductionModeView
+                currentView={currentView}
+                users={users}
+                groups={groups}
+                company={company}
+                onNavigateToView={(v) => setCurrentView(v)}
+                onSaveCompany={handleSaveCompany}
+                onShowToast={showToast}
+                onRefreshData={() => fetchAllData(true)}
               />
             )}
 

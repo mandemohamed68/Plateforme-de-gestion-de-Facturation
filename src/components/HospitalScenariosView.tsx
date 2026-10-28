@@ -742,7 +742,7 @@ export const HospitalScenariosView: React.FC<HospitalScenariosViewProps> = ({
   currentUserName = 'Administrateur SIH',
   onSelectPatient,
 }) => {
-  const [activeTab, setActiveTab] = useState<'scenarios' | 'flux' | 'rules' | 'patient360' | 'journal' | 'fhir' | 'specs'>('specs');
+  const [activeTab, setActiveTab] = useState<'scenarios' | 'flux' | 'rules' | 'patient360' | 'journal' | 'fhir' | 'specs' | 'lab_scenario'>('lab_scenario');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedRole, setSelectedRole] = useState<string>('all');
@@ -1072,6 +1072,19 @@ export const HospitalScenariosView: React.FC<HospitalScenariosViewProps> = ({
       {/* Main Tabs Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
         <button
+          onClick={() => setActiveTab('lab_scenario')}
+          className={`px-4 py-2.5 font-semibold text-sm rounded-t-xl transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
+            activeTab === 'lab_scenario'
+              ? 'border-emerald-600 text-emerald-800 bg-emerald-50/70 font-black'
+              : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <FlaskConical className="w-4 h-4 text-emerald-600" />
+          <span className="font-extrabold text-emerald-900">Scénario Officiel Labo LIS (A à Z)</span>
+          <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-200 text-emerald-900 font-extrabold">Workflow LIS</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('specs')}
           className={`px-4 py-2.5 font-semibold text-sm rounded-t-xl transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
             activeTab === 'specs'
@@ -1166,6 +1179,224 @@ export const HospitalScenariosView: React.FC<HospitalScenariosViewProps> = ({
           <span className="px-1.5 py-0.5 text-[9px] rounded-full bg-emerald-100 text-emerald-800 font-extrabold animate-pulse">LIVE</span>
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* TAB LAB_SCENARIO: SCÉNARIO OFFICIEL DU LABORATOIRE LIS DE A À Z */}
+      {/* ========================================================================= */}
+      {activeTab === 'lab_scenario' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Main Banner */}
+          <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-emerald-500/20 to-transparent pointer-events-none" />
+            <div className="relative z-10 space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-1 bg-emerald-500 text-slate-950 font-black text-xs rounded-full uppercase tracking-wider">
+                  Workflow Certifié LIS / SIH
+                </span>
+                <span className="text-slate-400 text-xs font-mono">
+                  6 Étapes • 5 Rôles • Auto-Sync Tiers-Payant
+                </span>
+              </div>
+              <h2 className="text-2xl font-black text-white">
+                Scénario Officiel du Laboratoire d'Analyses Médicales
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Ce workflow régit le parcours d'un examen biologique depuis l'encaissement à la caisse jusqu'à la signature numérique du biologiste et la publication dans le dossier patient 360°.
+              </p>
+            </div>
+
+            <div className="relative z-10 flex flex-col sm:flex-row gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('caisse_facture_new_payment')}
+                className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4" />
+                1. Démarrer à la Caisse
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('labo_sampling')}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <FlaskConical className="w-4 h-4 text-emerald-400" />
+                2. Salle de Prélèvement
+              </button>
+            </div>
+          </div>
+
+          {/* Step-by-Step Interactive Workflow */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Step 1 */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 relative">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">1</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase bg-slate-100 px-2.5 py-0.5 rounded-full">Caisse &amp; Facturation</span>
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Arrivée &amp; Encaissement</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Le Caissier enregistre l'ordonnance, applique la prise en charge Tiers-Payeur (ex: 80% SUNU/MUGEFCI) et encaisse le ticket modérateur.
+              </p>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-medium">Acteur : <strong>Caissier</strong></span>
+                <span className="text-emerald-700 font-mono font-bold">Génère LAB-2026-XXXX</span>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 relative">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">2</span>
+                <span className="text-[11px] font-bold text-amber-700 uppercase bg-amber-50 px-2.5 py-0.5 rounded-full">Prélèvement</span>
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Identitovigilance &amp; Code-Barres</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Le Phlébotomiste vérifie l'identité, sélectionne les tubes (EDTA, Sec, Citrate), colle le QR Code unique et valide le prélèvement.
+              </p>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-medium">Acteur : <strong>Phlébotomiste</strong></span>
+                <span className="text-amber-700 font-mono font-bold">Statut: Prélevé</span>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 relative">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">3</span>
+                <span className="text-[11px] font-bold text-sky-700 uppercase bg-sky-50 px-2.5 py-0.5 rounded-full">Paillasse / LIS</span>
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Analyse sur Automates HL7</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Les tubes sont scannés par l'automate (Roche Cobas, Sysmex, Mindray) qui réinjecte directement les dosages mesurés sur la paillasse.
+              </p>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-medium">Acteur : <strong>Technicien</strong></span>
+                <span className="text-sky-700 font-mono font-bold">Lien HL7 / ASTM</span>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 relative">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">4</span>
+                <span className="text-[11px] font-bold text-indigo-700 uppercase bg-indigo-50 px-2.5 py-0.5 rounded-full">Validation Tech</span>
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Contrôle Qualité (CQI)</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Le Technicien Sénior vérifie la plausibilité technique des valeurs et la conformité des séries de contrôle avant de valider.
+              </p>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-medium">Acteur : <strong>Tech Sénior</strong></span>
+                <span className="text-indigo-700 font-mono font-bold">Statut: Validé Tech</span>
+              </div>
+            </div>
+
+            {/* Step 5 */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 relative">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">5</span>
+                <span className="text-[11px] font-bold text-emerald-700 uppercase bg-emerald-50 px-2.5 py-0.5 rounded-full">Validation Bio</span>
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Signature Électronique PDF</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Le Biologiste Médical interprète le bilan, ajoute les conclusions cliniques et appose sa signature numérique certifiée.
+              </p>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-medium">Acteur : <strong>Biologiste</strong></span>
+                <span className="text-emerald-700 font-mono font-bold">Rapport PDF Certifié</span>
+              </div>
+            </div>
+
+            {/* Step 6 */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 relative">
+              <div className="flex items-center justify-between">
+                <span className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center">6</span>
+                <span className="text-[11px] font-bold text-purple-700 uppercase bg-purple-50 px-2.5 py-0.5 rounded-full">Dossier 360°</span>
+              </div>
+              <h3 className="font-bold text-slate-900 text-sm">Notification &amp; Rendu</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Le résultat est immédiatement consultable par le Médecin dans le Dossier Patient 360°, imprimé au guichet ou transmis par SMS/Email.
+              </p>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 font-medium">Acteurs : <strong>Médecin / Patient</strong></span>
+                <span className="text-purple-700 font-mono font-bold">Dossier Unifié R09</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Action Bar for Profile Workspace Testing */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-slate-900 text-base">Tester le Workflow en Direct par Espace Profil</h3>
+                <p className="text-xs text-slate-500">Basculez vers l'un des espaces métier pour tester le comportement en temps réel</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('caisse_facture_new_payment')}
+                className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition space-y-1 cursor-pointer"
+              >
+                <div className="text-[10px] font-bold text-slate-500 uppercase">Profil 1</div>
+                <div className="font-extrabold text-slate-900 text-xs flex items-center justify-between">
+                  <span>Espace Caisse</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('labo_sampling')}
+                className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition space-y-1 cursor-pointer"
+              >
+                <div className="text-[10px] font-bold text-amber-700 uppercase">Profil 2</div>
+                <div className="font-extrabold text-slate-900 text-xs flex items-center justify-between">
+                  <span>Espace Prélèvement</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('labo_in_progress')}
+                className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition space-y-1 cursor-pointer"
+              >
+                <div className="text-[10px] font-bold text-sky-700 uppercase">Profil 3</div>
+                <div className="font-extrabold text-slate-900 text-xs flex items-center justify-between">
+                  <span>Espace Paillasse</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('labo_validation')}
+                className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition space-y-1 cursor-pointer"
+              >
+                <div className="text-[10px] font-bold text-emerald-700 uppercase">Profil 4</div>
+                <div className="font-extrabold text-slate-900 text-xs flex items-center justify-between">
+                  <span>Validation Biologiste</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateToView && onNavigateToView('patient_journey')}
+                className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition space-y-1 cursor-pointer"
+              >
+                <div className="text-[10px] font-bold text-purple-700 uppercase">Profil 5</div>
+                <div className="font-extrabold text-slate-900 text-xs flex items-center justify-between">
+                  <span>Dossier Patient 360°</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 0: SPECIFICATIONS & LIVE SIMULATIONS (A-Z REDESIGN) */}

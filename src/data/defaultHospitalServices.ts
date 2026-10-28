@@ -2,6 +2,18 @@ import { HospitalServiceConfig, VaccinationRecord, GrowthRecord, CpnRecord, Deli
 
 export const DEFAULT_HOSPITAL_SERVICES: HospitalServiceConfig[] = [
   {
+    id: 'parcours_patient',
+    name: 'Parcours Patient & Aiguillage Interservice',
+    code: 'FLUX',
+    category: 'clinical',
+    description: 'Suivi 360° du patient, file active d\'aiguillage interservices, calcul des temps d\'attente (TAT) et fiches suiveuses.',
+    enabled: true,
+    icon: 'Compass',
+    head_doctor: 'Service d\'Accueil & Orientation',
+    location: 'Hall Central & Tous Pôles',
+    capacity_beds: 0,
+  },
+  {
     id: 'medecine_generale',
     name: 'Médecine Générale & Consultations',
     code: 'MED',

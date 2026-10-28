@@ -36,7 +36,8 @@ import {
   Settings,
   ChevronRight,
   LayoutList,
-  LayoutGrid
+  LayoutGrid,
+  Database
 } from 'lucide-react';
 import {
   ResUser,
@@ -69,6 +70,7 @@ interface AdminViewsProps {
   onNavigateToView: (view: AppView) => void;
   onSaveCompany?: (updated: CompanySettings) => Promise<boolean | void>;
   onShowToast?: (text: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
+  onRefreshData?: () => void;
 }
 
 // --------------------------------------------------------------------------------------
@@ -260,6 +262,8 @@ export const AdminServicesManagementView: React.FC<AdminViewsProps> = ({
 
   const getTargetViewForService = (id: string): AppView => {
     switch (id) {
+      case 'parcours_patient':
+        return 'patient_journey';
       case 'pediatrie':
         return 'pediatrie_dashboard';
       case 'maternite':
@@ -830,22 +834,44 @@ export const AdminServicesManagementView: React.FC<AdminViewsProps> = ({
 // --------------------------------------------------------------------------------------
 export const AdminRolesTableView: React.FC<AdminViewsProps> = ({
   users,
+  groups,
   onNavigateToView,
+  onShowToast,
+  onRefreshData
 }) => {
-  const rolesList = [
-    { code: 'admin', name: 'Administrateur Système', description: 'Accès intégral à la configuration, sécurité et gestion des utilisateurs', usersCount: users.filter(u => u.role === 'admin' || (u.login || '').toLowerCase().includes('admin')).length },
-    { code: 'superviseur', name: 'Superviseur de Caisse', description: 'Contrôle des flux financiers, validation des clôtures et encaissements', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('supervis')).length },
-    { code: 'caisse', name: 'Agent de Caisse', description: 'Perception des règlements patients, émission des quittances et reçus', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('caiss')).length },
-    { code: 'factures', name: 'Agent de Facturation', description: 'Création et gestion des factures, tiers-payants et prises en charge', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('factur')).length },
-    { code: 'infirmier', name: 'Personnel Infirmier & Triage', description: 'Triage, saisie des constantes vitales, carnet vaccinal, soins infirmiers', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('infirm')).length },
-    { code: 'medecin', name: 'Médecin Généraliste', description: 'Consultations cliniques, prescriptions d\'ordonnances, examens et orientation', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('medecin') || (u.role || '').toLowerCase().includes('docteur')).length },
-    { code: 'specialiste', name: 'Médecin Spécialiste', description: 'Avis spécialisés référés, actes techniques, dossiers complexes et suivi', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('specialiste')).length },
-    { code: 'pediatre', name: 'Pédiatre & Néonatalogiste', description: 'Consultations pédiatriques, vaccination PEV, courbes de croissance OMS', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('pediat') || (u.role || '').toLowerCase().includes('enfant')).length },
-    { code: 'sage_femme', name: 'Sage-Femme / Gynécologue', description: 'Consultations Prénatales (CPN), partogramme, accouchements et post-partum', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('sage') || (u.role || '').toLowerCase().includes('mater') || (u.role || '').toLowerCase().includes('gynec')).length },
-    { code: 'labo', name: 'Biologiste / Technicien Labo', description: 'Prélèvements sanguins, exécution d\'analyses, validation biologique', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('lab') || (u.role || '').toLowerCase().includes('bio')).length },
-    { code: 'imagerie', name: 'Radiologue / Manipulateur', description: 'Acquisition des clichés radio/scanner, rédaction des comptes-rendus', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('imag') || (u.role || '').toLowerCase().includes('radio')).length },
-    { code: 'hospitalisation', name: 'Gestionnaire Hospitalisation', description: 'Admissions au lit, gestion des séjours, transferts et sorties', usersCount: users.filter(u => (u.role || '').toLowerCase().includes('hospit')).length },
-  ];
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<ResGroup | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleOpenMenuConfig = (group: ResGroup) => {
+    setSelectedGroup({ ...group });
+    setIsMenuModalOpen(true);
+  };
+
+  const handleSaveMenus = async (groupId: number, allowedViews: string[]) => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/groups/${groupId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowed_views: allowedViews }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update group menus');
+
+      if (onShowToast) {
+        onShowToast('Permissions de menus mises à jour avec succès.', 'success', 'Rôles & Accès');
+      }
+      
+      setIsMenuModalOpen(false);
+      if (onRefreshData) onRefreshData();
+    } catch (error) {
+      console.error('Error saving menus:', error);
+      if (onShowToast) onShowToast('Erreur lors de la sauvegarde des menus.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -856,7 +882,7 @@ export const AdminRolesTableView: React.FC<AdminViewsProps> = ({
             Gestion des Rôles &amp; Profils Métiers
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Définition des fonctions organisationnelles et des périmètres d'intervention du personnel hospitalier
+            Définition des fonctions organisationnelles et configuration dynamique des menus accessibles par rôle
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -880,7 +906,7 @@ export const AdminRolesTableView: React.FC<AdminViewsProps> = ({
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            {rolesList.length} Profils métiers configurés
+            {groups.length} Groupes de sécurité configurés
           </span>
           <span className="text-xs font-semibold text-slate-600">
             Total collaborateurs : <strong className="text-slate-900 font-mono">{users.length}</strong>
@@ -891,36 +917,236 @@ export const AdminRolesTableView: React.FC<AdminViewsProps> = ({
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <th className="py-2.5 px-4">Code Rôle</th>
-                <th className="py-2.5 px-4">Intitulé du Poste</th>
-                <th className="py-2.5 px-4">Périmètre &amp; Responsabilités</th>
+                <th className="py-2.5 px-4">Code / ID</th>
+                <th className="py-2.5 px-4">Intitulé du Rôle</th>
+                <th className="py-2.5 px-4">Description</th>
+                <th className="py-2.5 px-4">Menus Autorisés</th>
                 <th className="py-2.5 px-4">Effectif affecté</th>
                 <th className="py-2.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rolesList.map((r) => (
-                <tr key={r.code} className="hover:bg-slate-50/80 transition">
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">{r.code}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900">{r.name}</td>
-                  <td className="py-3 px-4 text-slate-600">{r.description}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-800">
-                      {r.usersCount} collaborateur{r.usersCount > 1 ? 's' : ''}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => onNavigateToView('admin_users')}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold text-xs border border-slate-200 transition"
-                    >
-                      Voir membres
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {groups.map((group) => {
+                const usersCount = users.filter(u => u.group_ids?.includes(group.id)).length;
+                return (
+                  <tr key={group.id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3 px-4 font-mono font-bold text-slate-900">G{group.id}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900">{group.name}</td>
+                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate">{group.description || '—'}</td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        {group.allowed_views?.length || 0} Menus actifs
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-800">
+                        {usersCount} collaborateur{usersCount > 1 ? 's' : ''}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleOpenMenuConfig(group)}
+                          className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold text-[10px] flex items-center gap-1 transition shadow-xs"
+                        >
+                          <LayoutList className="w-3.5 h-3.5" />
+                          Configurer Menus
+                        </button>
+                        <button
+                          onClick={() => onNavigateToView('admin_users')}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-bold text-[10px] border border-slate-200 transition"
+                        >
+                          Voir membres
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {isMenuModalOpen && selectedGroup && (
+        <GroupMenuConfigModal
+          group={selectedGroup}
+          onClose={() => setIsMenuModalOpen(false)}
+          onSave={handleSaveMenus}
+          isSaving={isSaving}
+        />
+      )}
+    </div>
+  );
+};
+
+import { AVAILABLE_VIEWS } from '../data/availableViews';
+
+interface GroupMenuConfigModalProps {
+  group: ResGroup;
+  onClose: () => void;
+  onSave: (groupId: number, allowedViews: string[]) => void;
+  isSaving: boolean;
+}
+
+const GroupMenuConfigModal: React.FC<GroupMenuConfigModalProps> = ({ group, onClose, onSave, isSaving }) => {
+  const [selectedViews, setSelectedViews] = useState<string[]>(group.allowed_views || []);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const categories = Array.from(new Set(AVAILABLE_VIEWS.map(v => v.category)));
+
+  const handleToggleView = (viewId: string) => {
+    setSelectedViews(prev => 
+      prev.includes(viewId) 
+        ? prev.filter(id => id !== viewId) 
+        : [...prev, viewId]
+    );
+  };
+
+  const handleToggleCategory = (category: string, enable: boolean) => {
+    const categoryViews = AVAILABLE_VIEWS.filter(v => v.category === category).map(v => v.id as string);
+    if (enable) {
+      setSelectedViews(prev => Array.from(new Set([...prev, ...categoryViews])));
+    } else {
+      setSelectedViews(prev => prev.filter(id => !categoryViews.includes(id)));
+    }
+  };
+
+  const filteredViews = AVAILABLE_VIEWS.filter(v => 
+    v.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] border border-slate-200 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50">
+          <div>
+            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <LayoutList className="w-5 h-5 text-indigo-600" />
+              Configuration des Menus : {group.name}
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Sélectionnez les modules et vues spécifiques que les membres de ce groupe pourront consulter.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-700 p-2 hover:bg-slate-100 rounded-full transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Rechercher un menu, un module ou une catégorie..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+            />
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-[11px] font-bold text-slate-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+              {selectedViews.length} / {AVAILABLE_VIEWS.length} Menus sélectionnés
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categories.map(category => {
+              const catViews = filteredViews.filter(v => v.category === category);
+              if (catViews.length === 0) return null;
+              
+              const allCatSelected = catViews.every(v => selectedViews.includes(v.id as string));
+              const someCatSelected = catViews.some(v => selectedViews.includes(v.id as string));
+
+              return (
+                <div key={category} className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                      <div className="w-1.5 h-4 bg-indigo-600 rounded-full"></div>
+                      {category}
+                    </h4>
+                    <button
+                      onClick={() => handleToggleCategory(category, !allCatSelected)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded transition ${
+                        allCatSelected 
+                          ? 'bg-rose-100 text-rose-700' 
+                          : 'bg-indigo-100 text-indigo-700'
+                      }`}
+                    >
+                      {allCatSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    {catViews.map(view => (
+                      <label 
+                        key={view.id as string}
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer group ${
+                          selectedViews.includes(view.id as string)
+                            ? 'bg-white border-indigo-200 shadow-sm'
+                            : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                          selectedViews.includes(view.id as string)
+                            ? 'bg-indigo-600 border-indigo-600'
+                            : 'bg-white border-slate-300 group-hover:border-indigo-400'
+                        }`}>
+                          {selectedViews.includes(view.id as string) && <Check className="w-3 h-3 text-white" strokeWidth={4} />}
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={selectedViews.includes(view.id as string)}
+                          onChange={() => handleToggleView(view.id as string)}
+                        />
+                        <span className={`text-[11px] font-semibold transition-colors ${
+                          selectedViews.includes(view.id as string) ? 'text-slate-900' : 'text-slate-600'
+                        }`}>
+                          {view.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-5 border-t border-slate-200 bg-white flex items-center justify-between gap-4">
+          <div className="text-[10px] text-slate-500 italic max-w-md">
+            Note: Les modifications prendront effet immédiatement après l'enregistrement. Les utilisateurs connectés devront peut-être rafraîchir leur page pour voir les changements.
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold transition"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={() => onSave(group.id, selectedViews)}
+              disabled={isSaving}
+              className={`px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition flex items-center gap-2 shadow-lg shadow-slate-200/50 ${
+                isSaving ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSaving ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {isSaving ? 'Enregistrement...' : 'Enregistrer la Configuration'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2863,3 +3089,482 @@ export const AdminConsultationTypesManagementView: React.FC<AdminViewsProps> = (
     </div>
   );
 };
+
+// --------------------------------------------------------------------------------------
+// 8. BASCULEMENT EN MODE PRODUCTION & GUIDE D'ARCHITECTURE DE DÉPLOIEMENT
+// --------------------------------------------------------------------------------------
+export const AdminProductionModeView: React.FC<AdminViewsProps> = ({
+  company,
+  users,
+  onSaveCompany,
+  onShowToast,
+  onRefreshData
+}) => {
+  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
+  const [keepMasterSetup, setKeepMasterSetup] = useState(true);
+  const [confirmInput, setConfirmInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [productionStats, setProductionStats] = useState<any>(null);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/analytics');
+      if (res.ok) {
+        const data = await res.json();
+        setProductionStats(data);
+      }
+    } catch (e) {
+      console.warn('Erreur chargement statistiques:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const handleExecuteProductionPurge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmInput.trim().toUpperCase() !== 'PRODUCTION') {
+      if (onShowToast) onShowToast('Veuillez saisir exactement le mot "PRODUCTION" pour confirmer.', 'error');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const res = await fetch('/api/database/production-purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keepMasterData: keepMasterSetup,
+          keepConventions: keepMasterSetup,
+          keepTariffs: keepMasterSetup,
+          requestedBy: 'Super Admin'
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Erreur lors du nettoyage de la base de données');
+      }
+
+      const result = await res.json();
+
+      // Update company mode
+      if (onSaveCompany) {
+        await onSaveCompany({
+          ...company,
+          environment_mode: 'production',
+          production_activated_at: new Date().toISOString()
+        });
+      }
+
+      setIsPurgeModalOpen(false);
+      setConfirmInput('');
+
+      if (onShowToast) {
+        onShowToast(
+          'La plateforme a été basculée en Mode Production avec succès ! Les transactions de test ont été purgées.',
+          'success',
+          'Passage en Production'
+        );
+      }
+
+      if (onRefreshData) onRefreshData();
+      fetchStats();
+    } catch (err: any) {
+      console.error('Purge error:', err);
+      if (onShowToast) onShowToast(`Échec du passage en production: ${err.message || err}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const isProdMode = company?.environment_mode === 'production';
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Header Banner */}
+      <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-emerald-500/10 to-transparent pointer-events-none" />
+        <div className="relative z-10 space-y-2 max-w-2xl">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs ${
+              isProdMode
+                ? 'bg-emerald-500 text-slate-950 font-black'
+                : 'bg-amber-400 text-slate-950 font-black'
+            }`}>
+              {isProdMode ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                  Mode Production Actif
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-4 h-4 text-slate-950" />
+                  Mode Démonstration / Essai
+                </>
+              )}
+            </span>
+            <span className="text-slate-400 text-xs font-mono">
+              Système SIH / LIS v2.8 • Multi-Modules
+            </span>
+          </div>
+
+          <h1 className="text-2xl font-black text-white">
+            Centre de Contrôle de Mise en Production &amp; Architecture Système
+          </h1>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Consultez l'état d'opérabilité de la plateforme, réinitialisez les données de test en 1 clic pour un démarrage à zéro sécurisé, téléchargez des sauvegardes d'urgence et consultez les recommandations d'architecture de déploiement en réseau local ou Cloud.
+          </p>
+        </div>
+
+        <div className="relative z-10 flex flex-col sm:flex-row md:flex-col gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsPurgeModalOpen(true)}
+            className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-black text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" />
+            Basculer en Mode Production (Réinitialiser)
+          </button>
+
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/database/dump-sql"
+              download="database_dump_exhaustive.sql"
+              className="flex-1 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5"
+            >
+              <Printer className="w-3.5 h-3.5 text-emerald-400" />
+              Dump SQL
+            </a>
+            <a
+              href="/api/database/dump-json"
+              download="database_backup.json"
+              className="flex-1 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5"
+            >
+              <Database className="w-3.5 h-3.5 text-sky-400" />
+              Dump JSON
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards & Readiness Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <span>Établissement &amp; Identité</span>
+            <Building2 className="w-4 h-4 text-slate-700" />
+          </div>
+          <div className="font-extrabold text-slate-900 text-sm truncate">{company.name}</div>
+          <div className="text-[11px] text-slate-500 mt-1">{company.city}, {company.country}</div>
+          <div className="mt-3 pt-2 border-t border-slate-100 text-[10px] font-mono font-bold text-emerald-700 flex items-center gap-1">
+            <Check className="w-3 h-3" /> Paramètres configurés
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <span>Comptes Utilisateurs &amp; Rôles</span>
+            <Users className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 font-mono">{users.length} Utilisateurs</div>
+          <div className="text-[11px] text-slate-500 mt-1">Super Admin, Praticiens, Caissiers</div>
+          <div className="mt-3 pt-2 border-t border-slate-100 text-[10px] font-mono font-bold text-emerald-700 flex items-center gap-1">
+            <Check className="w-3 h-3" /> Matrice RBAC active
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <span>Pôles &amp; Services Actifs</span>
+            <Sliders className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 font-mono">
+            {company.hospital_services_config?.filter((s) => s.enabled).length || 9} / 9 Modules
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">Générale, Labo, Radio, Maternité, etc.</div>
+          <div className="mt-3 pt-2 border-t border-slate-100 text-[10px] font-mono font-bold text-emerald-700 flex items-center gap-1">
+            <Check className="w-3 h-3" /> Modulabilité opérationnelle
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+            <span>Base de Données Opérationnelle</span>
+            <Database className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="text-2xl font-black text-slate-900 font-mono">
+            {productionStats?.invoice_count || 0} Factures
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {productionStats?.paid_count || 0} Réglées • Séquenceurs actifs
+          </div>
+          <div className="mt-3 pt-2 border-t border-slate-100 text-[10px] font-mono font-bold text-sky-700 flex items-center gap-1">
+            <Info className="w-3 h-3" /> Purge prête si besoin
+          </div>
+        </div>
+      </div>
+
+      {/* Production Switch Action Card */}
+      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 p-6 rounded-2xl shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="space-y-2 max-w-2xl">
+          <div className="flex items-center gap-2 text-amber-900 font-black text-sm">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <span>Procédure Automatique de Démarrage en Production</span>
+          </div>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            Lorsque vous êtes prêt à ouvrir officiellement votre hôpital/laboratoire aux vrais patients : utilisez cette commande pour effacer intégralement toutes les factures, consultations, bilans et sessions de caisse générés pendant vos tests, tout en <strong>conservant précieusement</strong> les utilisateurs, les tarifs, la nomenclature du laboratoire et les conventions d'assurances.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsPurgeModalOpen(true)}
+          className="px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2 shrink-0 cursor-pointer"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Lancer le Nettoyage &amp; Passage Prod
+        </button>
+      </div>
+
+      {/* Architecture & Deployment Guide Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-slate-700" />
+              Guide d'Architecture &amp; Recommandations d'Infrastructures
+            </h2>
+            <p className="text-xs text-slate-500">
+              Spécifications techniques recommandées pour le déploiement en environnement de production médical
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Card 1: On-Premise */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">1. Déploiement On-Premise (Serveur Réseau Local Hôpital)</h3>
+                <span className="text-[11px] font-bold text-indigo-700">Recommandé pour autonomie 100% hors-ligne</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Pour les établissements disposant de leur propre salle des serveurs ou baies informatiques locales :
+            </p>
+
+            <ul className="space-y-2 text-xs text-slate-700">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>OS Serveur :</strong> Ubuntu Server 22.04 LTS ou Windows Server 2022.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Base de Données :</strong> PostgreSQL 16 ou MariaDB 11+ avec réplication locale.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Reverse Proxy &amp; SSL :</strong> Nginx avec HTTPS SSL/TLS (Certificat auto-signé ou Let's Encrypt).</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Gestion de Daemon :</strong> PM2 (`pm2 start server.ts --name sih-app`) avec autostart au boot.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Card 2: Cloud Container */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-700 shrink-0">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">2. Déploiement Cloud Multi-Sites (Cloud Run / Docker)</h3>
+                <span className="text-[11px] font-bold text-sky-700">Idéal pour polycliniques &amp; centres distants</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Pour une haute disponibilité multi-sites avec accès distant sécurisé :
+            </p>
+
+            <ul className="space-y-2 text-xs text-slate-700">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Conteneurisation :</strong> Image Docker légère basée sur `node:20-alpine`.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Base de Données Manager :</strong> Google Cloud SQL (PostgreSQL) avec sauvegardes quotidiennes automatiques.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Scalabilité :</strong> Auto-scaling de 1 à 10 instances selon le flux de consultations.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Domaine Médical :</strong> Redirection DNS personnalisée avec SSL TLS 1.3 obligatoire.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Card 3: LIS Automates */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                <FlaskConical className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">3. Interfaçage Automates LIS (HL7 / FHIR / ASTM)</h3>
+                <span className="text-[11px] font-bold text-amber-700">Connexion bidirectionnelle paillasse</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Interfaçage temps réel avec les automates de biologie médicale (Roche, Mindray, Sysmex, Abbott, Beckman) :
+            </p>
+
+            <ul className="space-y-2 text-xs text-slate-700">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Protocole MLLP / TCP :</strong> Service d'écoute de socket RS232 / RJ45 pour la réception des trames HL7 ORU^R01.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Reconnaissance par Code-Barres :</strong> Identification automatique des tubes par NDM/N° Échantillon.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Injection Automatique :</strong> Validation technique directe des valeurs mesurées dans le module Laboratoire.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Card 4: Security & Audit */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-700 shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">4. Sécurité, Audit HDS &amp; Sauvegardes Hôpital</h3>
+                <span className="text-[11px] font-bold text-rose-700">Conformité des données de santé</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Protections réglementaires et plan de continuité d'activité (PCA/PRA) :
+            </p>
+
+            <ul className="space-y-2 text-xs text-slate-700">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Audit Trail Inaltérable :</strong> Traçabilité complète de chaque acte clinique, encaissement et modification.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Sauvegardes fides :</strong> Tâche cron quotidienne exportant les dumps SQL vers un stockage sécurisé avec rétention 30 jours.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span><strong>Contrôle d'Accès RBAC :</strong> Isolation stricte des menus selon la fonction (Médecin, Caissier, Biologiste).</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Purge Confirmation */}
+      {isPurgeModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-amber-50">
+              <div className="flex items-center gap-2 text-amber-900 font-black text-sm">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                <span>Confirmation du Passage en Production</span>
+              </div>
+              <button
+                onClick={() => setIsPurgeModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteProductionPurge} className="p-6 space-y-4">
+              <p className="text-xs text-slate-700 leading-relaxed">
+                Cette action va <strong>purger toutes les données de test</strong> (factures, bilans de laboratoire, consultations, sessions de caisse) pour réinitialiser la plateforme en état de production propre.
+              </p>
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={keepMasterSetup}
+                    onChange={(e) => setKeepMasterSetup(e.target.checked)}
+                    className="rounded text-emerald-600 w-4 h-4"
+                  />
+                  <span>Conserver la structure de base de l'établissement :</span>
+                </label>
+                <ul className="text-[11px] text-slate-600 pl-6 space-y-1 list-disc">
+                  <li>Nomenclature &amp; Catalogue des analyses de laboratoire</li>
+                  <li>Tarifs des consultations &amp; Prestations</li>
+                  <li>Conventions d'entreprises &amp; Tiers-payeurs</li>
+                  <li>Comptes d'utilisateurs &amp; Droits d'accès (RBAC)</li>
+                  <li>Paramètres globaux &amp; En-têtes de facturation</li>
+                </ul>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-900 block">
+                  Saisissez le mot <span className="font-mono text-rose-600 bg-rose-50 px-1 py-0.5 rounded">PRODUCTION</span> pour valider :
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={confirmInput}
+                  onChange={(e) => setConfirmInput(e.target.value)}
+                  placeholder="PRODUCTION"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-mono font-bold tracking-widest text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-hidden uppercase"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPurgeModalOpen(false)}
+                  className="px-4 py-2.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProcessing || confirmInput.trim().toUpperCase() !== 'PRODUCTION'}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-md transition ${
+                    isProcessing || confirmInput.trim().toUpperCase() !== 'PRODUCTION'
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                  }`}
+                >
+                  {isProcessing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  {isProcessing ? 'Exécution du nettoyage...' : 'Confirmer & Passer en Prod'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+

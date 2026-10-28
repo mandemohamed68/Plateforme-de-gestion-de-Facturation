@@ -21,6 +21,8 @@ import {
   ShieldCheck,
   Layers,
   User,
+  Zap,
+  CheckCircle2,
 } from 'lucide-react';
 import { LabExamOrder, ResPartner, ResUser, CompanySettings, LabResultStatus, LabParameterResult } from '../types';
 import { printElement } from '../lib/printUtils';
@@ -75,11 +77,48 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [printingOrder, setPrintingOrder] = useState<LabExamOrder | null>(null);
 
+  const handleSimulateAutomateImport = async (orderId: number) => {
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/lab-orders/${orderId}/simulate-automate-import`, {
+        method: 'POST'
+      });
+      if (res.ok && onRefreshData) {
+        await onRefreshData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAdvanceWorkflow = async (orderId: number, nextStatus: string, actorName: string, comment: string) => {
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/lab-orders/${orderId}/advance-workflow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ next_status: nextStatus, actor_name: actorName, comment })
+      });
+      if (res.ok && onRefreshData) {
+        await onRefreshData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const isBiologist =
     currentUser?.login === 'dr.toure' ||
+    currentUser?.login === 'laboratoire' ||
+    currentUser?.login === 'mandemohamed68@gmail.com' ||
     (currentUser?.role || '').toLowerCase().includes('biologiste') ||
     (currentUser?.role || '').toLowerCase().includes('chef') ||
     (currentUser?.role || '').toLowerCase().includes('médecin') ||
+    (currentUser?.role || '').toLowerCase().includes('admin') ||
     currentUser?.login === 'admin';
 
   // Format Date
@@ -107,17 +146,34 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
           label: 'Initié',
           bg: 'bg-emerald-50 text-emerald-800 border-emerald-300',
         };
-      case 'in_progress':
+      case 'collected':
         return {
-          label: 'Transféré',
+          label: 'Prélevé',
           bg: 'bg-indigo-50 text-indigo-800 border-indigo-300',
         };
+      case 'accepted':
+        return {
+          label: 'Réceptionné au Labo',
+          bg: 'bg-teal-50 text-teal-800 border-teal-300',
+        };
+      case 'analyzing':
+        return {
+          label: 'Analyse LIS...',
+          bg: 'bg-amber-50 text-amber-900 border-amber-400 animate-pulse',
+        };
       case 'results_entered':
+      case 'saisi':
         return {
           label: 'Saisi (À valider)',
-          bg: 'bg-amber-50 text-amber-800 border-amber-300',
+          bg: 'bg-amber-100 text-amber-900 border-amber-500 font-black',
+        };
+      case 'valide_tech':
+        return {
+          label: 'Validé Technique',
+          bg: 'bg-blue-50 text-blue-800 border-blue-300',
         };
       case 'validated':
+      case 'valide_biologiste':
         return {
           label: 'Validé Biologiste',
           bg: 'bg-purple-50 text-purple-800 border-purple-300',
@@ -736,12 +792,52 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
                         {/* Actions */}
                         <td className="p-3 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end space-x-1.5">
+                            {order.status === 'in_progress' || order.status === 'collected' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleAdvanceWorkflow(order.id, 'accepted', currentUser?.name || 'Technicien de Paillasse', 'Réception technique au laboratoire central')}
+                                className="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition inline-flex items-center space-x-1 shadow-2xs cursor-pointer"
+                                title="Valider la conformité du tube et réceptionner au laboratoire"
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-white" />
+                                <span>Réception Labo</span>
+                              </button>
+                            ) : order.status === 'accepted' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSimulateAutomateImport(order.id)}
+                                className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition inline-flex items-center space-x-1 shadow-2xs cursor-pointer"
+                                title="Lancer l'automate et ingérer les résultats LIS/HL7"
+                              >
+                                <Zap className="w-3 h-3 text-white" />
+                                <span>Lancer Automate LIS</span>
+                              </button>
+                            ) : order.status === 'analyzing' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSimulateAutomateImport(order.id)}
+                                className="px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs transition inline-flex items-center space-x-1 shadow-2xs cursor-pointer animate-pulse"
+                                title="Récupérer les résultats de l'automate LIS"
+                              >
+                                <RotateCw className="w-3 h-3 animate-spin text-amber-700" />
+                                <span>Récupérer LIS</span>
+                              </button>
+                            ) : null}
+
                             <button
                               onClick={() => handleOpenEdit(order)}
                               className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-md border border-slate-300 shadow-2xs flex items-center space-x-1 transition cursor-pointer"
                             >
                               <Edit2 className="w-3 h-3 text-slate-500" />
-                              <span>Saisir / Valider</span>
+                              <span>
+                                {order.status === 'validated'
+                                  ? 'Consulter'
+                                  : order.status === 'results_entered' && !isBiologist
+                                  ? 'Validation Tech'
+                                  : order.status === 'valide_tech' && isBiologist
+                                  ? 'Validation Bio'
+                                  : 'Saisir / Valider'}
+                              </span>
                             </button>
 
                             <button
@@ -916,26 +1012,66 @@ export const LabGroupedResultsView: React.FC<LabGroupedResultsViewProps> = ({
                 Annuler
               </button>
 
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                {editingOrder.status !== 'validated' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!editingOrder) return;
+                      await handleSimulateAutomateImport(editingOrder.id);
+                      setEditingOrder(null);
+                    }}
+                    disabled={isSaving}
+                    className="px-3 py-2 bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-900 rounded-md text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                    title="Simuler l'ingestion automatique depuis l'automate LIS"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Import LIS</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleSaveResults(false)}
                   disabled={isSaving}
-                  className="flex-1 sm:flex-none px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-md text-xs font-bold transition flex items-center justify-center space-x-1"
+                  className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 rounded-md text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5 text-slate-500" />
                   <span>Enregistrer Brouillon</span>
                 </button>
+
+                {editingOrder.status !== 'validated' && editingOrder.status !== 'valide_biologiste' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!editingOrder) return;
+                      await handleAdvanceWorkflow(
+                        editingOrder.id,
+                        'valide_tech',
+                        currentUser?.name || 'Technicien de Paillasse',
+                        'Validation technique de paillasse effectuée (contrôle qualité & conformité automate)'
+                      );
+                      setEditingOrder(null);
+                    }}
+                    disabled={isSaving}
+                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer shadow-xs"
+                    title="Validation technique par le Technicien de Paillasse"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                    <span>Validation Technique</span>
+                  </button>
+                )}
 
                 {isBiologist && (
                   <button
                     type="button"
                     onClick={() => handleSaveResults(true)}
                     disabled={isSaving}
-                    className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold shadow-xs transition flex items-center justify-center space-x-1"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold shadow-xs transition flex items-center justify-center space-x-1 cursor-pointer"
+                    title="Validation biologique et signature médicale officielle (ISO 15189)"
                   >
                     <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>Valider &amp; Signer</span>
+                    <span>Valider &amp; Signer (Biologiste)</span>
                   </button>
                 )}
               </div>

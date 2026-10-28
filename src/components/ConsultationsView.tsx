@@ -47,6 +47,7 @@ import {
 import { ReferralModal, ExternalPrescriptionModal } from './ClinicalModals';
 import { InvoicePdfModal } from './InvoicePdfModal';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
+import { Pagination } from './Pagination';
 
 interface ConsultationsViewProps {
   company: CompanySettings;
@@ -179,7 +180,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
 
   // Queue filter & search
-  const [queueFilter, setQueueFilter] = useState<'all' | 'ready' | 'in_consultation' | 'pending_payment' | 'referred'>('all');
+  const [queueFilter, setQueueFilter] = useState<'all' | 'ready' | 'in_consultation' | 'pending_payment' | 'referred'>('ready');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Selected Active Patient in Doctor's workstation
@@ -840,6 +841,9 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
     return true;
   };
 
+  const [queuePage, setQueuePage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+
   const clinicalQueue = consultations.filter(c => {
     if (c.status === 'completed' || c.status === 'cancelled') return false;
 
@@ -861,9 +865,12 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
     if (queueFilter === 'in_consultation') return isInConsultation;
     if (queueFilter === 'pending_payment') return isPendingPayment;
     if (queueFilter === 'referred') return isReferred;
+    if (queueFilter === 'all') return !isInConsultation;
 
     return true;
   });
+
+  const paginatedQueue = clinicalQueue.slice((queuePage - 1) * 50, queuePage * 50);
 
   const completedConsultations = consultations.filter(c => c.status === 'completed' && matchesPractitionerScope(c));
 
@@ -1046,7 +1053,7 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                   Aucun patient en attente dans cette catégorie.
                 </div>
               ) : (
-                clinicalQueue.map(c => {
+                paginatedQueue.map(c => {
                   const isUnpaid = c.status === 'pending_payment' || (c.has_pending_balance && !c.reliquat_paid);
                   const isSelected = activeConsultation?.id === c.id;
                   const isInConsult = c.status === 'in_consultation';
@@ -1126,6 +1133,15 @@ export const ConsultationsView: React.FC<ConsultationsViewProps> = ({
                 })
               )}
             </div>
+            {clinicalQueue.length > 50 && (
+              <Pagination
+                currentPage={queuePage}
+                totalPages={Math.ceil(clinicalQueue.length / 50)}
+                totalItems={clinicalQueue.length}
+                pageSize={50}
+                onPageChange={setQueuePage}
+              />
+            )}
           </div>
         )}
 

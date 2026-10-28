@@ -1,0 +1,108 @@
+# 🧪 Spécification & Scénario Officiel du Laboratoire d'Analyses Médicales (LIS / SIH)
+
+## 📌 Présentation Générale
+
+Ce document décrit le **scénario de bout en bout (End-to-End)** de prise en charge d'un bilan de biologie médicale au sein de la plateforme hospitalière.
+Il définit les **6 étapes clés**, les **5 profils d'acteurs**, les **règles de transition d'états de la base de données**, ainsi que les points d'interfaçage avec le Tiers-Payant/Caisse, les Automates de Paillasse (HL7/ASTM) et le Dossier Médical Patient 360°.
+
+---
+
+## 👥 Acteurs & Rôles Impliqués
+
+| Acteur / Profil | Rôle dans le Workflow | Vue Interface Dédiée |
+| :--- | :--- | :--- |
+| **1. Caissier / Facturier** | Encaissement des prestations de biologie, calcul du Tiers-Payeur/Ticket modérateur, validation de la facture. | `/caisse-encaissement`, `/factures` |
+| **2. Phlébotomiste / Infirmier de Labo** | Vérification d'identitovigilance, choix des tubes, impression code-barres / QR Code, réalisation du prélèvement. | `/labo-prelevements` |
+| **3. Technicien de Paillasse** | Inspection de conformité des échantillons, passage sur automates (HL7/ASTM) ou saisie manuelle. | `/labo-attente`, `/labo-analyse` |
+| **4. Technicien Senior / Chef de Paillasse** | Vérification du Contrôle Qualité Interne (CQI), validation technique des séries. | `/labo-resultats` |
+| **5. Biologiste Médical** | Revue clinique, rédaction des interprétations, validation biologique finale & signature électronique PDF. | `/labo-validation` |
+| **6. Médecin Prescripteur / Patient** | Consultation instantanée du compte-rendu signé dans le Dossier 360°, impression ou téléchargement PDF. | `/parcours-patient-360`, `/medecin-dossiers` |
+
+---
+
+## 🔄 Flux des Transitions d'États (Database & Workflow Engine)
+
+```
+[Payé / Caisse]
+   │
+   ▼ (status: pending_sampling | statut_workflow: paye)
+[Salle de Prélèvement] ──(Confirmer Prélèvement)──► [Prélevé]
+                                                      │
+                                                      ▼ (status: collected | statut_workflow: preleve)
+[Paillasse Technique] ──(Accepter Tubes)─────────► [En Analyse / Automate]
+                                                      │
+                                                      ▼ (status: analyzing | status: results_entered)
+[Validation Technique] ──(Valider Technique)─────► [Validé Technique]
+                                                      │
+                                                      ▼ (status: valide_tech)
+[Validation Biologique] ──(Signer PDF)───────────► [Validé Biologiste / Publié]
+                                                      │
+                                                      ▼ (status: validated / valide_biologiste)
+[Dossier Patient 360° & Notification Médecin]
+```
+
+---
+
+## 📝 Description Étape par Étape
+
+### 1️⃣ Étape 1 : Arrivée & Facturation
+* **Déclencheur** : Présentation du patient avec son ordonnance au guichet Caisse.
+* **Actions Caisse** :
+  1. Recherche du patient par NDM ou création du dossier patient.
+  2. Saisie des examens prescrits (*NFS, Glycémie, Bilan Hépatique, Troponine, etc.*).
+  3. Prise en charge Assurance/Tiers-Payeur (ex: 80% SUNU/MUGEFCI, 20% Ticket Modérateur patient).
+  4. Encaissement et validation de la facture `FAC/2026/XXXX`.
+* **Automatisme Système** : La validation de la facture génère automatiquement une commande de laboratoire `LAB-2026-XXXX` avec le statut `pending_sampling` (`paye`) et la transmet au plateau technique.
+
+### 2️⃣ Étape 2 : Salle de Prélèvement & Identitovigilance
+* **Déclencheur** : Arrivée du bon payé dans la file du Phlébotomiste (`/labo-prelevements`).
+* **Actions Phlébotomiste** :
+  1. Vérification stricte de l'identité du patient (Nom, Prénom, Date de Naissance, NDM).
+  2. Sélection des tubes adaptés (Violet EDTA, Rouge Sec, Bleu Citrate).
+  3. Impression et collage des étiquettes à Code-Barres / QR Code unique (`ECH-2026-XXXX`).
+  4. Réalisation de la ponction veineuse et clic sur **"Confirmer le Prélèvement"**.
+* **Changement d'état** : `status = 'collected'` / `statut_workflow = 'preleve'`.
+
+### 3️⃣ Étape 3 : Réception Paillasse & Analyse
+* **Déclencheur** : Arrivée des tubes étiquetés au laboratoire central (`/labo-attente`).
+* **Actions Technicien / Automate** :
+  1. Inspection visuelle et clic sur **"Accepter les Échantillons"** (`status = 'accepted'`).
+  2. **Interfaçage Automate (HL7 / ASTM / RS232)** : L'automate lit le code-barres du tube, interroge le LIS, effectue les dosages et réinjecte automatiquement les valeurs numériques.
+  3. En cas d'examen manuel (Goutte Épaisse, ECBU, Parasito), le technicien saisit les résultats sur l'interface.
+  4. 🚨 **Gestion des Valeurs Paniques** : Toute valeur critique (ex: *Troponine > 10 ng/mL, Glycémie < 0.40 g/L*) déclenche une alerte rouge visuelle et sonore prioritaire.
+
+### 4️⃣ Étape 4 : Validation Technique
+* **Déclencheur** : Fin du dosage de la série par l'automate ou le technicien.
+* **Actions Technicien Senior** :
+  1. Contrôle de la conformité du Contrôle Qualité Interne (CQI).
+  2. Vérification de la vraisemblance technique et clic sur **"Valider la Technique"**.
+* **Changement d'état** : `status = 'valide_tech'` / `statut_workflow = 'valide_tech'`.
+
+### 5️⃣ Étape 5 : Validation Biologique & Signature Numérique
+* **Déclencheur** : Présence des résultats validés techniquement dans la file du Biologiste (`/labo-validation`).
+* **Actions Biologiste Médical** :
+  1. Analyse globale de la cohérence clinique et des antécédents du patient.
+  2. Saisie des commentaires, remarques cliniques et interprétations biologiques.
+  3. Clic sur **"Valider la Biologie & Signer"**.
+* **Automatisme Système** :
+  - Génération du **Compte-Rendu officiel PDF** intégrant la signature numérique du biologiste, le tampon certifié de l'établissement et le **QR Code d'authentification**.
+  - Changement d'état : `status = 'validated'` / `statut_workflow = 'valide_biologiste'`.
+
+### 6️⃣ Étape 6 : Consultation 360°, Notification & Diffusion
+* **Déclencheur** : Publication du rapport signé.
+* **Diffusion Multi-canaux** :
+  1. **Espace Médecin / Consultations** : Le médecin prescripteur reçoit une notification d'alerte et peut consulter le bilan en temps réel dans le **Dossier Patient 360°** (`/parcours-patient-360`).
+  2. **Secrétariat / Guichet** : Impression du bulletin officiel signé pour remise en main propre.
+  3. **Patient** : Envoi automatique d'un SMS/Email contenant le lien de téléchargement sécurisé du PDF.
+
+---
+
+## 🔒 Règles de Sécurité & Traçabilité (Conformité SIH)
+
+1. **Rule R02 (Audit Trail Inaltérable)** : Chaque transition d'état (`Payé` ➔ `Prélevé` ➔ `Accepté` ➔ `Validé Tech` ➔ `Validé Bio`) enregistre un journal d'audit immuable avec ID utilisateur, horodatage exact et adresse IP (`dbJournal`).
+2. **Rule R03 (Alertes Critiques)** : Les résultats hors-norme ou panique bloquent la clôture aveugle et exigent une confirmation formelle.
+3. **Rule R06 (RBAC & Profils Strictes)** : La signature biologique est exclusivement réservée aux comptes disposant du rôle Biologiste Médical ou Super Administrateur.
+4. **Rule R09 (Dossier Patient Unifié 360°)** : Tous les résultats validés alimentent automatiquement l'historique biologique central du patient.
+
+---
+*Document généré automatiquement par le Système d'Information Hospitalier (SIH / LIS) v2.8 - Module Biologie Médicale.*

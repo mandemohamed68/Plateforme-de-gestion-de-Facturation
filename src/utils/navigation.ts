@@ -4,7 +4,7 @@ import { getUserBillingProfile } from '../lib/formatters';
 /**
  * Returns allowed views based on strict role-based access control (RBAC).
  */
-export function getAllowedViews(user: ResUser | null): AppView[] {
+export function getAllowedViews(user: ResUser | null, allGroups: ResGroup[] = []): AppView[] {
   const getRawViews = (): AppView[] => {
     if (!user) return ['dashboard'];
 
@@ -14,13 +14,8 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     const groupIds = user.group_ids || [];
     const perms = user.permissions || [];
 
-    // If user has custom allowed views configured explicitly on their record
-    if (user.allowed_views && Array.isArray(user.allowed_views) && user.allowed_views.length > 0) {
-      return user.allowed_views as AppView[];
-    }
-
-    // 1. Super Admin / Direction / Administrateur Universel -> Accès complet sans restriction
-    if (
+    // 0. Super Admin / Direction / Administrateur Universel -> ACCÈS TOTAL ET ABSOLU À TOUS LES MENUS
+    const isSuperAdmin =
       login === 'mandemohamed68@gmail.com' ||
       login === 'super_admin' ||
       login === 'admin' ||
@@ -28,8 +23,10 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       role.includes('directeur') ||
       role.includes('administrateur') ||
       role.includes('universel') ||
-      perms.includes('all')
-    ) {
+      perms.includes('all') ||
+      groupIds.includes(12);
+
+    if (isSuperAdmin) {
       return [
         'accueil_module',
         'hospitalisation_module',
@@ -150,6 +147,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'company',
         'flash_announcements',
         'notifications',
+        'alert_settings',
         'logs_audit',
         'schema',
         'appointments',
@@ -160,6 +158,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'nurse_schedule',
         'surgery_theater',
         'imaging_pacs',
+        'pharmacy_group',
         'pharmacy_dispensing',
         'pharmacy_stock',
         'pharmacy_orders',
@@ -173,16 +172,31 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       ];
     }
 
-    // 2. Laboratoire (Biologiste / Technicien) - 7 items
+    // 1. Group-based dynamic allowed views (Aggregation from all assigned groups for operational roles)
+    const groupViews = new Set<string>();
+    groupIds.forEach(gid => {
+      const g = allGroups.find(group => group.id === gid);
+      if (g && g.allowed_views && Array.isArray(g.allowed_views)) {
+        g.allowed_views.forEach(v => groupViews.add(v));
+      }
+    });
+
+    if (groupViews.size > 0) {
+      return Array.from(groupViews) as AppView[];
+    }
+
+    // If user has custom allowed views configured explicitly on their record
+    if (user.allowed_views && Array.isArray(user.allowed_views) && user.allowed_views.length > 0) {
+      return user.allowed_views as AppView[];
+    }
+
+    // 2a. Biologiste Médical / Chef Laboratoire (Validation Biologique, Signature, Catalogue)
     if (
       login === 'laboratoire' ||
       login === 'dr.toure' ||
-      login === 'technicien' ||
+      login === 'biologiste' ||
       groupIds.includes(5) ||
-      role.includes('biologiste') ||
-      role.includes('technicien') ||
-      role.includes('laboratoire') ||
-      department.includes('lab')
+      role.includes('biologiste')
     ) {
       return [
         'dashboard',
@@ -199,6 +213,47 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
         'lab_results',
         'lab_grouped_results',
         'products'
+      ];
+    }
+
+    // 2b. Technicien de Paillasse / Automates (Réception centralisée, Automates LIS, Saisie, Validation Technique)
+    if (
+      login === 'technicien' ||
+      groupIds.includes(6) ||
+      role.includes('technicien') ||
+      role.includes('paillasse') ||
+      (department.includes('lab') && !role.includes('biologiste') && !role.includes('phlébotomiste') && !role.includes('préleveur'))
+    ) {
+      return [
+        'dashboard',
+        'patient_journey',
+        'labo_group',
+        'labo_dashboard',
+        'labo_queue',
+        'labo_sampling',
+        'labo_in_progress',
+        'labo_results',
+        'lab_sampling',
+        'lab_results'
+      ];
+    }
+
+    // 2c. Phlébotomiste / Agent de Prélèvement (Prélèvements, Étiquetage codes-barres SID)
+    if (
+      login === 'preleveur' ||
+      groupIds.includes(13) ||
+      role.includes('phlébotomiste') ||
+      role.includes('phlebotomiste') ||
+      role.includes('préleveur') ||
+      role.includes('preleveur')
+    ) {
+      return [
+        'dashboard',
+        'patient_journey',
+        'labo_group',
+        'labo_dashboard',
+        'labo_sampling',
+        'lab_sampling'
       ];
     }
 
@@ -344,10 +399,10 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
       ];
     }
 
-    // 7. Gestionnaire Hospitalisation - 7 items
+    // 7. Gestionnaire Hospitalisation
     if (
       login === 'hospitalisation' ||
-      groupIds.includes(6) ||
+      groupIds.includes(14) ||
       role.includes('hospit') ||
       department.includes('hospit')
     ) {
@@ -527,11 +582,15 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
     if ((result.includes('company') || user?.permissions?.includes('can_manage_settings') || user?.permissions?.includes('all')) && !result.includes('flash_announcements')) {
       result.push('flash_announcements');
     }
-    if (!result.includes('alert_settings')) {
+    const isAdminOrSupervisor =
+      user?.permissions?.includes('all') ||
+      user?.permissions?.includes('can_manage_settings') ||
+      roleLower.includes('admin') ||
+      roleLower.includes('supervis') ||
+      (user?.login || '').toLowerCase().includes('admin');
+
+    if (isAdminOrSupervisor && !result.includes('alert_settings')) {
       result.push('alert_settings');
-    }
-    if (!result.includes('notifications')) {
-      result.push('notifications');
     }
     if (result.includes('pharmacy_dispensing') || (isClinicalOrAdmin && (user?.role?.toLowerCase().includes('pharmac') || user?.permissions?.includes('all')))) {
       const pharmViews: AppView[] = ['pharmacy_dispensing', 'pharmacy_stock', 'pharmacy_orders', 'pharmacy_expired', 'pharmacy_narcotics', 'pharmacy_sales', 'pharmacy_settings'];
@@ -548,6 +607,7 @@ export function getAllowedViews(user: ResUser | null): AppView[] {
  * Maps any AppView to its required hospital service code (if modular).
  */
 export function getServiceIdForView(view: string): string | null {
+  if (view === 'patient_journey') return 'parcours_patient';
   if (view === 'patient_dossiers' || view === 'medecin_dossiers') return null; // Central Dossier Médical is always available across all practitioner disciplines
   if (view.startsWith('pediatrie_')) return 'pediatrie';
   if (view.startsWith('maternite_')) return 'maternite';
@@ -713,6 +773,17 @@ export function getSmartDashboardView(user: ResUser | null): AppView {
     role.includes('technicien') ||
     role.includes('laboratoire') ||
     department.includes('lab')
+  ) {
+    return 'labo_dashboard';
+  }
+
+  // 11b. Phlébotomiste -> Labo Dashboard
+  if (
+    login === 'preleveur' ||
+    role.includes('phlébotomiste') ||
+    role.includes('phlebotomiste') ||
+    role.includes('préleveur') ||
+    role.includes('preleveur')
   ) {
     return 'labo_dashboard';
   }

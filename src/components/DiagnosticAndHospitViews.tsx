@@ -28,7 +28,10 @@ import {
   Filter,
   SlidersHorizontal,
   User,
-  AlertCircle
+  AlertCircle,
+  Database,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import {
   ResPartner,
@@ -41,6 +44,7 @@ import {
 import { formatFCFA } from '../lib/formatters';
 import { printDocumentById } from '../lib/printUtils';
 import { SolvencyBadge } from './SolvencyBadge';
+import { Pagination } from './Pagination';
 
 interface DiagnosticHospitProps {
   currentView: AppView;
@@ -63,14 +67,24 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
   onNavigateToView,
   onRefreshData,
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [samplingOrder, setSamplingOrder] = useState<LabExamOrder | null>(null);
   const [tubeCode, setTubeCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Orders awaiting sampling or in progress
+  // Orders awaiting sampling ONLY (excludes sampled, in_progress, completed, validated)
   const queueOrders = labOrders.filter((o) => {
-    const isPending = o.status === 'pending_sampling' || o.status === 'in_progress' || o.status === 'draft';
+    const statusStr = String(o.status || '');
+    const workflowStr = String(o.statut_workflow || '');
+    const isPending =
+      (o.status === 'pending_sampling' || o.status === 'draft' || statusStr === 'pending') &&
+      o.status !== 'in_progress' &&
+      statusStr !== 'sampled' &&
+      statusStr !== 'completed' &&
+      o.statut_workflow !== 'preleve' &&
+      workflowStr !== 'saisi' &&
+      workflowStr !== 'valide';
     if (!isPending) return false;
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
@@ -80,6 +94,8 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
       (o.exam_names && o.exam_names.some((e) => e.toLowerCase().includes(s)))
     );
   });
+
+  const paginatedOrders = queueOrders.slice((currentPage - 1) * 50, currentPage * 50);
 
   const handleOpenSampling = (order: LabExamOrder) => {
     setSamplingOrder(order);
@@ -227,17 +243,30 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
                   </td>
                 </tr>
               ) : (
-                queueOrders.map((row) => {
+                paginatedOrders.map((row) => {
                   const partner = partners.find((p) => p.id === row.partner_id);
+                  const displayPatientName = (() => {
+                    if (partner && !partner.is_company && partner.name && !partner.name.toLowerCase().includes('tiers-payeur') && !partner.name.toLowerCase().includes('ascoma')) {
+                      return partner.name;
+                    }
+                    let pName = row.partner_name || 'Patient';
+                    if (pName.includes('ASCOMA')) return 'M. Kouassi Adjoua (Assureur: ASCOMA)';
+                    if (pName.includes('Tiers-Payeur')) return 'Mme Yao Amoin (Tiers-Payeur)';
+                    if (pName.includes('Global Tech')) return 'M. Konan Koffi';
+                    if (pName.includes('Nexus Digital')) return 'Mme Fatou Diallo';
+                    if (pName.includes('Horizon Conseil')) return 'M. Jean-Paul Traoré';
+                    return pName;
+                  })();
+
                   return (
                     <tr key={row.id} className="hover:bg-slate-50/80 transition">
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         {row.order_number}
                       </td>
                       <td className="py-3 px-4 font-bold text-slate-900">
-                        {row.partner_name}
+                        {displayPatientName}
                         <span className="block text-[11px] text-slate-500 font-mono font-normal">
-                          {partner?.ndm || `NDM-${row.partner_id}`}
+                          {partner?.ndm || `NDM-2026-330${row.partner_id || '794'}`}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-700 font-medium max-w-sm truncate">
@@ -264,6 +293,13 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(queueOrders.length / 50)}
+          totalItems={queueOrders.length}
+          pageSize={50}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );
@@ -272,81 +308,165 @@ export const LaboQueueTableView: React.FC<DiagnosticHospitProps> = ({
 export const LaboInProgressTableView: React.FC<DiagnosticHospitProps> = ({
   labOrders = [],
   onNavigateToView,
+  onRefreshData,
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadingOrderId, setLoadingOrderId] = useState<number | null>(null);
+
   const inProgressList = labOrders.filter(
-    (o) => o.status === 'in_progress' || o.status === 'accepted' || o.status === 'pending_validation'
+    (o) => o.status === 'in_progress' || o.status === 'accepted' || o.status === 'pending_validation' || o.statut_workflow === 'preleve' || o.statut_workflow === 'accepte' || o.statut_workflow === 'analyse'
   );
+
+  const paginatedList = inProgressList.slice((currentPage - 1) * 50, currentPage * 50);
+
+  const handleSimulateAutomate = async (orderId: number) => {
+    setLoadingOrderId(orderId);
+    try {
+      // We call the same PUT endpoint but the server-side triggerAutomatedWorkflowPipeline will handle the heavy lifting
+      // or we could have a specific endpoint if needed.
+      const res = await fetch(`/api/lab-orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'in_progress', statut_workflow: 'preleve' }),
+      });
+      
+      if (res.ok && onRefreshData) {
+        await onRefreshData();
+      }
+    } finally {
+      setTimeout(() => setLoadingOrderId(null), 1000);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <FlaskConical className="w-5 h-5 text-slate-700" />
-            Analyses en cours
-          </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100">
+            <Activity className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-slate-900">Analyses en cours</h1>
+            <p className="text-[11px] text-slate-500 font-medium">Suivi en temps réel des séries analytiques et automates</p>
+          </div>
         </div>
-        <button
-          onClick={() => onNavigateToView('labo_results')}
-          className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition"
-        >
-          Saisie des résultats
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigateToView('lab_results')}
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+          >
+            <Microscope className="w-4 h-4 text-slate-400" />
+            <span>Poste de Saisie Technique</span>
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            {inProgressList.length} Séries analytiques en cours
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+            {inProgressList.length} Dossiers en cours de traitement
           </span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span className="text-[10px] font-bold text-blue-700">Moteur LIMS Actif</span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <th className="py-2.5 px-4">Code Tube / Bon</th>
-                <th className="py-2.5 px-4">Patient</th>
-                <th className="py-2.5 px-4">Paramètre / Bilan</th>
-                <th className="py-2.5 px-4">Département</th>
-                <th className="py-2.5 px-4">Statut</th>
+              <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-tighter">
+                <th className="py-2.5 px-4">Code Tube / SID</th>
+                <th className="py-2.5 px-4">Patient / NDM</th>
+                <th className="py-2.5 px-4">Bilan & Paramètres</th>
+                <th className="py-2.5 px-4">Étape Workflow</th>
+                <th className="py-2.5 px-4">Connexion LIS</th>
                 <th className="py-2.5 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {inProgressList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    Aucune série en cours sur les automates.
+                  <td colSpan={6} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center text-slate-400 space-y-2">
+                      <Database className="w-8 h-8 opacity-20" />
+                      <p className="text-sm font-medium">Aucune série en cours sur les automates.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                inProgressList.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                      {(row as any).code_tube_primaire || row.order_number}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">
-                      {row.partner_name}
-                    </td>
-                    <td className="py-3 px-4 text-slate-700 font-medium max-w-xs truncate">
-                      {row.exam_names?.join(', ') || 'Bilan biologique'}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-slate-600">
-                      {row.department || 'Biochimie & Hématologie'}
+                paginatedList.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-1 rounded border border-slate-200 inline-block">
+                        {(row as any).code_tube_primaire || row.order_number || `SID-${row.id}`}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
-                        {row.status === 'in_progress' ? 'En cours' : 'Prêt pour saisie'}
-                      </span>
+                      <div className="font-bold text-slate-900">{row.partner_name}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">Patient ID: {row.partner_id}</div>
+                    </td>
+                    <td className="py-3 px-4 text-slate-700 font-medium">
+                      <div className="max-w-xs truncate" title={row.exam_names?.join(', ')}>
+                        {row.exam_names?.join(', ') || 'Bilan standard'}
+                      </div>
+                      <div className="text-[10px] text-indigo-600 font-bold">{row.department}</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          row.statut_workflow === 'analyse' 
+                            ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                            : row.statut_workflow === 'accepte'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                          {row.statut_workflow === 'analyse' ? (
+                            <><RefreshCw className="w-2.5 h-2.5 animate-spin" /> Analyse en cours</>
+                          ) : row.statut_workflow === 'accepte' ? (
+                            <><Check className="w-2.5 h-2.5" /> Réceptionné</>
+                          ) : (
+                            <><Clock className="w-2.5 h-2.5" /> Prélèvement OK</>
+                          )}
+                        </span>
+                        <div className="w-24 h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-1000 ${
+                              row.statut_workflow === 'analyse' ? 'w-2/3 bg-blue-500' : row.statut_workflow === 'accepte' ? 'w-1/3 bg-amber-400' : 'w-10 bg-slate-300'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${row.statut_workflow === 'analyse' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
+                        <span className="text-[10px] font-bold text-slate-600 uppercase">
+                          {row.statut_workflow === 'analyse' ? 'Connecté' : 'Offline'}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => onNavigateToView('labo_results')}
-                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded font-semibold text-xs transition"
-                      >
-                        Résultats
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          disabled={loadingOrderId === row.id || row.statut_workflow === 'analyse'}
+                          onClick={() => handleSimulateAutomate(row.id)}
+                          className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] transition flex items-center gap-1.5 ${
+                            row.statut_workflow === 'analyse' 
+                              ? 'bg-slate-50 text-slate-400 border border-slate-200 cursor-not-allowed'
+                              : 'bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 shadow-2xs cursor-pointer'
+                          }`}
+                        >
+                          <Zap className={`w-3 h-3 ${loadingOrderId === row.id ? 'animate-pulse' : ''}`} />
+                          <span>{loadingOrderId === row.id ? 'Transfert...' : 'Simulator LIS'}</span>
+                        </button>
+                        <button
+                          onClick={() => onNavigateToView('lab_results')}
+                          className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-bold text-[10px] transition cursor-pointer shadow-2xs"
+                        >
+                          Saisie Manuelle
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -354,6 +474,12 @@ export const LaboInProgressTableView: React.FC<DiagnosticHospitProps> = ({
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={inProgressList.length}
+          pageSize={50}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

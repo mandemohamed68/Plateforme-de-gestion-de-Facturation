@@ -166,6 +166,8 @@ export interface CompanySettings {
   // Hospital Services Modularity Configuration (Back-Office / Admin)
   enabled_hospital_services?: string[]; // list of active service IDs e.g. ['pediatrie', 'maternite', 'hospitalisation', 'medecine_generale', 'specialiste', 'urgences', 'laboratoire', 'imagerie', 'caisse_facturation', 'pharmacie']
   hospital_services_config?: HospitalServiceConfig[]; // Full services configuration list
+  environment_mode?: 'demo' | 'production';
+  production_activated_at?: string;
 
   // Watermark Settings
   show_watermark?: boolean; // Toggling watermark on/off
@@ -286,6 +288,7 @@ export interface ResGroup {
   name: string; // e.g. "Administrateur", "Biologiste Médical", "Technicien Labo", "Caissier", "Comptable"
   description: string | null;
   permissions?: string[]; // Exhaustive permissions
+  allowed_views?: string[]; // Dynamic views/menus allowed for this group
   created_at: string;
 }
 
@@ -603,7 +606,7 @@ export interface AnalyticsSummary {
 
 export type AnalyticsData = AnalyticsSummary;
 
-export type LabResultStatus = 'pending_sampling' | 'in_progress' | 'results_entered' | 'validated' | 'rejected' | 'accepted' | 'saisi' | 'valide_tech' | 'valide_biologiste' | 'envoye' | 'draft' | 'pending_validation' | 'done';
+export type LabResultStatus = 'pending_sampling' | 'collected' | 'accepted' | 'analyzing' | 'results_entered' | 'valide_tech' | 'valide_biologiste' | 'validated' | 'envoye' | 'rejected' | 'in_progress' | 'saisi' | 'draft' | 'pending_validation' | 'done';
 
 export interface LabParameterResult {
   id: string;
@@ -916,6 +919,7 @@ export type AppView =
   | 'admin_permissions'
   | 'admin_company'
   | 'admin_pricing'
+  | 'admin_production'
   | 'admin_medical_settings'
   | 'admin_patient_fields'
   | 'admin_conventions'
@@ -933,6 +937,7 @@ export type AppView =
   | 'maternite_group'
   | 'labo_group'
   | 'imagerie_group'
+  | 'pharmacy_group'
   | 'hospitalisation_module'
   | 'admin_module'
   | 'accueil_module';

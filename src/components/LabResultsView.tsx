@@ -18,8 +18,9 @@ import {
   Building2,
   Calendar,
   Share2,
+  Zap,
 } from 'lucide-react';
-import { LabExamOrder, LabParameterResult, ResPartner, ResUser, CompanySettings } from '../types';
+import { LabExamOrder, LabParameterResult, ResPartner, ResUser, CompanySettings, LabResultStatus } from '../types';
 import { formatFCFA } from '../lib/formatters';
 import { printElement } from '../lib/printUtils';
 import { PaginationControls } from './PaginationControls';
@@ -31,6 +32,7 @@ interface LabResultsViewProps {
   company: CompanySettings;
   onSaveLabOrder: (order: Partial<LabExamOrder>) => Promise<void>;
   onDeleteLabOrder?: (id: number) => Promise<void>;
+  onRefreshData?: () => Promise<void>;
 }
 
 export const LabResultsView: React.FC<LabResultsViewProps> = ({
@@ -39,6 +41,8 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
   currentUser,
   company,
   onSaveLabOrder,
+  onDeleteLabOrder,
+  onRefreshData,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = () => {
@@ -78,6 +82,11 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
     (currentUser?.role || '').toLowerCase().includes('chef') ||
     (currentUser?.role || '').toLowerCase().includes('médecin') ||
     currentUser?.login === 'admin';
+
+  const isTechnician =
+    isBiologist ||
+    (currentUser?.role || '').toLowerCase().includes('technicien') ||
+    (currentUser?.role || '').toLowerCase().includes('labo');
 
   // Panic / Critical values checker (Alertes biologiques vitales)
   const checkPanicValue = (paramName: string, valueStr: string): { isCritical: boolean; message?: string } => {
@@ -157,6 +166,40 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
     setConclusionText(order.conclusion || '');
   };
 
+  const handleSimulateAutomateImport = async (orderId: number) => {
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/lab-orders/${orderId}/simulate-automate-import`, {
+        method: 'POST'
+      });
+      if (res.ok && onRefreshData) {
+        await onRefreshData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAdvanceWorkflow = async (orderId: number, nextStatus: string, actorName: string, comment: string) => {
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/lab-orders/${orderId}/advance-workflow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ next_status: nextStatus, actor_name: actorName, comment })
+      });
+      if (res.ok && onRefreshData) {
+        await onRefreshData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleParamValueChange = (idx: number, newVal: string) => {
     setParametersState((prev) => {
       const copy = [...prev];
@@ -205,22 +248,33 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
     if (!selectedOrderForEdit) return;
     setIsSaving(true);
     try {
-      const updatedStatus = validateNow
-        ? 'validated'
-        : parametersState.some((p) => p.value.trim() !== '')
-        ? 'results_entered'
-        : selectedOrderForEdit.status;
+      let updatedStatus: LabResultStatus = selectedOrderForEdit.status;
+      let workflowStatus = selectedOrderForEdit.statut_workflow;
+
+      if (validateNow) {
+        if (isBiologist) {
+          updatedStatus = 'validated';
+          workflowStatus = 'valide_biologiste';
+        } else if (isTechnician) {
+          updatedStatus = 'valide_tech';
+          workflowStatus = 'valide_tech';
+        }
+      } else if (parametersState.some((p) => p.value.trim() !== '')) {
+        updatedStatus = 'results_entered';
+        workflowStatus = 'analyse';
+      }
 
       await onSaveLabOrder({
         ...selectedOrderForEdit,
         parameters: parametersState,
         conclusion: conclusionText,
         status: updatedStatus,
-        technician_name: currentUser?.name || selectedOrderForEdit.technician_name,
-        technician_id: currentUser?.id || selectedOrderForEdit.technician_id,
-        validated_by_doctor: validateNow ? currentUser?.name || 'Dr. Touré (Biologiste)' : selectedOrderForEdit.validated_by_doctor,
-        validated_by_id: validateNow ? currentUser?.id : selectedOrderForEdit.validated_by_id,
-        validated_at: validateNow ? new Date().toISOString() : selectedOrderForEdit.validated_at,
+        statut_workflow: workflowStatus,
+        technician_name: isTechnician ? currentUser?.name : selectedOrderForEdit.technician_name,
+        technician_id: isTechnician ? currentUser?.id : selectedOrderForEdit.technician_id,
+        validated_by_doctor: (validateNow && isBiologist) ? currentUser?.name || 'Dr. Touré (Biologiste)' : selectedOrderForEdit.validated_by_doctor,
+        validated_by_id: (validateNow && isBiologist) ? currentUser?.id : selectedOrderForEdit.validated_by_id,
+        validated_at: (validateNow && isBiologist) ? new Date().toISOString() : selectedOrderForEdit.validated_at,
       });
 
       setSelectedOrderForEdit(null);
@@ -280,31 +334,55 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'validated':
+      case 'valide_biologiste':
         return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-300">
+            <CheckCircle2 className="w-3 h-3 text-purple-600" />
             <span>Validé par Biologiste</span>
           </span>
         );
-      case 'results_entered':
+      case 'valide_tech':
         return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
-            <Clock className="w-3 h-3 text-slate-600" />
-            <span>Résultats saisis (À valider)</span>
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-300">
+            <ShieldCheck className="w-3 h-3 text-blue-600" />
+            <span>Validé Techniquement</span>
           </span>
         );
+      case 'results_entered':
+      case 'saisi':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+            <Clock className="w-3 h-3 text-amber-600" />
+            <span>Résultats saisis</span>
+          </span>
+        );
+      case 'analyzing':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-400 animate-pulse">
+            <Zap className="w-3 h-3 text-amber-700" />
+            <span>Analyse en cours...</span>
+          </span>
+        );
+      case 'accepted':
+        return (
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-300">
+            <Check className="w-3 h-3 text-teal-600" />
+            <span>Réceptionné au Labo</span>
+          </span>
+        );
+      case 'collected':
       case 'in_progress':
         return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            <FlaskConical className="w-3 h-3 text-slate-500" />
-            <span>En cours d’analyse</span>
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            <FlaskConical className="w-3 h-3 text-indigo-500" />
+            <span>Échantillon Prélevé</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-            <Clock className="w-3 h-3 text-amber-600" />
-            <span>En attente de prélèvement</span>
+          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-50 text-slate-500 border border-slate-200">
+            <Clock className="w-3 h-3 text-slate-400" />
+            <span>Attente Prélèvement</span>
           </span>
         );
     }
@@ -491,14 +569,44 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                       </td>
 
                       <td className="py-2.5 px-2 text-right space-x-1 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(order)}
-                          className="px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 font-bold text-[11px] text-slate-800 transition inline-flex items-center space-x-1 shadow-2xs"
-                        >
-                          <Edit3 className="w-3 h-3 text-slate-600" />
-                          <span>{isBiologist ? 'Valider' : 'Saisir'}</span>
-                        </button>
+                        {order.status === 'in_progress' || order.status === 'collected' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleAdvanceWorkflow(order.id, 'accepted', currentUser?.name || 'Technicien', 'Réception technique au laboratoire')}
+                            className="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] transition inline-flex items-center space-x-1 shadow-2xs"
+                          >
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                            <span>Reception Labo</span>
+                          </button>
+                        ) : order.status === 'accepted' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleSimulateAutomateImport(order.id)}
+                            className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] transition inline-flex items-center space-x-1 shadow-2xs"
+                          >
+                            <Zap className="w-3 h-3 text-white" />
+                            <span>Lancer Automate LIS</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(order)}
+                            className={`px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 font-bold text-[11px] text-slate-800 transition inline-flex items-center space-x-1 shadow-2xs ${
+                              order.status === 'validated' ? 'opacity-70' : ''
+                            }`}
+                          >
+                            <Edit3 className="w-3 h-3 text-slate-600" />
+                            <span>
+                              {order.status === 'validated' 
+                                ? 'Consulter' 
+                                : order.status === 'valide_tech' && isBiologist 
+                                ? 'Valider Bio' 
+                                : isBiologist 
+                                ? 'Valider' 
+                                : 'Saisir'}
+                            </span>
+                          </button>
+                        )}
 
                         <button
                           type="button"
@@ -599,6 +707,7 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                         <th className="py-2 px-3 w-32">Valeur Mesurée</th>
                         <th className="py-2 px-3 w-20">Unité</th>
                         <th className="py-2 px-3">Valeurs de Référence</th>
+                        <th className="py-2 px-3 text-center">Source</th>
                         <th className="py-2 px-3 text-center">Alerte Norme</th>
                       </tr>
                     </thead>
@@ -607,6 +716,7 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                         const panic = checkPanicValue(param.name, param.value);
                         const isCrit = param.is_critical || panic.isCritical;
                         const alertMsg = param.critical_alert || panic.message;
+                        const isAutomated = (param as any).source === 'automate' || (param as any).automate_statut === 'valide';
 
                         return (
                           <tr
@@ -623,25 +733,41 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                               )}
                             </td>
                             <td className="py-2 px-3">
-                              <input
-                                type="text"
-                                value={param.value}
-                                onChange={(e) => handleParamValueChange(idx, e.target.value)}
-                                placeholder="Valeur du résultat"
-                                className={`w-full px-2.5 py-1 border rounded text-xs font-bold ${
-                                  isCrit
-                                    ? 'border-rose-500 bg-rose-50 text-rose-900 focus:ring-rose-500 ring-1 ring-rose-400'
-                                    : param.is_abnormal
-                                    ? 'border-rose-400 bg-rose-50 text-rose-900 focus:ring-rose-500'
-                                    : 'border-slate-300 bg-white text-slate-900 focus:ring-slate-900'
-                                } focus:outline-none`}
-                              />
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={param.value}
+                                  onChange={(e) => handleParamValueChange(idx, e.target.value)}
+                                  placeholder="Valeur du résultat"
+                                  className={`w-full px-2.5 py-1 pr-6 border rounded text-xs font-bold ${
+                                    isCrit
+                                      ? 'border-rose-500 bg-rose-50 text-rose-900 focus:ring-rose-500 ring-1 ring-rose-400'
+                                      : param.is_abnormal
+                                      ? 'border-rose-400 bg-rose-50 text-rose-900 focus:ring-rose-500'
+                                      : 'border-slate-300 bg-white text-slate-900 focus:ring-slate-900'
+                                  } focus:outline-none`}
+                                />
+                                {isAutomated && param.value && (
+                                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-500" title="Transmis par l'automate">
+                                    <Zap className="w-3 h-3" />
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
                               {param.unit}
                             </td>
                             <td className="py-2 px-3 text-slate-600 text-[11px]">
                               {param.reference_range}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${isAutomated ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                {isAutomated ? (
+                                  <><Building2 className="w-2.5 h-2.5" /> LIS</>
+                                ) : (
+                                  <><User className="w-2.5 h-2.5" /> Manuel</>
+                                )}
+                              </span>
                             </td>
                             <td className="py-2 px-3 text-center">
                               <button
@@ -713,15 +839,28 @@ export const LabResultsView: React.FC<LabResultsViewProps> = ({
                   <span>Enregistrer les mesures</span>
                 </button>
 
-                {isBiologist && (
+                {isTechnician && selectedOrderForEdit.status !== 'validated' && (
                   <button
                     type="button"
                     onClick={() => handleSaveResults(true)}
                     disabled={isSaving}
-                    className="flex-1 sm:flex-none px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-xs font-bold shadow-xs transition"
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-xs font-bold shadow-xs transition flex items-center gap-1.5 ${
+                      isBiologist 
+                        ? 'bg-slate-900 hover:bg-slate-800 text-white' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
                   >
-                    <Check className="w-3.5 h-3.5 inline mr-1 stroke-[3]" />
-                    <span>Valider &amp; Signer Biologiquement</span>
+                    {isBiologist ? (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Valider &amp; Signer Biologiquement</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Validation Technique</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>

@@ -39,6 +39,7 @@ import {
 } from '../types';
 import { formatFCFA } from '../lib/formatters';
 import { isSupervisorOrAdmin, loadAllSessions, openNewCashierSession } from '../utils/caisseSessionService';
+import { Pagination } from './Pagination';
 
 interface ModuleDashboardProps {
   currentView: AppView;
@@ -415,8 +416,9 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
       c.status !== 'completed' &&
       c.status !== 'done' &&
       c.status !== 'cancelled' &&
+      c.status !== 'in_consultation' &&
       isGeneralConsultation(c) &&
-      (c.status === 'in_consultation' || c.status === 'waiting' || c.status === 'triage' || (c.status === 'pending_payment' && Boolean(c.has_pending_balance)))
+      (c.status === 'waiting' || c.status === 'triage' || (c.status === 'pending_payment' && Boolean(c.has_pending_balance)))
   );
   const completedToday = consultations.filter(c => (c.status === 'completed' || c.status === 'done') && isGeneralConsultation(c));
   const urgentCases = consultations.filter(c => (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed' && c.status !== 'done' && isGeneralConsultation(c));
@@ -432,8 +434,8 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
         (c.reason || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       if (!matchSearch) return false;
-      if (filterMode === 'waiting') return c.status !== 'completed' && c.status !== 'done' && c.status !== 'cancelled';
-      if (filterMode === 'urgent') return (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed';
+      if (filterMode === 'waiting') return c.status !== 'completed' && c.status !== 'done' && c.status !== 'cancelled' && c.status !== 'in_consultation';
+      if (filterMode === 'urgent') return (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed' && c.status !== 'done';
       if (filterMode === 'completed') return c.status === 'completed' || c.status === 'done';
       return true;
     });

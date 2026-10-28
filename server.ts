@@ -524,11 +524,17 @@ function loadDb() {
       if (store.nextPartnerReductionId) nextPartnerReductionId = store.nextPartnerReductionId;
       nextConsultationId = Math.max(store.nextConsultationId || 0, ...dbConsultations.map(c => c.id || 0), 50);
 
-      // Ensure the 4 official security groups exist and are synced
+      // Ensure the security groups exist and are synced with allowed_views
       initialGroups.forEach((ig) => {
         const idx = dbGroups.findIndex((g) => g.id === ig.id || g.name === ig.name);
         if (idx !== -1) {
-          dbGroups[idx] = { ...dbGroups[idx], name: ig.name, description: ig.description, permissions: ig.permissions };
+          dbGroups[idx] = { 
+            ...dbGroups[idx], 
+            name: ig.name, 
+            description: ig.description, 
+            permissions: ig.permissions,
+            allowed_views: ig.allowed_views 
+          };
         } else {
           dbGroups.push(ig);
         }
@@ -542,30 +548,17 @@ function loadDb() {
         email: 'mandemohamed68@gmail.com',
         active: true,
         partner_id: 1,
-        role: 'Administrateur Universel',
+        role: 'Super Admin',
         department: 'Direction Générale / Administration Globale',
-        group_ids: [1],
-        permissions: [
-          'can_manage_invoices',
-          'can_validate_invoices',
-          'can_delete_invoices',
-          'can_register_payments',
-          'can_manage_partners',
-          'can_manage_lab_catalog',
-          'can_validate_medical',
-          'can_enter_results',
-          'can_view_financials',
-          'can_manage_settings',
-          'can_manage_users',
-          'can_send_reminders',
-        ],
+        group_ids: [12, 1],
+        permissions: ['all'],
         password: 'admin',
         password_hash: 'admin',
         created_at: '2026-01-01T09:00:00Z',
         updated_at: new Date().toISOString(),
       };
 
-      // Strict cleaning: Keep only the official 11 system profiles
+      // Strict cleaning: Keep official system profiles
       const validLogins = new Set([
         'mandemohamed68@gmail.com',
         'super_admin',
@@ -577,6 +570,8 @@ function loadDb() {
         'medecin',
         'specialiste',
         'laboratoire',
+        'technicien',
+        'preleveur',
         'imagerie',
         'hospitalisation'
       ]);
@@ -584,6 +579,7 @@ function loadDb() {
       // Initialize clean user list based on initialUsers
       const cleanUsers: ResUser[] = initialUsers.map((iu) => {
         const existing = dbUsers.find((u) => u.login === iu.login || (u.email && u.email === iu.email) || u.id === iu.id);
+        const isSuperAdminUser = iu.id === 1 || iu.login === 'mandemohamed68@gmail.com' || (iu.role && iu.role.toLowerCase().includes('super admin'));
         if (existing) {
           return {
             ...existing,
@@ -593,9 +589,9 @@ function loadDb() {
             email: iu.email,
             role: iu.role,
             department: iu.department,
-            group_ids: iu.group_ids,
+            group_ids: isSuperAdminUser ? [12, 1] : iu.group_ids,
             active: true,
-            permissions: iu.permissions || existing.permissions || (iu.id === 1 ? ['all'] : []),
+            permissions: isSuperAdminUser ? ['all'] : (iu.permissions || existing.permissions || []),
             allowed_views: undefined,
             password: 'admin',
             password_hash: 'admin',
@@ -603,6 +599,8 @@ function loadDb() {
         }
         return {
           ...iu,
+          group_ids: isSuperAdminUser ? [12, 1] : iu.group_ids,
+          permissions: isSuperAdminUser ? ['all'] : (iu.permissions || []),
           password: 'admin',
           password_hash: 'admin',
         };
@@ -1359,6 +1357,82 @@ app.get('/api/database/dump-sql', (req: Request, res: Response) => {
   }
 });
 
+// Production Mode Switch & Clean Data Initialization Endpoint
+app.post('/api/database/production-purge', (req: Request, res: Response) => {
+  try {
+    const keepMasterPartners = req.body.keepMasterPartners !== false;
+    
+    // 1. Purge test operational data
+    dbMoves = [];
+    dbMoveLines = [];
+    dbPayments = [];
+    dbLabOrders = [];
+    dbConsultations = [];
+    dbTillSessions = [];
+    dbWorkflowLogs = [];
+    dbNotificationQueue = [];
+    dbEmailNotifications = [];
+
+    // Reset sequence counters for clean production numbering
+    nextMoveId = 1;
+    nextMoveLineId = 1;
+    nextPaymentId = 1;
+    nextLabOrderId = 1;
+    nextConsultationId = 1;
+    nextInvoiceSeq = 1;
+    nextVendorSeq = 1;
+    nextTillSessionSeq = 800;
+    nextWorkflowLogId = 1;
+    nextNotificationQueueId = 1;
+
+    // Preserve master partners (insurances & corporate partners) if requested
+    if (keepMasterPartners) {
+      dbPartners = dbPartners.filter(p => p.is_company || p.is_insurance || p.partner_type === 'insurance' || p.partner_type === 'company' || p.partner_type === 'supplier');
+    } else {
+      dbPartners = initialPartners;
+    }
+
+    // Set company environment mode
+    dbCompany = {
+      ...dbCompany,
+      environment_mode: 'production',
+      production_activated_at: new Date().toISOString(),
+    };
+
+    logToJournal('PASSAGE_PRODUCTION', 'Basculement officiel de la plateforme en Mode Production - Purge des transactions de démonstration', {
+      id_utilisateur: 1,
+      utilisateur_nom: 'Super Administrateur',
+      statut: 'succes',
+      metadata: {
+        mode: 'production',
+        conserve_partenaires: keepMasterPartners,
+      }
+    });
+
+    saveDb();
+
+    res.json({
+      success: true,
+      message: 'Plateforme réinitialisée avec succès pour le Passage en Production.',
+      mode: 'production',
+      counts: {
+        users: dbUsers.length,
+        groups: dbGroups.length,
+        partners: dbPartners.length,
+        products: dbProductTemplates.length,
+        moves: dbMoves.length,
+        labOrders: dbLabOrders.length,
+        consultations: dbConsultations.length,
+        tillSessions: dbTillSessions.length,
+      },
+      production_activated_at: dbCompany.production_activated_at,
+    });
+  } catch (err: any) {
+    console.error('[Production Purge Error]:', err);
+    res.status(500).json({ error: 'Erreur lors de la réinitialisation pour la production', details: err?.message });
+  }
+});
+
 // Resilient Client-Server Synchronization & Backup Endpoints
 app.get('/api/sync-status', (req: Request, res: Response) => {
   res.json({
@@ -1711,6 +1785,19 @@ app.get('/api/taxes', (req: Request, res: Response) => res.json(dbTaxes));
 // Groups & Roles Management
 app.get('/api/groups', (req: Request, res: Response) => res.json(dbGroups));
 
+app.put('/api/groups/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const index = dbGroups.findIndex((g) => g.id === id);
+  if (index === -1) return res.status(404).json({ error: 'Group not found' });
+
+  dbGroups[index] = {
+    ...dbGroups[index],
+    ...req.body,
+  };
+  saveDb();
+  res.json(dbGroups[index]);
+});
+
 app.post('/api/groups', (req: Request, res: Response) => {
   const { id, name, description, permissions } = req.body;
   if (!name) return res.status(400).json({ error: 'Le nom du rôle est requis' });
@@ -1740,19 +1827,7 @@ app.post('/api/groups', (req: Request, res: Response) => {
   res.status(201).json(newGroup);
 });
 
-app.put('/api/groups/:id', (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  const index = dbGroups.findIndex((g) => g.id === id);
-  if (index === -1) return res.status(404).json({ error: 'Rôle introuvable' });
 
-  dbGroups[index] = {
-    ...dbGroups[index],
-    ...req.body,
-  };
-
-  saveDb();
-  res.json(dbGroups[index]);
-});
 
 
 
@@ -3514,121 +3589,8 @@ function triggerAutomatedWorkflowPipeline(orderId: number) {
       });
       saveDb();
 
-      // Step 3: Tech Validation (after +1200ms)
-      setTimeout(() => {
-        const o3 = dbLabOrders.find(o => o.id === orderId);
-        if (!o3 || (o3.status !== 'results_entered' && o3.status !== 'saisi')) {
-          activeAutoPipelines.delete(orderId);
-          return;
-        }
-
-        o3.status = 'valide_tech';
-        o3.statut_workflow = 'valide_tech';
-        o3.updated_at = new Date().toISOString();
-
-        dbWorkflowLogs.unshift({
-          id: nextWorkflowLogId++,
-          echantillon_id: o3.id,
-          resultat_id: o3.id,
-          etape: 'validation_technique',
-          etat_avant: 'results_entered',
-          etat_apres: 'valide_tech',
-          acteur_nom: 'Moteur LIMS (Auto-Validation)',
-          commentaire: "Validation technique automatique : Concordance Delta-Check vérifiée, absence d'interférences",
-          date_action: new Date().toISOString()
-        });
-        saveDb();
-
-        // Step 4: Biological validation & electronic certified signature (after +1200ms)
-        setTimeout(() => {
-          const o4 = dbLabOrders.find(o => o.id === orderId);
-          if (!o4 || o4.status !== 'valide_tech') {
-            activeAutoPipelines.delete(orderId);
-            return;
-          }
-
-          const pseudoSig = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-          const sigHash = 'SIG-' + pseudoSig.toUpperCase();
-
-          o4.status = 'validated';
-          o4.statut_workflow = 'valide_biologiste';
-          o4.pdf_signe = true;
-          o4.hash_signature = sigHash;
-          o4.validated_by_doctor = 'Dr. Mohamed Mandé (Médecin Biologiste)';
-          o4.validated_by_id = 5;
-          o4.validated_at = new Date().toISOString();
-          o4.updated_at = new Date().toISOString();
-
-          dbWorkflowLogs.unshift({
-            id: nextWorkflowLogId++,
-            echantillon_id: o4.id,
-            resultat_id: o4.id,
-            etape: 'validation_biologiste',
-            etat_avant: 'valide_tech',
-            etat_apres: 'validated',
-            acteur_nom: 'Dr. Mohamed Mandé (Médecin Biologiste)',
-            commentaire: `Validation biologique certifiée & signature numérique apposée (Empreinte certifiée : ${sigHash})`,
-            date_action: new Date().toISOString()
-          });
-
-          dbNotificationQueue.unshift({
-            id: nextNotificationQueueId++,
-            type: 'email',
-            destinataire: 'patient@email.com',
-            sujet: `Compte-rendu médical validé - Dossier ${o4.order_number}`,
-            message: `Le compte-rendu d'analyse médicale pour ${o4.partner_name} a été validé biologiquement par le médecin.`,
-            echantillon_id: o4.id,
-            statut: 'envoye',
-            date_creation: new Date().toISOString(),
-            date_envoi: new Date().toISOString()
-          });
-          saveDb();
-
-          // Step 5: Final Delivery (SMS + Email + Patient Portal) (after +1200ms)
-          setTimeout(() => {
-            const o5 = dbLabOrders.find(o => o.id === orderId);
-            if (!o5 || (o5.status !== 'validated' && o5.statut_workflow !== 'valide_biologiste')) {
-              activeAutoPipelines.delete(orderId);
-              return;
-            }
-
-            o5.statut_workflow = 'envoye';
-            o5.pdf_path = `/var/labo/resultats/${o5.order_number}.pdf`;
-            o5.envoye_email = true;
-            o5.envoye_sms = true;
-            o5.envoye_portail = true;
-            o5.date_envoi = new Date().toISOString();
-            o5.destinataires = 'Patient, Médecin prescripteur';
-            o5.updated_at = new Date().toISOString();
-
-            dbWorkflowLogs.unshift({
-              id: nextWorkflowLogId++,
-              echantillon_id: o5.id,
-              resultat_id: o5.id,
-              etape: 'envoi',
-              etat_avant: 'validated',
-              etat_apres: 'validated',
-              acteur_nom: 'Système de Diffusion LIMS',
-              commentaire: `Rendu final complété. Compte-rendu PDF certifié transmis par SMS et Email, et mis à disposition sur l'espace patient.`,
-              date_action: new Date().toISOString()
-            });
-
-            dbNotificationQueue.unshift({
-              id: nextNotificationQueueId++,
-              type: 'sms',
-              destinataire: '+225 07 00 00 00 00',
-              sujet: 'SMS Patient Notification Rendu',
-              message: `Bonjour ${o5.partner_name}, vos résultats d'analyses du dossier ${o5.order_number} sont disponibles en ligne sur votre portail sécurisé.`,
-              echantillon_id: o5.id,
-              statut: 'envoye',
-              date_creation: new Date().toISOString(),
-              date_envoi: new Date().toISOString()
-            });
-            saveDb();
-            activeAutoPipelines.delete(orderId);
-          }, 1200);
-        }, 1200);
-      }, 1200);
+      saveDb();
+      activeAutoPipelines.delete(orderId);
     }, 1200);
   }, 1000);
 }
@@ -3666,8 +3628,11 @@ app.put('/api/lab-orders/:id', (req: Request, res: Response) => {
       commentaire: `Prélèvement enregistré et confirmé. Tube prêt pour l'analyse technique.`,
       date_action: new Date().toISOString()
     });
-  }
 
+    // START THE AUTOMATION ENGINE (LIS Simulation)
+    triggerAutomatedWorkflowPipeline(id);
+  }
+  
   saveDb();
   res.json(dbLabOrders[index]);
 });
@@ -3841,6 +3806,63 @@ app.post('/api/lab-orders/:id/advance-workflow', (req: Request, res: Response) =
   res.json({ order, log: newLog, notification: newNotif });
 });
 
+// Real LIS Import API (External system updates)
+app.post('/api/lab/results/import', (req: Request, res: Response) => {
+  const { order_id, barcode, results, actor_name } = req.body;
+  
+  const order = dbLabOrders.find(o => o.id === Number(order_id) || o.code_barre === barcode || o.order_number === barcode || o.barcode === barcode);
+  if (!order) return res.status(404).json({ error: 'Lab order not found' });
+
+  // Update parameters with external LIS data
+  if (Array.isArray(results)) {
+    order.parameters = order.parameters.map(p => {
+      const extMatch = results.find((r: any) => r.name && r.name.toLowerCase() === p.name.toLowerCase());
+      if (extMatch) {
+        // Logic for abnormality detection
+        let isAbnormal = false;
+        if (p.reference_range && extMatch.value !== undefined) {
+          const parts = p.reference_range.split('-').map(x => parseFloat(x.trim()));
+          const numVal = parseFloat(extMatch.value.toString().replace(',', '.'));
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(numVal)) {
+            isAbnormal = numVal < parts[0] || numVal > parts[1];
+          }
+        }
+        return {
+          ...p,
+          value: extMatch.value.toString(),
+          is_abnormal: isAbnormal,
+          source: 'automate',
+          automate_statut: 'valide',
+          date_import: new Date().toISOString()
+        };
+      }
+      return p;
+    });
+  }
+
+  const oldStatus = order.status;
+  order.status = 'results_entered'; // Auto-transition to results entered
+  order.statut_workflow = 'analyse';
+  order.automate_recu = true;
+  order.updated_at = new Date().toISOString();
+
+  // Log transition
+  const newLog: WorkflowLogEntry = {
+    id: nextWorkflowLogId++,
+    echantillon_id: order.id,
+    etape: 'IMPORT_LIS',
+    etat_avant: oldStatus,
+    etat_apres: order.status,
+    acteur_nom: actor_name || 'LIS Automate',
+    commentaire: `Importation automatique des résultats via interface LIS/Middleware (${results?.length || 0} paramètres)`,
+    date_action: new Date().toISOString()
+  };
+  dbWorkflowLogs.unshift(newLog);
+
+  saveDb();
+  res.json({ success: true, order });
+});
+
 // Simulate Automate Import (HL7 / ASTM protocol)
 app.post('/api/lab-orders/:id/simulate-automate-import', (req: Request, res: Response) => {
   const id = Number(req.params.id);
@@ -3907,7 +3929,7 @@ app.post('/api/lab-orders/:id/simulate-automate-import', (req: Request, res: Res
   });
 
   // Transit states
-  order.status = 'results_entered'; // 'Saisi'
+  order.status = 'results_entered';
   order.statut_workflow = 'analyse';
   order.automate_recu = true;
   order.updated_at = new Date().toISOString();
@@ -3916,12 +3938,11 @@ app.post('/api/lab-orders/:id/simulate-automate-import', (req: Request, res: Res
   const newLog: WorkflowLogEntry = {
     id: nextWorkflowLogId++,
     echantillon_id: order.id,
-    resultat_id: order.id,
-    etape: 'import_automate',
+    etape: 'CONNEXION_LIS_HL7',
     etat_avant: oldStatus,
-    etat_apres: 'results_entered',
-    acteur_nom: 'Automate Sysmex XN-1000 (HL7)',
-    commentaire: `Importation réussie de ${order.parameters.length} résultats biologiques par connexion HL7 directe (Code-barres SID détecté)`,
+    etat_apres: 'analyse',
+    acteur_nom: 'Automate LIMS',
+    commentaire: 'Réception automatique des résultats (Protocole HL7/ASTM). Paramètres injectés sans intervention humaine.',
     date_action: new Date().toISOString()
   };
   dbWorkflowLogs.unshift(newLog);

@@ -136,10 +136,12 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
     switch (status) {
       case 'pending_sampling':
         return { label: 'Initié (Payé)', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', border: 'border-emerald-200' };
-      case 'in_progress':
+      case 'collected':
         return { label: 'Prélevé', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', border: 'border-indigo-200' };
       case 'accepted':
         return { label: 'Réceptionné', bg: 'bg-teal-50 text-teal-700 border-teal-200', border: 'border-teal-200' };
+      case 'analyzing':
+        return { label: 'Analyse LIS...', bg: 'bg-blue-50 text-blue-700 border-blue-200', border: 'border-blue-200 shadow-xs animate-pulse' };
       case 'results_entered':
       case 'saisi':
         return { label: 'Saisi', bg: 'bg-amber-50 text-amber-700 border-amber-200', border: 'border-amber-200' };
@@ -891,7 +893,7 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
             <thead className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="p-2.5 w-8 text-center">
-                  <button onClick={handleToggleToggleAllCustom} className="text-slate-400 hover:text-slate-600 transition">
+                  <button onClick={handleToggleSelectAll} className="text-slate-400 hover:text-slate-600 transition">
                     {selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0 ? (
                       <CheckSquare className="w-4 h-4 text-indigo-600 mx-auto" />
                     ) : (
@@ -1000,11 +1002,45 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
                             <button
                               onClick={() => handleValidateSingle(order)}
                               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] rounded shadow-xs transition flex items-center space-x-1 cursor-pointer"
-                              title="Valider le prélèvement : lance l'étiquetage et enchaîne tout le workflow automatique"
+                              title="Valider le prélèvement : lance l'étiquetage"
                             >
                               <CheckCircle className="w-3 h-3 text-white" />
                               <span>Prélèvement Validé</span>
                             </button>
+                          ) : order.status === 'in_progress' || order.status === 'collected' ? (
+                            <button
+                              onClick={() => handleAdvanceWorkflow(order.id, 'accepted', currentUser?.name || 'Technicien', 'Réception au laboratoire central')}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] rounded shadow-xs transition flex items-center space-x-1 cursor-pointer"
+                              title="Confirmer la réception de l'échantillon au laboratoire"
+                            >
+                              <CheckCircle className="w-3 h-3 text-white" />
+                              <span>Reception Labo</span>
+                            </button>
+                          ) : order.status === 'accepted' ? (
+                            <div className="flex flex-col gap-1">
+                              <button
+                                onClick={() => handleAdvanceWorkflow(order.id, 'analyzing', currentUser?.name || 'Technicien', 'Lancement de la série sur automate') }
+                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] rounded shadow-xs transition flex items-center justify-center space-x-1 cursor-pointer"
+                                title="Lancer l'analyse sur automate (Passage en cours d'analyse)"
+                              >
+                                <Bot className="w-3 h-3 text-white" />
+                                <span>Lancer Automate</span>
+                              </button>
+                            </div>
+                          ) : order.status === 'analyzing' ? (
+                            <div className="flex flex-col gap-1">
+                              <button
+                                onClick={() => handleSimulateAutomateImport(order.id)}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] rounded shadow-xs transition flex items-center justify-center space-x-1 cursor-pointer animate-pulse"
+                                title="L'automate a terminé : Importer les résultats LIS"
+                              >
+                                <RefreshCw className="w-3 h-3 text-white" />
+                                <span>Récupérer LIS</span>
+                              </button>
+                              <span className="text-[9px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                Analyse en cours...
+                              </span>
+                            </div>
                           ) : order.status === 'envoye' ? (
                             <span className="text-[10px] text-emerald-700 font-black flex items-center space-x-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                               <CheckCircle className="w-3 h-3 text-emerald-500" />
@@ -1017,7 +1053,7 @@ export const LabSamplingView: React.FC<LabSamplingViewProps> = ({
                           ) : (
                             <span className="text-[10px] text-indigo-700 font-bold flex items-center space-x-1 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200" title="Automate LIMS en cours de traitement automatique">
                               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-                              <span>Traitement LIMS auto...</span>
+                              <span>Traitement LIMS...</span>
                             </span>
                           )}
 

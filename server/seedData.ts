@@ -57,6 +57,13 @@ export const initialGroups: ResGroup[] = [
       'can_manage_settings',
       'can_manage_users',
     ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'superviseur_group', 'superviseur_dashboard', 'superviseur_sessions', 
+      'superviseur_invoices', 'superviseur_caisses', 'superviseur_payments', 'superviseur_reports',
+      'caisse_group', 'caisse_dashboard', 'caisse_new_payment', 'caisse_payments', 'caisse_cloture',
+      'factures_group', 'factures_dashboard', 'factures_new_invoice', 'factures_all', 'factures_draft', 
+      'factures_paid', 'factures_unpaid', 'factures_cancelled', 'invoices', 'payments', 'partners'
+    ],
     created_at: '2026-01-01T09:00:00Z',
   },
   {
@@ -66,6 +73,11 @@ export const initialGroups: ResGroup[] = [
     permissions: [
       'can_manage_invoices',
       'can_manage_partners',
+    ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'factures_group', 'factures_dashboard', 'factures_new_invoice', 
+      'factures_all', 'factures_draft', 'factures_paid', 'factures_unpaid', 'factures_cancelled', 
+      'insurance_claims', 'invoices', 'partners'
     ],
     created_at: '2026-01-01T09:00:00Z',
   },
@@ -77,6 +89,10 @@ export const initialGroups: ResGroup[] = [
       'can_register_payments',
       'can_manage_partners',
     ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'caisse_group', 'caisse_dashboard', 'caisse_new_payment', 
+      'caisse_payments', 'caisse_cloture', 'caisse_sessions', 'payments'
+    ],
     created_at: '2026-01-01T09:00:00Z',
   },
   {
@@ -87,6 +103,12 @@ export const initialGroups: ResGroup[] = [
       'can_manage_invoices',
       'can_register_payments',
       'can_manage_partners',
+    ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'caisse_group', 'caisse_dashboard', 'caisse_new_payment', 
+      'caisse_payments', 'caisse_cloture', 'caisse_sessions', 'factures_group', 'factures_dashboard', 
+      'factures_new_invoice', 'factures_all', 'factures_draft', 'factures_paid', 'factures_unpaid', 
+      'factures_cancelled', 'invoices', 'payments', 'insurance_claims', 'partners'
     ],
     created_at: '2026-01-01T09:00:00Z',
   },
@@ -101,14 +123,23 @@ export const initialGroups: ResGroup[] = [
       'can_enter_results',
       'can_view_financials',
     ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'labo_group', 'labo_dashboard', 'labo_queue', 'labo_sampling', 
+      'labo_in_progress', 'labo_results', 'labo_validation', 'labo_catalog', 'lab_sampling', 
+      'lab_results', 'lab_grouped_results', 'products'
+    ],
     created_at: '2026-01-01T09:00:00Z',
   },
   {
     id: 6,
-    name: 'Technicien Supérieur de Laboratoire',
-    description: 'Exécution technique des analyses, saisie des résultats paillasse, transmission pour validation',
+    name: 'Technicien de Paillasse / Automates',
+    description: 'Réception technique des tubes, pilotage des automates d\'analyses LIS/HL7, saisie et validation technique (valide_tech).',
     permissions: [
       'can_enter_results',
+    ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'labo_group', 'labo_dashboard', 'labo_queue', 'labo_sampling', 
+      'labo_in_progress', 'labo_results', 'lab_sampling', 'lab_results'
     ],
     created_at: '2026-01-01T09:00:00Z',
   },
@@ -121,6 +152,9 @@ export const initialGroups: ResGroup[] = [
       'can_register_payments',
       'can_view_financials',
     ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'superviseur_reports', 'invoices', 'payments', 'insurance_claims', 'partners'
+    ],
     created_at: '2026-01-01T09:00:00Z',
   },
   {
@@ -130,6 +164,11 @@ export const initialGroups: ResGroup[] = [
     permissions: [
       'can_manage_partners',
       'can_enter_results',
+    ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'infirmier_group', 'infirmier_dashboard', 'infirmier_queue', 
+      'infirmier_triage', 'infirmier_vitals', 'infirmier_prescriptions', 'infirmier_referred', 
+      'infirmier_care', 'consultations', 'care_plans'
     ],
     created_at: '2026-09-14T09:00:00Z',
   },
@@ -142,6 +181,10 @@ export const initialGroups: ResGroup[] = [
       'can_enter_results',
       'can_manage_partners',
     ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'medecin_group', 'medecin_dashboard', 'medecin_queue', 
+      'medecin_consultations', 'medecin_dossiers', 'medecin_prescriptions', 'consultations', 'patient_dossiers'
+    ],
     created_at: '2026-09-14T09:00:00Z',
   },
   {
@@ -153,6 +196,11 @@ export const initialGroups: ResGroup[] = [
       'can_enter_results',
       'can_manage_partners',
     ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'specialiste_group', 'specialiste_dashboard', 'specialiste_referred', 
+      'specialiste_consultations', 'specialiste_followup', 'specialiste_patients', 
+      'specialiste_prescriptions', 'consultations', 'patient_dossiers', 'partners'
+    ],
     created_at: '2026-09-14T09:00:00Z',
   },
   {
@@ -161,6 +209,11 @@ export const initialGroups: ResGroup[] = [
     description: "Exécute les examens d'imagerie prescrits (Radiographie, Échographie, ECG) et saisit les comptes-rendus correspondants.",
     permissions: [
       'can_enter_results',
+    ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'imagerie_group', 'imagerie_dashboard', 'imagerie_queue', 
+      'imagerie_scheduled', 'imagerie_completed', 'imagerie_reports', 'imagerie_validation', 
+      'imagerie_prescriptions', 'imaging_pacs'
     ],
     created_at: '2026-09-14T09:00:00Z',
   },
@@ -180,7 +233,67 @@ export const initialGroups: ResGroup[] = [
       'can_manage_settings',
       'can_manage_users',
     ],
+    allowed_views: [
+      'accueil_module', 'hospitalisation_module', 'admin_module', 'dashboard', 'scenarios_s01_s50', 
+      'patient_journey', 'superviseur_group', 'superviseur_dashboard', 'superviseur_sessions', 
+      'superviseur_invoices', 'superviseur_caisses', 'superviseur_payments', 'superviseur_reports',
+      'caisse_group', 'caisse_dashboard', 'caisse_new_payment', 'caisse_payments', 'caisse_cloture',
+      'factures_group', 'factures_dashboard', 'factures_new_invoice', 'factures_all', 'factures_draft', 
+      'factures_paid', 'factures_unpaid', 'factures_cancelled', 'caisse_facture_group', 
+      'caisse_facture_dashboard', 'caisse_facture_sessions', 'caisse_facture_new_payment', 
+      'caisse_facture_new_invoice', 'caisse_facture_all_invoices', 'caisse_facture_all_payments', 
+      'caisse_facture_draft', 'caisse_facture_paid', 'caisse_facture_unpaid', 'caisse_facture_cancelled', 
+      'caisse_facture_cloture', 'infirmier_group', 'infirmier_dashboard', 'infirmier_queue', 
+      'infirmier_triage', 'infirmier_vitals', 'infirmier_prescriptions', 'infirmier_referred', 
+      'infirmier_care', 'medecin_group', 'medecin_dashboard', 'medecin_queue', 'medecin_consultations', 
+      'medecin_dossiers', 'medecin_prescriptions', 'specialiste_group', 'specialiste_dashboard', 
+      'specialiste_referred', 'specialiste_consultations', 'specialiste_followup', 'specialiste_patients', 
+      'specialiste_prescriptions', 'labo_group', 'labo_dashboard', 'labo_queue', 'labo_sampling', 
+      'labo_in_progress', 'labo_results', 'labo_validation', 'labo_catalog', 'imagerie_group', 
+      'imagerie_dashboard', 'imagerie_queue', 'imagerie_scheduled', 'imagerie_completed', 
+      'imagerie_reports', 'imagerie_validation', 'imagerie_prescriptions', 'hospit_dashboard', 
+      'hospit_admissions', 'hospit_patients', 'hospit_beds', 'hospit_transfers', 'hospit_monitoring', 
+      'hospit_discharges', 'pediatrie_group', 'pediatrie_dashboard', 'pediatrie_queue', 
+      'pediatrie_consultations', 'pediatrie_vaccination', 'pediatrie_croissance', 'maternite_group', 
+      'maternite_dashboard', 'maternite_cpn', 'maternite_accouchements', 'maternite_partogramme', 
+      'maternite_postpartum', 'admin_services', 'admin_dashboard', 'admin_users', 'admin_roles', 
+      'admin_permissions', 'admin_company', 'admin_pricing', 'admin_medical_settings', 'admin_reports', 
+      'admin_audit', 'consultations', 'caisse_sessions', 'invoices', 'payments', 'insurance_claims', 
+      'partners', 'patient_dossiers', 'lab_results', 'lab_sampling', 'lab_grouped_results', 'products', 
+      'users', 'company', 'flash_announcements', 'notifications', 'logs_audit', 'schema', 'appointments', 
+      'bed_management', 'letters_referrals', 'care_plans', 'transmissions', 'nurse_schedule', 
+      'surgery_theater', 'imaging_pacs', 'pharmacy_dispensing', 'pharmacy_stock', 'pharmacy_orders', 
+      'pharmacy_expired', 'pharmacy_narcotics', 'pharmacy_sales', 'pharmacy_settings', 
+      'sterilization_log', 'quality_vigilance', 'hr_management'
+    ],
     created_at: '2026-09-14T09:00:00Z',
+  },
+  {
+    id: 13,
+    name: 'Phlébotomiste / Agent de Prélèvement',
+    description: 'Responsable des prélèvements sanguins et biologiques, étiquetage des tubes et confirmation de réception en salle de prélèvement.',
+    permissions: [
+      'can_manage_partners',
+      'can_enter_results',
+    ],
+    allowed_views: [
+      'dashboard', 'patient_journey', 'labo_group', 'labo_dashboard', 'labo_sampling', 'lab_sampling'
+    ],
+    created_at: '2026-10-23T09:00:00Z',
+  },
+  {
+    id: 14,
+    name: 'Gestionnaire Hospitalisation',
+    description: 'Gestion des admissions, mouvements et transferts, suivi des séjours et attribution des lits d\'hospitalisation.',
+    permissions: [
+      'can_manage_partners',
+    ],
+    allowed_views: [
+      'hospitalisation_module', 'dashboard', 'patient_journey', 'hospit_dashboard', 'hospit_admissions', 
+      'hospit_patients', 'patient_dossiers', 'hospit_beds', 'hospit_transfers', 'hospit_monitoring', 
+      'hospit_discharges', 'partners', 'bed_management', 'transmissions'
+    ],
+    created_at: '2026-10-28T09:00:00Z',
   },
 ];
 
@@ -700,8 +813,9 @@ export const initialUsers: ResUser[] = [
     active: true,
     partner_id: 1,
     role: 'Super Admin',
-    department: 'Direction Générale',
-    group_ids: [1],
+    department: 'Direction Générale / Administration Globale',
+    group_ids: [12, 1],
+    permissions: ['all'],
     password: 'admin',
     created_at: '2026-01-01T09:00:00Z',
     updated_at: '2026-01-01T09:00:00Z',
@@ -810,16 +924,30 @@ export const initialUsers: ResUser[] = [
   {
     id: 9,
     login: 'laboratoire',
-    name: 'Laboratoire',
-    email: 'labo@clinic.pro',
+    name: 'Dr. Fatoumata Touré (Biologiste)',
+    email: 'fatoumata.toure@clinic.pro',
     active: true,
     partner_id: 1,
-    role: 'Biologiste / Technicien',
-    department: 'Laboratoire',
+    role: 'Biologiste Médical',
+    department: 'Laboratoire Central',
     group_ids: [5],
     password: 'admin',
     created_at: '2026-01-02T08:00:00Z',
     updated_at: '2026-01-02T08:00:00Z',
+  },
+  {
+    id: 13,
+    login: 'technicien',
+    name: 'Mamadou Technicien',
+    email: 'mamadou.technicien@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Technicien de Paillasse',
+    department: 'Laboratoire (Automates & Analyses)',
+    group_ids: [6],
+    password: 'admin',
+    created_at: '2026-10-28T09:00:00Z',
+    updated_at: '2026-10-28T09:00:00Z',
   },
   {
     id: 10,
@@ -845,10 +973,24 @@ export const initialUsers: ResUser[] = [
     partner_id: 1,
     role: 'Gestionnaire Hospitalisation',
     department: 'Hospitalisation',
-    group_ids: [6], // Or whichever group applies
+    group_ids: [14],
     password: 'admin',
     created_at: '2026-09-14T09:00:00Z',
     updated_at: '2026-09-14T09:00:00Z',
+  },
+  {
+    id: 12,
+    login: 'preleveur',
+    name: 'Jean Prélèveur',
+    email: 'jean.preleveur@clinic.pro',
+    active: true,
+    partner_id: 1,
+    role: 'Phlébotomiste',
+    department: 'Laboratoire (Prélèvements)',
+    group_ids: [13],
+    password: 'admin',
+    created_at: '2026-10-23T09:00:00Z',
+    updated_at: '2026-10-23T09:00:00Z',
   },
 ];
 
