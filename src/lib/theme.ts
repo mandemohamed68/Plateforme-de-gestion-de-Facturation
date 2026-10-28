@@ -117,7 +117,7 @@ export function getAppTheme(
     : undefined;
 
   if (!sidebarBg) {
-    sidebarBg = '#ffffff';
+    sidebarBg = '#0f172a';
   }
 
   const isDarkSidebar = isDarkColor(sidebarBg);
