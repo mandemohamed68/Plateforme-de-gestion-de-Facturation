@@ -3673,7 +3673,7 @@ export const AdminProductionModeView: React.FC<AdminViewsProps> = ({
 
             <form onSubmit={handleExecuteProductionPurge} className="p-6 space-y-4">
               <p className="text-xs text-slate-700 leading-relaxed">
-                Cette action va <strong>purger toutes les données de test</strong> (factures, bilans de laboratoire, consultations, sessions de caisse) pour réinitialiser la plateforme en état de production propre.
+                Cette action va <strong>purger toutes les données de test</strong> (factures, bilans de laboratoire, consultations, sessions de caisse et patients) à la fois en mémoire locale et dans votre base MariaDB (<code className="font-mono text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded">lab_facturation_db</code>) pour reprendre vos tests à zéro en toute sérénité.
               </p>
 
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">

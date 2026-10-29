@@ -74,11 +74,13 @@ export const InfirmierDashboard: React.FC<ModuleDashboardProps> = ({
   const waitingTriage = consultations.filter(
     (c) =>
       c.status !== 'completed' &&
+      c.status !== 'done' &&
       c.status !== 'cancelled' &&
+      c.status !== 'in_consultation' &&
       !c.referred_to_doctor &&
       c.status !== 'referred' &&
       !c.vitals?.taken_at &&
-      (c.status === 'triage' || (c.status === 'pending_payment' && !c.has_pending_balance))
+      c.status === 'triage'
   );
   const vitalsCompletedToday = consultations.filter(c => c.vitals?.taken_at);
   const urgentCases = consultations.filter(c => (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed');
@@ -417,8 +419,9 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
       c.status !== 'done' &&
       c.status !== 'cancelled' &&
       c.status !== 'in_consultation' &&
+      c.status !== 'triage' &&
       isGeneralConsultation(c) &&
-      (c.status === 'waiting' || c.status === 'triage' || (c.status === 'pending_payment' && Boolean(c.has_pending_balance)))
+      (c.status === 'waiting' || Boolean((c as any).referred_to_doctor) || (c.status === 'pending_payment' && Boolean(c.has_pending_balance)))
   );
   const completedToday = consultations.filter(c => (c.status === 'completed' || c.status === 'done') && isGeneralConsultation(c));
   const urgentCases = consultations.filter(c => (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed' && c.status !== 'done' && isGeneralConsultation(c));
@@ -434,7 +437,9 @@ export const MedecinDashboard: React.FC<ModuleDashboardProps> = ({
         (c.reason || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       if (!matchSearch) return false;
-      if (filterMode === 'waiting') return c.status !== 'completed' && c.status !== 'done' && c.status !== 'cancelled' && c.status !== 'in_consultation';
+      if (filterMode === 'waiting') {
+        return c.status !== 'completed' && c.status !== 'done' && c.status !== 'cancelled' && c.status !== 'in_consultation' && c.status !== 'triage';
+      }
       if (filterMode === 'urgent') return (c.priority === 'urgent' || c.priority === 'critique') && c.status !== 'completed' && c.status !== 'done';
       if (filterMode === 'completed') return c.status === 'completed' || c.status === 'done';
       return true;
@@ -692,11 +697,17 @@ export const SpecialisteDashboard: React.FC<ModuleDashboardProps> = ({
 
   const referredPatients = consultations.filter(
     (c) =>
-      c.orientation === 'specialiste' ||
-      c.doctor_type === 'specialiste' ||
-      (c as any).target_level === 'specialiste' ||
-      c.doctor_name?.toLowerCase().includes('spécialiste') ||
-      c.doctor_name?.toLowerCase().includes('specialiste')
+      c.status !== 'completed' &&
+      c.status !== 'done' &&
+      c.status !== 'cancelled' &&
+      c.status !== 'in_consultation' &&
+      (c.orientation === 'specialiste' ||
+        c.doctor_type === 'specialiste' ||
+        (c as any).target_level === 'specialiste' ||
+        c.status === 'referred' ||
+        c.doctor_name?.toLowerCase().includes('spécialiste') ||
+        c.doctor_name?.toLowerCase().includes('specialiste') ||
+        (c.specialty && c.specialty.toLowerCase().includes('spécial')))
   );
   const scheduledSpecial = consultations.filter(
     (c) =>

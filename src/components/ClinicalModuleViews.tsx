@@ -94,8 +94,8 @@ export const InfirmierQueueTableView: React.FC<ClinicalViewProps> = ({
   const [activePrescriptionConsult, setActivePrescriptionConsult] = useState<MedicalConsultation | null>(null);
 
   const activeQueue = consultations.filter((c) => {
-    // Exclude if already completed or cancelled
-    if (c.status === 'completed' || c.status === 'cancelled') return false;
+    // Exclude if already completed, in consultation or cancelled
+    if (c.status === 'completed' || c.status === 'done' || c.status === 'cancelled' || c.status === 'in_consultation') return false;
 
     // Exclude if referred to doctor or specialist
     const isReferred = Boolean(
@@ -109,9 +109,9 @@ export const InfirmierQueueTableView: React.FC<ClinicalViewProps> = ({
     // Exclude if vitals have already been recorded and transferred to doctor
     if (c.vitals?.taken_at || c.status === 'waiting') return false;
 
-    // Only patients who are pending triage / vitals
-    const isQueueStatus = c.status === 'triage' || (c.status === 'pending_payment' && !c.has_pending_balance);
-    if (!isQueueStatus) return false;
+    // Only patients who are actively awaiting triage / constants
+    if (c.status !== 'triage') return false;
+
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return (
@@ -1818,28 +1818,21 @@ export const MedecinQueueTableView: React.FC<ClinicalViewProps> = ({
   onRefreshData,
   onSelectConsultation,
 }) => {
-  // Patients ready for doctor consultation (strictly General Medicine: active, non-pediatric, non-maternity, non-specialist)
-  const doctorQueue = consultations.filter((c) => {
-    if (c.status === 'completed' || c.status === 'cancelled') return false;
-
+  const isSpecialistOrPedOrMat = (c: any) => {
     const consultType = ((c as any).consultation_type_id || c.consultation_type || '');
-
-    // Strict Scope: Exclude Pediatric patients (directed to Pédiatre)
     const isPediatric =
       (c.patient_age !== undefined && c.patient_age !== null && c.patient_age <= 15) ||
       (c.specialty && c.specialty.toLowerCase().includes('pédiatr')) ||
       (consultType && consultType.startsWith('CS-PED')) ||
       (c.reason && (c.reason.toLowerCase().includes('pédiatr') || c.reason.toLowerCase().includes('nourrisson')));
-    if (isPediatric) return false;
+    if (isPediatric) return true;
 
-    // Strict Scope: Exclude Maternity / CPN / Gynécologie (directed to Sage-Femme / Maternité)
     const isMaternity =
       (c.specialty && (c.specialty.toLowerCase().includes('mater') || c.specialty.toLowerCase().includes('cpn') || c.specialty.toLowerCase().includes('gynéc') || c.specialty.toLowerCase().includes('obstét'))) ||
       (consultType && (consultType.startsWith('CS-MAT') || consultType.startsWith('CS-GYN'))) ||
       (c.reason && (c.reason.toLowerCase().includes('grossesse') || c.reason.toLowerCase().includes('cpn') || c.reason.toLowerCase().includes('accouchement')));
-    if (isMaternity) return false;
+    if (isMaternity) return true;
 
-    // Strict Scope: Exclude Specialist patients (directed to Médecin Spécialiste)
     const isSpecialist =
       (c as any).target_level === 'specialiste' ||
       c.doctor_type === 'specialiste' ||
@@ -1853,19 +1846,24 @@ export const MedecinQueueTableView: React.FC<ClinicalViewProps> = ({
         c.specialty.toLowerCase().includes('chirurg') ||
         c.specialty.toLowerCase().includes('neurolog')
       ));
-    if (isSpecialist) return false;
+    return Boolean(isSpecialist);
+  };
 
-    // Initial unpaid admission without reliquat: caisse must handle first
+  // Patients ready in waiting room (strictly waiting, not yet in consultation, not in triage)
+  const doctorQueue = consultations.filter((c) => {
+    if (c.status === 'completed' || c.status === 'done' || c.status === 'cancelled') return false;
+    if (c.status === 'in_consultation' || c.status === 'triage') return false;
+    if (isSpecialistOrPedOrMat(c)) return false;
     if (c.status === 'pending_payment' && !c.has_pending_balance) return false;
 
     return (
       c.status === 'waiting' ||
-      c.status === 'in_consultation' ||
-      c.status === 'triage' ||
       Boolean((c as any).referred_to_doctor) ||
       (c.status === 'pending_payment' && Boolean(c.has_pending_balance))
     );
   });
+
+  const activeConsultation = consultations.find((c) => c.status === 'in_consultation' && !isSpecialistOrPedOrMat(c));
 
   const [payingReliquatId, setPayingReliquatId] = useState<number | null>(null);
   const [statusBanner, setStatusBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -1958,6 +1956,32 @@ export const MedecinQueueTableView: React.FC<ClinicalViewProps> = ({
           <span>Registre des Ordonnances</span>
         </button>
       </div>
+
+      {activeConsultation && (
+        <div className="bg-blue-50/80 border border-blue-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 animate-pulse">
+              <Stethoscope className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-blue-900 flex items-center gap-2">
+                <span>Patient actuellement en cours d'examen clinique</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-100 text-blue-800 border border-blue-300">En cabinet</span>
+              </div>
+              <div className="text-sm font-black text-slate-900 mt-0.5">
+                {activeConsultation.patient_name} <span className="font-mono text-xs font-normal text-slate-500">({activeConsultation.patient_ndm || `NDM-${activeConsultation.partner_id}`})</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => handleStartConsultation(activeConsultation)}
+            className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-xs shrink-0 cursor-pointer"
+          >
+            <span>Reprendre l'Examen</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">

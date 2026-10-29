@@ -242,8 +242,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
   };
 
   const unreadNotifBadge = appNotifications.filter(n => !n.read).length;
-  const pendingPharmNotifsCount = appNotifications.filter(n => n.category === 'pharmacy' && !n.read).length || 2;
-  const pendingLabNotifsCount = appNotifications.filter(n => n.category === 'lab' && !n.read).length || 3;
+  const pendingPharmNotifsCount = appNotifications.filter(n => n.category === 'pharmacy' && !n.read).length;
+  const pendingLabNotifsCount = appNotifications.filter(n => n.category === 'lab' && !n.read).length;
   const pendingLabSamplingCount = (labOrders || []).filter(
     (o) => o.status === 'pending_sampling' || (o.status as string) === 'pending' || o.status === 'draft'
   ).length;
@@ -252,13 +252,24 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
     (o) => o.status === 'pending_validation' || o.status === 'results_entered' || o.status === 'valide_tech'
   ).length;
 
-  const pendingMedecinQueueCount = (consultations || []).filter(
-    (c) => (c.status === 'waiting' || c.status === 'triage' || c.status === 'ready') && c.status !== 'completed' && c.status !== 'in_consultation'
-  ).length;
+  const pendingMedecinQueueCount = (consultations || []).filter((c: any) => {
+    if (c.status === 'completed' || c.status === 'done' || c.status === 'cancelled') return false;
+    if (c.status === 'in_consultation' || c.status === 'triage') return false;
+    if (c.status === 'pending_payment' && !c.has_pending_balance) return false;
+    // Exclude pediatric, maternity, specialist from general doctor queue
+    const isPed = (c.patient_age !== undefined && c.patient_age !== null && c.patient_age <= 15) || (c.specialty && c.specialty.toLowerCase().includes('pédiatr'));
+    const isMat = c.specialty && (c.specialty.toLowerCase().includes('mater') || c.specialty.toLowerCase().includes('cpn') || c.specialty.toLowerCase().includes('gynéc'));
+    const isSpec = c.doctor_type === 'specialiste' || (c as any).target_level === 'specialiste' || c.status === 'referred';
+    if (isPed || isMat || isSpec) return false;
+    return c.status === 'waiting' || Boolean(c.referred_to_doctor) || (c.status === 'pending_payment' && Boolean(c.has_pending_balance));
+  }).length;
 
-  const pendingInfirmierQueueCount = (consultations || []).filter(
-    (c) => (c.status === 'triage' || (c.status === 'waiting' && !c.vitals)) && c.status !== 'completed' && c.status !== 'in_consultation'
-  ).length;
+  const pendingInfirmierQueueCount = (consultations || []).filter((c: any) => {
+    if (c.status === 'completed' || c.status === 'done' || c.status === 'cancelled' || c.status === 'in_consultation') return false;
+    if (c.referred_to_doctor || c.status === 'referred') return false;
+    if (c.vitals?.taken_at || c.status === 'waiting') return false;
+    return c.status === 'triage';
+  }).length;
 
   const pendingPharmCount = (prescriptions || []).filter(
     (p) => p.status === 'pending'
@@ -275,11 +286,6 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({
           id: 'dashboard',
           label: 'Tableau de bord',
           icon: BarChart3,
-        },
-        {
-          id: 'patient_journey',
-          label: 'Parcours patient',
-          icon: Heart,
         }
       ]
     },

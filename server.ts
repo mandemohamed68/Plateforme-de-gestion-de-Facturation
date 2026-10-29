@@ -27,6 +27,7 @@ import {
   getFullStorageStatus,
   testMariaDbConnection,
   syncAllMemoryToMariaDb,
+  truncateMariaDbOperationalData,
 } from './server/mariadbService';
 import { DEFAULT_HOSPITAL_SERVICES } from './src/data/defaultHospitalServices';
 import {
@@ -1381,7 +1382,7 @@ app.get('/api/database/dump-sql', (req: Request, res: Response) => {
 });
 
 // Production Mode Switch & Clean Data Initialization Endpoint
-app.post('/api/database/production-purge', (req: Request, res: Response) => {
+app.post('/api/database/production-purge', async (req: Request, res: Response) => {
   try {
     const keepMasterPartners = req.body.keepMasterPartners !== false;
     
@@ -1434,10 +1435,19 @@ app.post('/api/database/production-purge', (req: Request, res: Response) => {
 
     saveDb();
 
+    // 2. Clear MariaDB local database tables as well if connected
+    let mariadbStatus: any = null;
+    try {
+      mariadbStatus = await truncateMariaDbOperationalData();
+    } catch (err: any) {
+      mariadbStatus = { success: false, message: err?.message };
+    }
+
     res.json({
       success: true,
-      message: 'Plateforme réinitialisée avec succès pour le Passage en Production.',
+      message: 'Plateforme réinitialisée avec succès pour le Passage en Production (Mémoire, Fichier local & MariaDB).',
       mode: 'production',
+      mariadb: mariadbStatus,
       counts: {
         users: dbUsers.length,
         groups: dbGroups.length,

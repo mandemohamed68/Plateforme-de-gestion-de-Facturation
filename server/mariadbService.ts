@@ -500,6 +500,66 @@ export async function syncAllMemoryToMariaDb(data: {
 }
 
 /**
+ * Vide/Tronque les données opérationnelles en local (MariaDB lab_facturation_db) :
+ * - Factures (account_move, account_move_line)
+ * - Encaissements / Paiements (account_payment)
+ * - Sessions de caisse (caisse_session, caisse_opcaisse)
+ * - Échantillons et Résultats de laboratoire (resultat_resultat_labo, labo_echantillon)
+ * - Consultations (medical_consultation)
+ * - Patients individuels de test (conserve les sociétés, assurances et utilisateurs)
+ */
+export async function truncateMariaDbOperationalData(): Promise<{ success: boolean; message: string }> {
+  try {
+    const p = getMariaDbPool();
+    const conn = await p.getConnection();
+
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+
+    const truncateTables = [
+      'account_payment',
+      'account_move_line',
+      'account_move',
+      'caisse_session',
+      'resultat_resultat_labo',
+      'labo_echantillon',
+      'labo_ligne_echantillon',
+      'caisse_opcaisse_ligne',
+      'caisse_opcaisse',
+      'medical_consultation',
+    ];
+
+    for (const table of truncateTables) {
+      try {
+        await conn.query(`TRUNCATE TABLE \`${table}\``);
+      } catch (err: any) {
+        // Table may not exist yet or have different engine
+        try {
+          await conn.query(`DELETE FROM \`${table}\``);
+        } catch (_) {}
+      }
+    }
+
+    // Supprimer les patients de test dans res_partner en conservant les assurances et entreprises partenaires
+    try {
+      await conn.query(`DELETE FROM res_partner WHERE is_company = 0 AND is_insurance = 0 AND (partner_type = 'patient' OR partner_type IS NULL)`);
+    } catch (_) {}
+
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+    conn.release();
+
+    return {
+      success: true,
+      message: 'Base MariaDB réinitialisée à zéro pour les tests : factures, encaissements, sessions, examens et patients purgés.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Impossible de vider MariaDB : ${err?.message}`,
+    };
+  }
+}
+
+/**
  * Retourne l'état complet du stockage
  */
 export async function getFullStorageStatus(): Promise<DatabaseStatus> {
@@ -519,3 +579,4 @@ export async function getFullStorageStatus(): Promise<DatabaseStatus> {
     storageFilePath: filePath,
   };
 }
+
