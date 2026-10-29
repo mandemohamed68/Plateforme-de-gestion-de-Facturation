@@ -55,6 +55,7 @@ interface DiagnosticHospitProps {
   currentUser: ResUser | null;
   onNavigateToView: (view: AppView) => void;
   onRefreshData?: () => Promise<void>;
+  onShowToast?: (msg: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
 }
 
 // -------------------------------------------------------------
@@ -1776,6 +1777,7 @@ export const ImageriePrescriptionsTableView: React.FC<DiagnosticHospitProps> = (
 export const HospitAdmissionsTableView: React.FC<DiagnosticHospitProps> = ({
   partners,
   onNavigateToView,
+  onShowToast,
 }) => {
   const [admissions, setAdmissions] = useState([
     {
@@ -1827,8 +1829,12 @@ export const HospitAdmissionsTableView: React.FC<DiagnosticHospitProps> = ({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4000);
+    if (onShowToast) {
+      onShowToast(msg, 'success', 'Admissions Hospitalières');
+    } else {
+      setToastMsg(msg);
+      setTimeout(() => setToastMsg(null), 4000);
+    }
   };
 
   const handleCreateAdmission = (e: React.FormEvent) => {
@@ -1862,7 +1868,7 @@ export const HospitAdmissionsTableView: React.FC<DiagnosticHospitProps> = ({
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
-      {toastMsg && (
+      {toastMsg && !onShowToast && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMsg}</span>

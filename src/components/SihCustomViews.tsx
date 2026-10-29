@@ -49,6 +49,7 @@ import { printDocumentById } from '../lib/printUtils';
 interface SihViewProps {
   partners: ResPartner[];
   currentUser: ResUser | null;
+  onShowToast?: (msg: string, type?: 'success' | 'error' | 'warning' | 'info', title?: string) => void;
 }
 
 // 1. GESTION DES RENDEZ-VOUS (APPOINTMENTS)
@@ -210,7 +211,7 @@ export const AppointmentsView: React.FC<SihViewProps> = ({ partners }) => {
 };
 
 // 2. GESTION DES LITS ET SÉJOURS (BED MANAGEMENT) - PLAN VISUEL & TABLEAU ANALYTIQUE
-export const BedManagementView: React.FC<SihViewProps> = ({ partners }) => {
+export const BedManagementView: React.FC<SihViewProps> = ({ partners, onShowToast }) => {
   const [lits, setLits] = useState([
     { id: "A1", type: "Standard", service: "Médecine Interne", chambre: "Chambre 101", etage: "1er Étage", patient: "Abdourahmane Diallo", dossier: "NDM-0048", age: "54 ans", dateEntree: "2026-09-10", medecin: "Dr. Toure", diagnostic: "Insuffisance rénale aiguë", status: "Occupé" },
     { id: "A2", type: "Standard", service: "Médecine Interne", chambre: "Chambre 101", etage: "1er Étage", patient: "Fanta Condé", dossier: "NDM-00389", age: "42 ans", dateEntree: "2026-09-12", medecin: "Dr. Camara", diagnostic: "Poussée hypertensive", status: "Occupé" },
@@ -240,8 +241,12 @@ export const BedManagementView: React.FC<SihViewProps> = ({ partners }) => {
   const [assignDiag, setAssignDiag] = useState<string>("");
 
   const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
+    if (onShowToast) {
+      onShowToast(msg, 'success', 'Gestion des Lits');
+    } else {
+      setToastMsg(msg);
+      setTimeout(() => setToastMsg(null), 3500);
+    }
   };
 
   const handleOpenAssign = (lit: any) => {
@@ -321,7 +326,7 @@ export const BedManagementView: React.FC<SihViewProps> = ({ partners }) => {
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
-      {toastMsg && (
+      {toastMsg && !onShowToast && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMsg}</span>

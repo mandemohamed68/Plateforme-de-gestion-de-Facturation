@@ -105,6 +105,7 @@ import {
 import { FlashInfoTicker } from './components/FlashInfoTicker';
 import { FlashAnnouncementsView, DEFAULT_FLASH_ANNOUNCEMENTS } from './components/FlashAnnouncementsView';
 import { SplashLoadingScreen } from './components/SplashLoadingScreen';
+import { ToastNotificationStack, ToastItem } from './components/ToastNotificationStack';
 import {
   AppointmentsView,
   BedManagementView,
@@ -556,28 +557,18 @@ export default function App() {
   const [lookupPatient, setLookupPatient] = useState<ResPartner | null>(null);
   const [isLookupOpen, setIsLookupOpen] = useState(false);
 
-  // Loading & Real-time Spaced Toast Queue System (1s delay between notifications, max 2 visible, deduplicated)
+  // Coordinated Real-time Toast Notifications Stack (immediate dispatch, deduplicated, max 3 non-blocking visible toasts)
   const [isLoading, setIsLoading] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [toasts, setToasts] = useState<
-    Array<{
-      id: string;
-      text: string;
-      type: 'success' | 'error' | 'warning' | 'info';
-      title?: string;
-    }>
-  >([]);
-
-  const toastQueueRef = useRef<
-    Array<{
-      text: string;
-      type: 'success' | 'error' | 'warning' | 'info';
-      title?: string;
-    }>
-  >([]);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const showToast = useCallback(
-    (text: string, type: 'success' | 'error' | 'warning' | 'info' = 'success', title?: string) => {
+    (
+      text: string,
+      type: 'success' | 'error' | 'warning' | 'info' = 'success',
+      title?: string,
+      duration?: number
+    ) => {
       const defaultTitle =
         type === 'success'
           ? 'Opération Réussie'
@@ -588,46 +579,44 @@ export default function App() {
           : 'Notification';
 
       const finalTitle = title || defaultTitle;
+      const finalDuration =
+        duration || (type === 'error' ? 6500 : type === 'warning' ? 5000 : 4000);
 
-      // Prevent exact duplicate notifications from queueing
-      const inQueue = toastQueueRef.current.some((t) => t.text === text);
-      if (!inQueue) {
-        toastQueueRef.current.push({ text, type, title: finalTitle });
-      }
+      const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+      setToasts((prev) => {
+        // Prevent exact duplicate notifications from flooding the UI within 1.5s
+        const isDuplicate = prev.some(
+          (t) => t.text === text && Date.now() - t.createdAt < 1500
+        );
+        if (isDuplicate) return prev;
+
+        const newItem: ToastItem = {
+          id,
+          text,
+          type,
+          title: finalTitle,
+          duration: finalDuration,
+          createdAt: Date.now(),
+        };
+
+        // Keep maximum 3 visible toasts to ensure clean non-blocking viewport
+        const updated = [...prev, newItem];
+        if (updated.length > 3) {
+          return updated.slice(updated.length - 3);
+        }
+        return updated;
+      });
     },
     []
   );
 
-  useEffect(() => {
-    const queueTimer = setInterval(() => {
-      if (toastQueueRef.current.length > 0) {
-        setToasts((prev) => {
-          // Limit to maximum 2 visible toasts simultaneously
-          if (prev.length >= 2) return prev;
-
-          const nextToast = toastQueueRef.current.shift();
-          if (!nextToast) return prev;
-
-          // Prevent duplicate if already visible
-          if (prev.some((t) => t.text === nextToast.text)) return prev;
-
-          const id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-          const newToastItem = { id, ...nextToast };
-
-          setTimeout(() => {
-            setToasts((current) => current.filter((t) => t.id !== id));
-          }, 4500);
-
-          return [...prev, newToastItem];
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(queueTimer);
-  }, []);
-
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const clearAllToasts = useCallback(() => {
+    setToasts([]);
   }, []);
 
   // Save active user and current view to localStorage
@@ -2512,6 +2501,7 @@ export default function App() {
               <BedManagementView
                 partners={partners}
                 currentUser={currentUser}
+                onShowToast={showToast}
               />
             )}
 
@@ -2845,6 +2835,7 @@ export default function App() {
                 currentUser={currentUser}
                 company={company}
                 onNavigateToView={(v) => setCurrentView(v)}
+                onShowToast={showToast}
               />
             )}
 
@@ -3156,62 +3147,12 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Real-time Toast Notifications Container positioned at TOP with translucent green/red/orange backgrounds */}
-      <div className="fixed top-4 right-4 sm:top-5 sm:right-5 z-[999999] flex flex-col space-y-2.5 pointer-events-none max-w-md w-full px-2 sm:px-0">
-        <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-              className={`pointer-events-auto p-4 rounded-xl shadow-2xl border backdrop-blur-md flex items-start space-x-3.5 transition ${
-                toast.type === 'success'
-                  ? 'bg-emerald-600/90 text-white border-emerald-400/40 shadow-emerald-950/20'
-                  : toast.type === 'error'
-                  ? 'bg-rose-600/90 text-white border-rose-400/40 shadow-rose-950/20'
-                  : toast.type === 'warning'
-                  ? 'bg-amber-500/95 text-white border-amber-300/50 shadow-amber-950/20'
-                  : 'bg-sky-600/90 text-white border-sky-400/40 shadow-sky-950/20'
-              }`}
-            >
-              <div className="shrink-0 pt-0.5">
-                {toast.type === 'success' && (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-100" />
-                )}
-                {toast.type === 'error' && (
-                  <AlertCircle className="w-5 h-5 text-rose-100" />
-                )}
-                {toast.type === 'warning' && (
-                  <AlertTriangle className="w-5 h-5 text-amber-100" />
-                )}
-                {toast.type === 'info' && (
-                  <Info className="w-5 h-5 text-sky-100" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0 pr-1">
-                {toast.title && (
-                  <div className="text-[11px] font-black uppercase tracking-wider text-white/90 mb-0.5">
-                    {toast.title}
-                  </div>
-                )}
-                <div className="text-xs font-semibold leading-snug text-white">
-                  {toast.text}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeToast(toast.id)}
-                className="shrink-0 p-1 text-white/80 hover:text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
-                title="Fermer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      {/* Coordinated Real-time Toast Notifications Stack (non-blocking, smooth layout transitions, pause-on-hover) */}
+      <ToastNotificationStack
+        toasts={toasts}
+        onRemoveToast={removeToast}
+        onClearAll={clearAllToasts}
+      />
     </div>
   );
 }

@@ -99,11 +99,12 @@ export const InsuranceClaimsView: React.FC<InsuranceClaimsViewProps> = ({
   const showInternalToast = (text: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     if (onShowToast) {
       onShowToast(text, type);
+    } else {
+      setToastMessage({ text, type });
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
     }
-    setToastMessage({ text, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
   };
 
   // Form state for Modal
