@@ -3105,6 +3105,9 @@ export const AdminProductionModeView: React.FC<AdminViewsProps> = ({
   const [confirmInput, setConfirmInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [productionStats, setProductionStats] = useState<any>(null);
+  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [isTestingDb, setIsTestingDb] = useState(false);
+  const [isSyncingDb, setIsSyncingDb] = useState(false);
 
   const fetchStats = async () => {
     try {
@@ -3118,9 +3121,64 @@ export const AdminProductionModeView: React.FC<AdminViewsProps> = ({
     }
   };
 
+  const fetchDbStatus = async () => {
+    try {
+      const res = await fetch('/api/database/status');
+      if (res.ok) {
+        const data = await res.json();
+        setDbStatus(data);
+      }
+    } catch (e) {
+      console.warn('Erreur chargement statut DB:', e);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchDbStatus();
   }, []);
+
+  const handleTestMariaDb = async () => {
+    setIsTestingDb(true);
+    try {
+      const res = await fetch('/api/database/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (onShowToast) onShowToast(data.message, 'success', 'Connexion MariaDB');
+      } else {
+        if (onShowToast) onShowToast(data.message, 'warning', 'Serveur MariaDB non joignable');
+      }
+      fetchDbStatus();
+    } catch (err: any) {
+      if (onShowToast) onShowToast(`Erreur test: ${err?.message}`, 'error');
+    } finally {
+      setIsTestingDb(false);
+    }
+  };
+
+  const handleSyncToMariaDb = async () => {
+    setIsSyncingDb(true);
+    try {
+      const res = await fetch('/api/database/sync-all-to-mariadb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (onShowToast) onShowToast(data.message, 'success', 'Synchronisation MariaDB');
+      } else {
+        if (onShowToast) onShowToast(data.message, 'error', 'Échec de synchronisation');
+      }
+      fetchDbStatus();
+    } catch (err: any) {
+      if (onShowToast) onShowToast(`Erreur: ${err?.message}`, 'error');
+    } finally {
+      setIsSyncingDb(false);
+    }
+  };
 
   const handleExecuteProductionPurge = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3303,6 +3361,122 @@ export const AdminProductionModeView: React.FC<AdminViewsProps> = ({
             <Info className="w-3 h-3" /> Purge prête si besoin
           </div>
         </div>
+      </div>
+
+      {/* NEW: DIAGNOSTIC & GESTION DE LA BASE DE DONNÉES LOCALE (MARIADB vs FICHIER LOCAL) */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-base font-black text-slate-900">
+                Diagnostic &amp; Emplacement Actuel de Vos Données
+              </h2>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 ${
+                dbStatus?.isConnected
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  : 'bg-amber-100 text-amber-900 border border-amber-300'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${dbStatus?.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                {dbStatus?.isConnected ? 'Connecté à MariaDB Local' : 'Stockage Local Résilient (Fichier JSON)'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-3xl">
+              Toutes vos créations (factures, dossiers d'analyses, tubes, sessions de caisse) sont sauvegardées automatiquement. 
+              Sur votre serveur local MariaDB, elles sont synchronisées directement dans la base <strong className="text-slate-800 font-mono">lab_facturation_db</strong>.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleTestMariaDb}
+              disabled={isTestingDb}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isTestingDb ? 'animate-spin' : ''}`} />
+              <span>{isTestingDb ? 'Vérification...' : 'Tester Connexion MariaDB'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSyncToMariaDb}
+              disabled={isSyncingDb}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>{isSyncingDb ? 'Synchronisation...' : 'Synchroniser vers MariaDB'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Détails Techniques & Paramètres */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Serveur &amp; Base SQL</span>
+            <div className="font-mono font-bold text-slate-900 text-sm">
+              {dbStatus?.host || '127.0.0.1'}:{dbStatus?.port || 3306}
+            </div>
+            <div className="text-slate-600 font-mono text-[11px]">
+              Base : <strong className="text-indigo-600">{dbStatus?.database || 'lab_facturation_db'}</strong> (User: {dbStatus?.user || 'root'})
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Fichier Disque de Secours</span>
+            <div className="font-mono font-bold text-slate-900 truncate text-[11px]" title={dbStatus?.storageFilePath}>
+              {dbStatus?.storageFilePath || 'data/db_store.json'}
+            </div>
+            <div className="text-emerald-700 font-semibold text-[11px] flex items-center gap-1">
+              <Check className="w-3.5 h-3.5" />
+              Sauvegarde permanente locale active
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Données Actuellement en Mémoire</span>
+            <div className="font-mono text-slate-700 space-y-0.5 text-[11px]">
+              <div><strong>{dbStatus?.inMemoryCounts?.moves || 0}</strong> Factures • <strong>{dbStatus?.inMemoryCounts?.payments || 0}</strong> Règlements</div>
+              <div><strong>{dbStatus?.inMemoryCounts?.labOrders || 0}</strong> Dossiers Labo • <strong>{dbStatus?.inMemoryCounts?.tillSessions || 0}</strong> Sessions Caisse</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tables MariaDB détectées si connecté */}
+        {dbStatus?.isConnected && dbStatus?.tableCounts && Object.keys(dbStatus.tableCounts).length > 0 && (
+          <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200/80 space-y-2">
+            <div className="text-xs font-bold text-emerald-900 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Tables Détectées dans MariaDB locale (lab_facturation_db) :</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-1">
+              {Object.entries(dbStatus.tableCounts).map(([tbl, cnt]: any) => (
+                <div key={tbl} className="p-2 bg-white rounded-lg border border-emerald-100 text-center">
+                  <div className="font-mono text-[10px] text-slate-500 truncate" title={tbl}>{tbl}</div>
+                  <div className="font-mono font-bold text-slate-900 text-xs mt-0.5">{cnt} lignes</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Message informatif si MariaDB n'est pas encore démarré */}
+        {!dbStatus?.isConnected && (
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-2">
+            <div className="font-bold flex items-center gap-2">
+              <Info className="w-4 h-4 text-amber-700" />
+              <span>Pourquoi ne voyez-vous rien dans votre console MariaDB locale pour le moment ?</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-amber-800">
+              1. <strong>Sur ce serveur cloud :</strong> L'application stocke automatiquement tout dans <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">data/db_store.json</code>.<br />
+              2. <strong>Sur votre machine locale :</strong> Lorsque vous exécutez l'application en local (ex: <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">npm run dev</code> avec MariaDB démarré sur XAMPP/WAMP), elle se connecte directement à votre base <strong className="font-mono">lab_facturation_db</strong>.<br />
+              3. <strong>Pour injecter dès maintenant toutes les tables et données dans votre MariaDB local :</strong> Exécutez dans votre console MySQL locale :
+              <code className="block mt-1 p-2 bg-white border border-amber-200 rounded font-mono text-[11px] text-slate-800 select-all">
+                mysql -u root -p lab_facturation_db &lt; docs/MARIADB_LABO_FULL_SCHEMA_SEEDS.sql
+              </code>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Production Switch Action Card */}

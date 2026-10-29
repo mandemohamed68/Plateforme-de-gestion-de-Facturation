@@ -23,6 +23,11 @@ import {
 } from './server/seedData';
 import { registerHospitalScenariosRoutes } from './server/hospitalScenariosEngine';
 import { registerFhirRoutes } from './server/fhirRoutes';
+import {
+  getFullStorageStatus,
+  testMariaDbConnection,
+  syncAllMemoryToMariaDb,
+} from './server/mariadbService';
 import { DEFAULT_HOSPITAL_SERVICES } from './src/data/defaultHospitalServices';
 import {
   ResCountry,
@@ -299,9 +304,27 @@ function saveDb() {
     try {
       fs.writeFileSync(DB_BACKUP_FILE, serialized, 'utf-8');
     } catch (_) {}
+
+    // Synchronisation en tâche de fond avec MariaDB locale (lab_facturation_db)
+    scheduleMariaDbSync();
   } catch (err) {
     console.error('[Persistent DB] Error saving to disk:', err);
   }
+}
+
+let syncMariaDbTimeout: NodeJS.Timeout | null = null;
+function scheduleMariaDbSync() {
+  if (syncMariaDbTimeout) clearTimeout(syncMariaDbTimeout);
+  syncMariaDbTimeout = setTimeout(() => {
+    syncAllMemoryToMariaDb({
+      partners: dbPartners,
+      moves: dbMoves,
+      moveLines: dbMoveLines,
+      payments: dbPayments,
+      labOrders: dbLabOrders,
+      tillSessions: dbTillSessions,
+    }).catch(() => {});
+  }, 800);
 }
 
 function syncConsultationForMove(move: AccountMove): MedicalConsultation | null {
@@ -1430,6 +1453,54 @@ app.post('/api/database/production-purge', (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Production Purge Error]:', err);
     res.status(500).json({ error: 'Erreur lors de la réinitialisation pour la production', details: err?.message });
+  }
+});
+
+// ------------------------------------------------------------------------------
+// Endpoints de Diagnostic et Synchronisation MariaDB Locale (lab_facturation_db)
+// ------------------------------------------------------------------------------
+app.get('/api/database/status', async (req: Request, res: Response) => {
+  try {
+    const status = await getFullStorageStatus();
+    res.json({
+      ...status,
+      inMemoryCounts: {
+        partners: dbPartners.length,
+        moves: dbMoves.length,
+        payments: dbPayments.length,
+        labOrders: dbLabOrders.length,
+        tillSessions: dbTillSessions.length,
+        consultations: dbConsultations.length,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Erreur lors de la récupération du statut DB', details: err?.message });
+  }
+});
+
+app.post('/api/database/test-connection', async (req: Request, res: Response) => {
+  try {
+    const { host, port, user, password, database } = req.body || {};
+    const result = await testMariaDbConnection({ host, port, user, password, database });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Erreur lors du test de connexion' });
+  }
+});
+
+app.post('/api/database/sync-all-to-mariadb', async (req: Request, res: Response) => {
+  try {
+    const result = await syncAllMemoryToMariaDb({
+      partners: dbPartners,
+      moves: dbMoves,
+      moveLines: dbMoveLines,
+      payments: dbPayments,
+      labOrders: dbLabOrders,
+      tillSessions: dbTillSessions,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Erreur lors de la synchronisation' });
   }
 });
 
@@ -5138,6 +5209,13 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Facturation Pro] Server running on http://0.0.0.0:${PORT} in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
+    testMariaDbConnection().then((res) => {
+      if (res.success) {
+        console.log(`[Database Status] Connecté à MariaDB local: ${res.message}`);
+      } else {
+        console.log(`[Database Status] Mode Fichier Résilient Actif (data/db_store.json). MariaDB: ${res.message}`);
+      }
+    }).catch(() => {});
   });
 }
 
